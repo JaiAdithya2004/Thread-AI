@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Company Brain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d1117;--sidebar:#161b22;--card:#1c2128;--card2:#21262d;--border:#30363d;--text:#c9d1d9;--dim:#8b949e;--blue:#1f6feb;--blue2:#388bfd;--green:#3fb950;--orange:#d29922;--red:#f85149;--purple:#a371f7;--yellow:#e3b341}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;overflow:hidden;font-size:14px}
+
+/* SIDEBAR */
+.sidebar{width:232px;min-width:232px;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.brand{padding:15px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0}
+.brand-icon{width:30px;height:30px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.brand-name{font-weight:700;font-size:15px;letter-spacing:-.3px}
+
+.dept-block{padding:12px 10px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
+.block-label{font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--dim);text-transform:uppercase;margin-bottom:8px;padding:0 2px}
+.dept-row{display:flex;gap:6px}
+.dept-select{flex:1;background:var(--card);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:7px;font-size:13px;appearance:none;cursor:pointer;font-family:inherit;min-width:0}
+.dept-select:focus{outline:none;border-color:var(--blue)}
+.dept-add-btn{background:var(--card);border:1px solid var(--border);color:var(--dim);width:32px;height:32px;border-radius:7px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;line-height:1}
+.dept-add-btn:hover{border-color:var(--blue);color:var(--blue2)}
+.dept-badge{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;max-width:100%}
+.dept-badge-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.dept-badge-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dept-hint{font-size:11px;color:var(--dim);padding:4px 2px;margin-top:2px}
+
+.sidebar-nav{padding:8px 8px 0;flex-shrink:0}
+.nav-item{width:100%;background:transparent;border:none;color:var(--dim);padding:8px 10px;border-radius:7px;font-size:13.5px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:9px;text-align:left;transition:all .15s;margin-bottom:2px}
+.nav-item:hover{background:var(--card2);color:var(--text)}
+.nav-item.active{background:var(--blue);color:#fff}
+.nav-item svg{width:16px;height:16px;flex-shrink:0;opacity:.85}
+.nav-item.active svg{opacity:1}
+
+.sources-block{padding:12px 10px;border-top:1px solid var(--border);margin-top:auto;flex-shrink:0}
+.source-item{display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px;color:var(--dim)}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0}
+.sdot.on{background:var(--green)}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.tab{display:none;flex:1;flex-direction:column;overflow:hidden}
+.tab.active{display:flex}
+
+/* LLM warning banner */
+.llm-banner{background:#2d1f00;border-bottom:1px solid #5a3e00;padding:10px 32px;font-size:12.5px;color:var(--yellow);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.llm-banner a{color:var(--yellow);text-decoration:underline;cursor:pointer}
+.llm-banner .close-banner{margin-left:auto;cursor:pointer;opacity:.6;font-size:16px;line-height:1}
+.llm-banner .close-banner:hover{opacity:1}
+
+/* ask */
+.ask-head{padding:22px 32px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.ask-head h1{font-size:21px;font-weight:700;margin-bottom:3px}
+.ask-sub{font-size:13px;color:var(--dim)}
+.chat-area{flex:1;overflow-y:auto;padding:24px 32px;display:flex;flex-direction:column;gap:18px}
+.empty-state{align-self:center;margin-top:50px;text-align:center;color:var(--dim);max-width:380px}
+.empty-state .es-icon{font-size:38px;margin-bottom:12px}
+.empty-state p{font-size:14px;margin-bottom:6px}
+.empty-state small{font-size:12px;line-height:1.6}
+.example-qs{display:flex;flex-direction:column;gap:7px;margin-top:16px}
+.example-q{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-size:13px;color:var(--dim);cursor:pointer;text-align:left;transition:all .15s}
+.example-q:hover{border-color:var(--blue);color:var(--text)}
+
+.msg-q{align-self:flex-end;max-width:68%;background:#1a3a6b;color:#a8c8f0;padding:11px 15px;border-radius:14px 14px 3px 14px;font-size:14px;line-height:1.5;word-break:break-word}
+.msg-a{align-self:flex-start;max-width:88%;width:fit-content}
+.loading{display:flex;gap:5px;padding:12px 0}
+.loading span{width:7px;height:7px;background:var(--dim);border-radius:50%;animation:bounce 1.1s infinite}
+.loading span:nth-child(2){animation-delay:.18s}
+.loading span:nth-child(3){animation-delay:.36s}
+@keyframes bounce{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+
+.answer-card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.35)}
+.answer-text{padding:15px 18px;color:#111827;font-size:14px;line-height:1.65;font-weight:500}
+.answer-sources{border-top:1px solid #e5e7eb}
+.src-row{display:flex;align-items:flex-start;gap:10px;padding:10px 18px;border-bottom:1px solid #f3f4f6}
+.src-row:last-child{border-bottom:none}
+.src-icon{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;background:#f3f4f6;margin-top:2px}
+.src-detail{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.src-label{color:#6b7280;font-size:11.5px;font-weight:500;text-transform:capitalize}
+.src-summary{color:#111827;font-size:13px;line-height:1.45;word-break:break-word}
+.src-summary.stale{text-decoration:line-through;color:#9ca3af}
+.src-badges{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;padding-top:2px}
+.pill{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.pill-current{background:#d1fae5;color:#065f46}
+.pill-stale{background:#fef3c7;color:#92400e}
+.pill-shared{background:#ede9fe;color:#5b21b6}
+
+.chat-foot{padding:14px 32px 18px;border-top:1px solid var(--border);flex-shrink:0}
+.input-wrap{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:4px 4px 4px 14px;transition:border-color .15s}
+.input-wrap:focus-within{border-color:var(--blue)}
+.chat-inp{flex:1;background:transparent;border:none;color:var(--text);font-size:14px;font-family:inherit;padding:8px 0;outline:none}
+.chat-inp::placeholder{color:var(--dim)}
+.send-btn{background:var(--blue);border:none;color:#fff;width:34px;height:34px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
+.send-btn:hover{background:var(--blue2)}
+.send-btn svg{width:16px;height:16px}
+.disclaimer{margin-top:8px;font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:5px}
+
+/* CONNECTIONS */
+.tab-head{padding:22px 32px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.tab-head h1{font-size:21px;font-weight:700;margin-bottom:3px}
+.tab-head p{font-size:13px;color:var(--dim)}
+.tab-body{flex:1;overflow-y:auto;padding:24px 32px}
+.conn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:14px}
+.conn-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px;transition:border-color .15s}
+.conn-card.is-connected{border-color:#1a4a2e}
+.conn-card:hover{border-color:var(--blue)}
+.conn-top{display:flex;align-items:center;gap:10px}
+.conn-logo{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.conn-name{font-weight:600;font-size:14px}
+.conn-desc{font-size:12px;color:var(--dim);line-height:1.5;flex:1}
+.conn-foot{display:flex;align-items:center;justify-content:space-between;margin-top:2px}
+.status-row{display:flex;align-items:center;gap:5px;font-size:12px}
+.sdot2{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0}
+.sdot2.on{background:var(--green)}
+.status-connected{color:var(--green)}
+.status-disconnected{color:var(--dim)}
+.btn-sm{padding:6px 13px;border-radius:6px;font-size:12px;font-family:inherit;cursor:pointer;border:none;font-weight:500;transition:all .15s;white-space:nowrap}
+.btn-sync{background:var(--blue);color:#fff}
+.btn-sync:hover{background:var(--blue2)}
+.btn-demo{background:#7c3aed;color:#fff}
+.btn-demo:hover{background:#6d28d9}
+.btn-ghost{background:var(--card2);border:1px solid var(--border);color:var(--dim);cursor:default}
+.btn-setup{background:transparent;border:1px solid var(--border);color:var(--dim);cursor:pointer}
+.btn-setup:hover{border-color:var(--blue);color:var(--blue2)}
+
+/* ACTIVITY */
+.act-filter{display:flex;align-items:center;gap:10px;padding:14px 32px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
+.act-filter label{font-size:12px;color:var(--dim)}
+.act-filter select{background:var(--card);border:1px solid var(--border);color:var(--text);padding:5px 9px;border-radius:6px;font-size:12px;font-family:inherit}
+.act-refresh{margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--dim);padding:5px 12px;border-radius:6px;font-size:12px;font-family:inherit;cursor:pointer}
+.act-refresh:hover{color:var(--text);border-color:var(--text)}
+.act-list{flex:1;overflow-y:auto}
+.act-row{display:flex;align-items:center;gap:12px;padding:12px 32px;border-bottom:1px solid var(--border);transition:background .1s}
+.act-row:hover{background:var(--card2)}
+.act-query{flex:1;font-size:13.5px;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.act-team-badge{padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500;white-space:nowrap;flex-shrink:0}
+.act-surface{padding:2px 7px;border-radius:4px;font-size:11px;background:var(--card2);color:var(--dim);flex-shrink:0}
+.act-time{font-size:11.5px;color:var(--dim);white-space:nowrap;flex-shrink:0}
+.act-empty{padding:40px 32px;text-align:center;color:var(--dim);font-size:13px}
+
+/* SETTINGS */
+.settings-wrap{display:flex;flex-direction:column;gap:20px}
+.settings-card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.settings-card-head{padding:14px 20px;border-bottom:1px solid var(--border);font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:space-between}
+.dept-trow{display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid var(--border)}
+.dept-trow:last-child{border-bottom:none}
+.dept-trow-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dept-trow-name{font-weight:500;font-size:14px;min-width:130px}
+.dept-trow-id{font-size:12px;color:var(--dim);font-family:monospace;min-width:90px}
+.dept-trow-desc{font-size:12px;color:var(--dim);flex:1}
+.env-row{display:flex;align-items:center;gap:10px;padding:11px 20px;border-bottom:1px solid var(--border);font-size:13px}
+.env-row:last-child{border-bottom:none}
+.env-key{font-family:monospace;font-size:12px;color:var(--dim);min-width:200px}
+.env-val{font-size:12px}
+.env-set{color:var(--green)}
+.env-missing{color:var(--red)}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.overlay.show{display:flex}
+.modal{background:var(--sidebar);border:1px solid var(--border);border-radius:14px;width:430px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.modal-head{padding:18px 20px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-head h2{font-size:16px;font-weight:600}
+.modal-close{background:transparent;border:none;color:var(--dim);font-size:22px;cursor:pointer;line-height:1;padding:2px}
+.modal-close:hover{color:var(--text)}
+.modal-body{padding:20px;display:flex;flex-direction:column;gap:15px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--card);border:1px solid var(--border);color:var(--dim);padding:4px 11px;border-radius:20px;font-size:12px;cursor:pointer;transition:all .15s}
+.chip:hover{border-color:var(--blue);color:var(--blue2)}
+.fgroup label{display:block;font-size:12.5px;font-weight:500;margin-bottom:6px;color:var(--dim)}
+.fgroup label span{font-weight:400}
+.fgroup input{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:7px;font-size:13px;font-family:inherit}
+.fgroup input:focus{outline:none;border-color:var(--blue)}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.btn-cancel{background:transparent;border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:7px;font-size:13px;font-family:inherit;cursor:pointer}
+.btn-cancel:hover{background:var(--card2)}
+.btn-create{background:var(--blue);border:none;color:#fff;padding:8px 18px;border-radius:7px;font-size:13px;font-family:inherit;cursor:pointer;font-weight:500}
+.btn-create:hover{background:var(--blue2)}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:11px 16px;font-size:13px;display:flex;align-items:center;gap:8px;z-index:999;transform:translateY(70px);opacity:0;transition:all .3s;max-width:340px}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.ok{border-color:var(--green);color:var(--green)}
+.toast.err{border-color:var(--red);color:var(--red)}
+.toast.warn{border-color:var(--yellow);color:var(--yellow)}
+
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-icon">🧠</div>
+    <span class="brand-name">Company brain</span>
+  </div>
+
+  <div class="dept-block">
+    <div class="block-label">Department</div>
+    <div class="dept-row">
+      <select class="dept-select" id="deptSelect">
+        <option value="">All Departments</option>
+      </select>
+      <button class="dept-add-btn" id="addDeptBtn" title="Add Department">+</button>
+    </div>
+    <div id="deptBadgeWrap" style="display:none;margin-top:7px">
+      <span class="dept-badge" id="deptBadgeInner">
+        <span class="dept-badge-dot" id="deptBadgeDot"></span>
+        <span class="dept-badge-name" id="deptBadgeName"></span>
+      </span>
+    </div>
+    <div id="deptHint" class="dept-hint" style="display:none"></div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <button class="nav-item active" data-tab="ask">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/></svg>
+      Ask
+    </button>
+    <button class="nav-item" data-tab="connections">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>
+      Connections
+    </button>
+    <button class="nav-item" data-tab="activity">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Activity
+    </button>
+    <button class="nav-item" data-tab="settings">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      Settings
+    </button>
+  </nav>
+
+  <div class="sources-block">
+    <div class="block-label">Connected</div>
+    <div id="sourceList"></div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- ASK -->
+  <div class="tab active" id="tab-ask">
+    <div id="llmBanner" class="llm-banner" style="display:none">
+      ⚠️ <strong>Demo mode</strong> — no LLM API key set. Extractions use hardcoded mock data only.
+      Add <code>OPENAI_API_KEY</code> or <code>ANTHROPIC_API_KEY</code> to your <code>.env</code> file, then restart.
+      <span class="close-banner" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+    <div class="ask-head">
+      <h1>Ask your company</h1>
+      <p class="ask-sub" id="askSub">answers come from your team's Slack, email, and docs, with sources</p>
+    </div>
+    <div class="chat-area" id="chatArea">
+      <div class="empty-state" id="emptyState">
+        <div class="es-icon">🧠</div>
+        <p>Ask anything about your company</p>
+        <small>The brain searches its memory and shows you the source of each answer — including when facts were updated or overruled.</small>
+        <div class="example-qs">
+          <button class="example-q" data-q="Why did we drop Redis?">Why did we drop Redis?</button>
+          <button class="example-q" data-q="When does the refunds feature ship?">When does the refunds feature ship?</button>
+          <button class="example-q" data-q="What is our brand voice?">What is our brand voice?</button>
+        </div>
+      </div>
+    </div>
+    <div class="chat-foot">
+      <div class="input-wrap">
+        <input class="chat-inp" id="chatInput" placeholder="Ask anything about your company..." autocomplete="off">
+        <button class="send-btn" id="sendBtn">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>
+        </button>
+      </div>
+      <div class="disclaimer">
+        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+        you only see facts you have permission to see
+      </div>
+    </div>
+  </div>
+
+  <!-- CONNECTIONS -->
+  <div class="tab" id="tab-connections">
+    <div class="tab-head">
+      <h1>Connections</h1>
+      <p>Connect your tools. Token already in <code>.env</code>? It will show as Connected automatically.</p>
+    </div>
+    <div class="tab-body">
+      <div class="conn-grid" id="connGrid"></div>
+    </div>
+  </div>
+
+  <!-- ACTIVITY -->
+  <div class="tab" id="tab-activity">
+    <div class="tab-head">
+      <h1>Activity</h1>
+      <p>Every query logged here with department tag and source surface.</p>
+    </div>
+    <div class="act-filter">
+      <label>Department:</label>
+      <select id="actTeamFilter"><option value="">All</option></select>
+      <button class="act-refresh" id="actRefresh">↻ Refresh</button>
+    </div>
+    <div class="act-list" id="actList"></div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="tab" id="tab-settings">
+    <div class="tab-head">
+      <h1>Settings</h1>
+      <p>Manage departments, API keys, and workspace configuration.</p>
+    </div>
+    <div class="tab-body">
+      <div class="settings-wrap">
+        <div class="settings-card">
+          <div class="settings-card-head">
+            Departments
+            <button class="btn-sm btn-sync" id="settingsAddDept">+ Add Department</button>
+          </div>
+          <div id="deptTable"><div style="padding:20px;color:var(--dim);font-size:13px">No departments yet. Click "+ Add Department" or load data from Connections.</div></div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-head">API Keys &amp; Credentials</div>
+          <div id="envTable"></div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-head">Workspace</div>
+          <div style="padding:16px 20px;font-size:13px;color:var(--dim);line-height:2">
+            <div><strong style="color:var(--text)">Workspace ID</strong> — ws_local</div>
+            <div><strong style="color:var(--text)">Storage</strong> — SQLite (brain.db)</div>
+            <div><strong style="color:var(--text)">Embeddings</strong> — bge-small-en, 384-dim, runs locally</div>
+            <div id="llmModelRow"><strong style="color:var(--text)">LLM</strong> — loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ADD DEPARTMENT MODAL -->
+<div class="overlay" id="deptModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Add Department</h2>
+      <button class="modal-close" id="modalClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <div class="block-label" style="margin-bottom:8px">Quick pick</div>
+        <div class="chips" id="quickChips">
+          <span class="chip" data-id="engineering" data-name="Engineering">Engineering</span>
+          <span class="chip" data-id="sales" data-name="Sales">Sales</span>
+          <span class="chip" data-id="marketing" data-name="Marketing">Marketing</span>
+          <span class="chip" data-id="product" data-name="Product">Product</span>
+          <span class="chip" data-id="hr" data-name="HR">HR</span>
+          <span class="chip" data-id="finance" data-name="Finance">Finance</span>
+          <span class="chip" data-id="legal" data-name="Legal">Legal</span>
+          <span class="chip" data-id="design" data-name="Design">Design</span>
+        </div>
+      </div>
+      <div class="fgroup">
+        <label>Department ID <span>(lowercase slug, no spaces)</span></label>
+        <input id="deptIdInput" placeholder="e.g. sales" autocomplete="off">
+      </div>
+      <div class="fgroup">
+        <label>Display Name</label>
+        <input id="deptNameInput" placeholder="e.g. Sales Team">
+      </div>
+      <div class="fgroup">
+        <label>Description <span>(optional)</span></label>
+        <input id="deptDescInput" placeholder="What this department is responsible for">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" id="modalCancel">Cancel</button>
+      <button class="btn-create" id="modalCreate">Create Department</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── state ─────────────────────────────────────────────────────────────────────
+const S = { teams: [], connectors: [], status: {}, currentTeam: null };
+
+const PALETTE = ['#1f6feb','#f0883e','#3fb950','#a371f7','#e3b341','#f78166','#79c0ff','#56d364','#ff7b72'];
+function teamColor(id) {
+  let h = 0; for (const c of String(id||'')) h=(h*31+c.charCodeAt(0))&0x7fffffff;
+  return PALETTE[h%PALETTE.length];
+}
+const SRC_ICONS = {slack:'💬',gmail:'📧',gdoc:'📄',calendar:'📅',notion:'📝',sample:'🧪',human:'✍️'};
+function srcIcon(s){ return SRC_ICONS[s]||'🌐'; }
+function fmtDate(s){
+  if(!s) return '';
+  const d=new Date(s); if(isNaN(d)) return String(s).slice(0,10);
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── api ───────────────────────────────────────────────────────────────────────
+const api = {
+  async get(p){ const r=await fetch(p); if(!r.ok) throw new Error(await r.text()); return r.json(); },
+  async post(p,b){ const r=await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}); if(!r.ok) throw new Error(await r.text()); return r.json(); }
+};
+
+// ── toast ─────────────────────────────────────────────────────────────────────
+let _tt;
+function toast(msg, type='ok'){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className=`toast ${type} show`;
+  clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('show'),3500);
+}
+
+// ── tabs ──────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='activity') loadActivity();
+    if(btn.dataset.tab==='settings') renderSettings();
+  });
+});
+
+// ── dept sidebar ──────────────────────────────────────────────────────────────
+function renderDeptSelect(){
+  const sel=document.getElementById('deptSelect');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">All Departments</option>';
+  S.teams.forEach(t=>{
+    const o=document.createElement('option');
+    o.value=t.id; o.textContent=t.name; sel.appendChild(o);
+  });
+  sel.value=cur||(S.currentTeam||'');
+  updateDeptBadge(sel.value);
+
+  const af=document.getElementById('actTeamFilter');
+  const afc=af.value;
+  af.innerHTML='<option value="">All</option>';
+  S.teams.forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; af.appendChild(o); });
+  af.value=afc;
+}
+
+function updateDeptBadge(teamId){
+  const wrap=document.getElementById('deptBadgeWrap');
+  const hint=document.getElementById('deptHint');
+  if(!teamId){
+    wrap.style.display='none';
+    hint.style.display='none';
+    document.getElementById('askSub').textContent="answers come from your team's Slack, email, and docs, with sources";
+    return;
+  }
+  const team=S.teams.find(t=>t.id===teamId);
+  if(!team){ wrap.style.display='none'; return; }
+  const color=teamColor(teamId);
+  wrap.style.display='block';
+  document.getElementById('deptBadgeDot').style.background=color;
+  document.getElementById('deptBadgeName').textContent=team.name;
+  document.getElementById('deptBadgeInner').style.cssText=`background:${color}22;color:${color}`;
+  hint.style.display='none';
+  document.getElementById('askSub').textContent=`answers come from ${team.name}'s Slack, email, and docs, with sources`;
+}
+
+document.getElementById('deptSelect').addEventListener('change', e=>{
+  S.currentTeam=e.target.value||null;
+  updateDeptBadge(e.target.value);
+});
+
+// ── sources sidebar ───────────────────────────────────────────────────────────
+function renderSources(){
+  const el=document.getElementById('sourceList'); el.innerHTML='';
+  S.connectors.forEach(c=>{
+    const d=document.createElement('div'); d.className='source-item';
+    d.innerHTML=`<span class="sdot ${c.connected?'on':''}"></span>${c.name}`;
+    el.appendChild(d);
+  });
+}
+
+// ── connections tab ───────────────────────────────────────────────────────────
+function renderConnections(){
+  const grid=document.getElementById('connGrid'); grid.innerHTML='';
+  S.connectors.forEach(c=>{
+    const card=document.createElement('div');
+    card.className=`conn-card ${c.connected?'is-connected':''}`;
+    const tid=S.currentTeam||'engineering';
+
+    let actionBtn='';
+    if(c.id==='sample'){
+      actionBtn=`<button class="btn-sm btn-demo conn-action" data-source="sample" data-team="${tid}">Load Demo Data</button>`;
+    } else if(c.connected){
+      actionBtn=`<button class="btn-sm btn-sync conn-action" data-source="${c.id}" data-team="${tid}">↻ Sync Now</button>`;
+    } else {
+      actionBtn=`<button class="btn-sm btn-setup" onclick="showSetupHelp('${c.id}')">How to connect →</button>`;
+    }
+
+    card.innerHTML=`
+      <div class="conn-top">
+        <div class="conn-logo" style="background:${c.color}22">${c.icon}</div>
+        <div class="conn-name">${escHtml(c.name)}</div>
+      </div>
+      <div class="conn-desc">${escHtml(c.desc)}</div>
+      <div class="conn-foot">
+        <div class="status-row">
+          <div class="sdot2 ${c.connected?'on':''}"></div>
+          <span class="${c.connected?'status-connected':'status-disconnected'}">${c.connected?'Connected':'Not connected'}</span>
+        </div>
+        ${actionBtn}
+      </div>`;
+    grid.appendChild(card);
+  });
+
+  // wire up all action buttons
+  grid.querySelectorAll('.conn-action').forEach(btn=>{
+    btn.addEventListener('click', async e=>{
+      const b=e.currentTarget;
+      const src=b.dataset.source;
+      const team=b.dataset.team||S.currentTeam||'engineering';
+      const orig=b.textContent;
+      b.textContent='Running…'; b.disabled=true;
+      try{
+        const res=await api.post('/api/backfill',{source:src,team_id:team});
+        toast(`✓ ${res.source}: ${res.episodes} new episodes, ${res.facts} facts → ${res.team}`,'ok');
+        // reload teams in case new dept appeared
+        S.teams=await api.get('/api/teams');
+        renderDeptSelect();
+        renderSources();
+        if(!S.currentTeam && S.teams.length){
+          S.currentTeam=S.teams[0].id;
+          document.getElementById('deptSelect').value=S.currentTeam;
+          updateDeptBadge(S.currentTeam);
+        }
+      } catch(err){ toast('Error: '+err.message,'err'); }
+      b.textContent=orig; b.disabled=false;
+    });
+  });
+}
+
+function showSetupHelp(src){
+  const msgs={
+    slack:'Add SLACK_BOT_TOKEN=xoxb-... to your .env file, then restart the server. See the Slack connection guide.',
+    gmail:'Add GOOGLE_CREDENTIALS_JSON=<path> to your .env file.',
+    gdoc:'Add GOOGLE_CREDENTIALS_JSON=<path> to your .env file.',
+    calendar:'Add GOOGLE_CREDENTIALS_JSON=<path> to your .env file.',
+    notion:'Add NOTION_TOKEN=secret_... to your .env file.',
+  };
+  toast((msgs[src]||'Add credentials to .env and restart.'),'warn');
+}
+
+// ── chat ──────────────────────────────────────────────────────────────────────
+function addMsg(role, html){
+  const area=document.getElementById('chatArea');
+  document.getElementById('emptyState')?.remove();
+  const div=document.createElement('div'); div.className=role==='q'?'msg-q':'msg-a';
+  div.innerHTML=html; area.appendChild(div); area.scrollTop=area.scrollHeight;
+  return div;
+}
+
+function buildAnswerCard(result){
+  const facts=result.facts||[];
+  const uncertain=result.answer!=='From company memory:';
+
+  if(!facts.length){
+    return `<div class="answer-card"><div class="answer-text" style="color:#6b7280;font-style:italic">
+      No relevant facts found in memory yet.<br>
+      <small style="font-size:12px">→ Load demo data from the Connections tab, then try: "Why did we drop Redis?"</small>
+    </div></div>`;
+  }
+
+  const headline=(()=>{
+    if(uncertain) return '<span style="color:#6b7280;font-size:13px;font-style:italic">Closest facts in memory (may not be directly relevant):</span>';
+    const valid=facts.find(f=>f.status!=='stale');
+    return escHtml((valid||facts[0]).summary);
+  })();
+
+  const rows=facts.map(f=>{
+    const stale=f.status==='stale';
+    const srcName=f.ep_source?f.ep_source.charAt(0).toUpperCase()+f.ep_source.slice(1):(f.source==='human'?'Human record':'Company memory');
+    const srcDate=f.ep_occurred_at?', '+fmtDate(f.ep_occurred_at):'';
+    const statusPill=stale?`<span class="pill pill-stale">superseded</span>`:`<span class="pill pill-current">current</span>`;
+    const sharedPill=f.visibility==='shared'?`<span class="pill pill-shared">shared</span>`:'';
+    return `<div class="src-row">
+      <div class="src-icon">${srcIcon(f.ep_source||f.source)}</div>
+      <div class="src-detail">
+        <div class="src-label">${escHtml(srcName+srcDate)}</div>
+        <div class="src-summary ${stale?'stale':''}">${escHtml(f.summary)}</div>
+      </div>
+      <div class="src-badges">${statusPill}${sharedPill}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="answer-card">
+    <div class="answer-text">${headline}</div>
+    <div class="answer-sources">${rows}</div>
+  </div>`;
+}
+
+async function sendQuery(q){
+  if(!q.trim()) return;
+  addMsg('q', escHtml(q));
+  const load=addMsg('a','<div class="loading"><span></span><span></span><span></span></div>');
+  try{
+    const res=await api.post('/api/search',{query:q,team_id:S.currentTeam||null,cross_team:!S.currentTeam});
+    load.innerHTML=buildAnswerCard(res);
+  } catch(e){
+    load.innerHTML=`<div class="answer-card"><div class="answer-text" style="color:#ef4444">Error: ${escHtml(e.message)}</div></div>`;
+  }
+}
+
+document.getElementById('sendBtn').addEventListener('click',()=>{ const i=document.getElementById('chatInput'); sendQuery(i.value); i.value=''; });
+document.getElementById('chatInput').addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); const i=e.target; sendQuery(i.value); i.value=''; } });
+document.querySelectorAll('.example-q').forEach(b=>b.addEventListener('click',()=>sendQuery(b.dataset.q)));
+
+// ── activity ──────────────────────────────────────────────────────────────────
+async function loadActivity(){
+  const tid=document.getElementById('actTeamFilter').value||null;
+  const list=document.getElementById('actList');
+  list.innerHTML='<div class="act-empty">Loading…</div>';
+  try{
+    const rows=await api.get('/api/ledger'+(tid?`?team_id=${tid}`:''));
+    if(!rows.length){ list.innerHTML='<div class="act-empty">No activity yet. Ask something in the Ask tab.</div>'; return; }
+    list.innerHTML=rows.map(r=>{
+      const tid2=r.team_id;
+      const color=tid2?teamColor(tid2):'#6b7280';
+      const tname=tid2?(S.teams.find(t=>t.id===tid2)?.name||tid2):'—';
+      return `<div class="act-row">
+        <div class="act-query">${escHtml(r.query)}</div>
+        <span class="act-team-badge" style="background:${color}22;color:${color}">${escHtml(tname)}</span>
+        <span class="act-surface">${escHtml(r.surface||'web')}</span>
+        <span class="act-time">${fmtDate(r.ts)}</span>
+      </div>`;
+    }).join('');
+  } catch(e){ list.innerHTML=`<div class="act-empty">Error: ${escHtml(e.message)}</div>`; }
+}
+document.getElementById('actRefresh').addEventListener('click',loadActivity);
+document.getElementById('actTeamFilter').addEventListener('change',loadActivity);
+
+// ── settings ──────────────────────────────────────────────────────────────────
+function renderSettings(){
+  // departments table
+  const el=document.getElementById('deptTable');
+  if(!S.teams.length){
+    el.innerHTML='<div style="padding:20px;color:var(--dim);font-size:13px">No departments yet. Use "+ Add Department" or load data from Connections first.</div>';
+  } else {
+    el.innerHTML=S.teams.map(t=>{
+      const color=teamColor(t.id);
+      return `<div class="dept-trow">
+        <div class="dept-trow-dot" style="background:${color}"></div>
+        <div class="dept-trow-name">${escHtml(t.name)}</div>
+        <div class="dept-trow-id">${escHtml(t.id)}</div>
+        <div class="dept-trow-desc">${escHtml(t.description||'—')}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // env/keys table
+  const keys=S.status.keys||{};
+  const model=S.status.llm_model||'gpt-4o-mini';
+  const mock=S.status.mock_mode;
+  document.getElementById('llmModelRow').innerHTML=
+    `<strong style="color:var(--text)">LLM</strong> — ${model} ${mock?'<span style="color:var(--red)">(demo mode – no API key)</span>':'<span style="color:var(--green)">(live)</span>'}`;
+
+  const envRows=[
+    {key:'OPENAI_API_KEY', set:keys.openai, label:'OpenAI'},
+    {key:'ANTHROPIC_API_KEY', set:keys.anthropic, label:'Anthropic (Claude)'},
+    {key:'SLACK_BOT_TOKEN', set:keys.slack, label:'Slack'},
+    {key:'GOOGLE_CREDENTIALS_JSON', set:keys.google, label:'Google (Gmail/Docs/Calendar)'},
+    {key:'NOTION_TOKEN', set:keys.notion, label:'Notion'},
+  ];
+  document.getElementById('envTable').innerHTML=envRows.map(r=>`
+    <div class="env-row">
+      <div class="env-key">${r.key}</div>
+      <div class="env-val ${r.set?'env-set':'env-missing'}">${r.set?'✓ Set':'✗ Not set'}</div>
+      <div style="font-size:12px;color:var(--dim);flex:1">${r.label}</div>
+    </div>`).join('');
+}
+document.getElementById('settingsAddDept').addEventListener('click',()=>openModal());
+
+// ── modal ─────────────────────────────────────────────────────────────────────
+function openModal(){
+  ['deptIdInput','deptNameInput','deptDescInput'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('deptModal').classList.add('show');
+  setTimeout(()=>document.getElementById('deptIdInput').focus(),50);
+}
+function closeModal(){ document.getElementById('deptModal').classList.remove('show'); }
+
+document.getElementById('addDeptBtn').addEventListener('click',openModal);
+document.getElementById('modalClose').addEventListener('click',closeModal);
+document.getElementById('modalCancel').addEventListener('click',closeModal);
+document.getElementById('deptModal').addEventListener('click',e=>{ if(e.target.id==='deptModal') closeModal(); });
+
+document.getElementById('quickChips').addEventListener('click',e=>{
+  const chip=e.target.closest('.chip'); if(!chip) return;
+  document.getElementById('deptIdInput').value=chip.dataset.id;
+  document.getElementById('deptNameInput').value=chip.dataset.name;
+  document.getElementById('deptNameInput').focus();
+});
+
+document.getElementById('deptNameInput').addEventListener('input',e=>{
+  if(!document.getElementById('deptIdInput').value)
+    document.getElementById('deptIdInput').value=e.target.value.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+});
+
+document.getElementById('modalCreate').addEventListener('click', async()=>{
+  const id=document.getElementById('deptIdInput').value.trim();
+  const name=document.getElementById('deptNameInput').value.trim();
+  const desc=document.getElementById('deptDescInput').value.trim();
+  if(!id||!name){ toast('Department ID and Name are required','err'); return; }
+  try{
+    await api.post('/api/teams',{team_id:id,name,description:desc});
+    S.teams=await api.get('/api/teams');
+    renderDeptSelect(); renderSettings();
+    document.getElementById('deptSelect').value=id;
+    S.currentTeam=id; updateDeptBadge(id);
+    closeModal(); toast(`✓ Department "${name}" created`,'ok');
+  } catch(e){ toast('Error: '+e.message,'err'); }
+});
+
+document.getElementById('deptModal').addEventListener('keydown',e=>{
+  if(e.key==='Enter') document.getElementById('modalCreate').click();
+  if(e.key==='Escape') closeModal();
+});
+
+// ── init ──────────────────────────────────────────────────────────────────────
+async function init(){
+  try{
+    [S.teams, S.connectors, S.status] = await Promise.all([
+      api.get('/api/teams'),
+      api.get('/api/connectors'),
+      api.get('/api/status'),
+    ]);
+
+    // show LLM banner if in mock mode
+    if(S.status.mock_mode){
+      document.getElementById('llmBanner').style.display='flex';
+    }
+
+    renderDeptSelect();
+    renderSources();
+    renderConnections();
+
+    // auto-select first team
+    if(S.teams.length){
+      S.currentTeam=S.teams[0].id;
+      document.getElementById('deptSelect').value=S.currentTeam;
+      updateDeptBadge(S.currentTeam);
+    } else if(S.connectors.some(c=>c.id==='sample'&&c.connected)){
+      // hint: no departments yet but sample is available
+      document.getElementById('deptHint').style.display='block';
+      document.getElementById('deptHint').textContent='Load demo data to auto-create a department';
+    }
+  } catch(e){ toast('Could not connect to API — is the server running?','err'); }
+}
+init();
+</script>
+</body>
+</html>

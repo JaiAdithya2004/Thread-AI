@@ -1,0 +1,15 @@
+[project]
+name = "company-brain"
+version = "0.1.0"
+requires-python = ">=3.10"
+
+[project.scripts]
+brain = "brain.wrappers.cli:app"
+brain-web = "brain.wrappers.api:main"
+
+[tool.setuptools.packages.find]
+include = ["brain*"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
