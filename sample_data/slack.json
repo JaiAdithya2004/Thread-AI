@@ -1,7 +1,0 @@
-[
-  {"source":"slack","external_id":"1001","title":"","body":"Decision: we are dropping Redis for idempotency and using Postgres advisory locks instead. Simpler ops.","author":"shalin","url":"","occurred_at":"2026-06-01","acl":["everyone"]},
-  {"source":"slack","external_id":"1002","title":"","body":"Let's use Redis to store idempotency keys for the payments service.","author":"kanyes","url":"","occurred_at":"2026-05-20","acl":["everyone"]},
-  {"source":"slack","external_id":"1003","title":"","body":"Refunds feature will ship Friday June 13.","author":"kanyes","url":"","occurred_at":"2026-06-05","acl":["everyone"]},
-  {"source":"slack","external_id":"1004","title":"","body":"Update: refunds moved to Monday June 16 after QA found a rounding bug.","author":"shalin","url":"","occurred_at":"2026-06-10","acl":["everyone"]},
-  {"source":"slack","external_id":"1005","title":"","body":"Comp for the new senior eng is 180k base, do not share outside leadership.","author":"shalin","url":"","occurred_at":"2026-06-08","acl":["leadership"]}
-]

@@ -5,208 +5,325 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Company Brain</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
-:root{--bg:#0d1117;--sidebar:#161b22;--card:#1c2128;--card2:#21262d;--border:#30363d;--text:#c9d1d9;--dim:#8b949e;--blue:#1f6feb;--blue2:#388bfd;--green:#3fb950;--orange:#d29922;--red:#f85149;--purple:#a371f7;--yellow:#e3b341}
+:root{
+  --canvas:#faf9f5;
+  --surface-soft:#f5f0e8;
+  --surface-card:#efe9de;
+  --surface-cream-strong:#e8e0d2;
+  --surface-dark:#181715;
+  --surface-dark-elevated:#252320;
+  --surface-dark-soft:#1f1e1b;
+  --primary:#cc785c;
+  --primary-active:#a9583e;
+  --primary-disabled:#e6dfd8;
+  --ink:#141413;
+  --body-strong:#252523;
+  --body:#3d3d3a;
+  --muted:#6c6a64;
+  --muted-soft:#8e8b82;
+  --hairline:#e6dfd8;
+  --hairline-soft:#ebe6df;
+  --on-primary:#ffffff;
+  --on-dark:#faf9f5;
+  --on-dark-soft:#a09d96;
+  --accent-teal:#5db8a6;
+  --accent-amber:#e8a55a;
+  --success:#5db872;
+  --warning:#d4a017;
+  --error:#c64545;
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;overflow:hidden;font-size:14px}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var(--body);height:100vh;display:flex;overflow:hidden;font-size:14px}
 
-/* SIDEBAR */
-.sidebar{width:232px;min-width:232px;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.brand{padding:15px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0}
-.brand-icon{width:30px;height:30px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
-.brand-name{font-weight:700;font-size:15px;letter-spacing:-.3px}
+/* ── SIDEBAR ─────────────────────────────────────────────── */
+.sidebar{width:236px;min-width:236px;background:var(--canvas);border-right:1px solid var(--hairline);display:flex;flex-direction:column;overflow:hidden}
 
-.dept-block{padding:12px 10px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
-.block-label{font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--dim);text-transform:uppercase;margin-bottom:8px;padding:0 2px}
+.brand{padding:16px 16px 15px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--hairline);flex-shrink:0}
+.brand-icon{width:30px;height:30px;background:var(--primary);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;color:var(--on-primary)}
+.brand-name{font-weight:600;font-size:15px;letter-spacing:-.3px;color:var(--ink)}
+
+.dept-block{padding:12px 12px 10px;border-bottom:1px solid var(--hairline);flex-shrink:0}
+.block-label{font-size:11px;font-weight:500;letter-spacing:.1em;color:var(--muted-soft);text-transform:uppercase;margin-bottom:8px;padding:0 2px}
 .dept-row{display:flex;gap:6px}
-.dept-select{flex:1;background:var(--card);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:7px;font-size:13px;appearance:none;cursor:pointer;font-family:inherit;min-width:0}
-.dept-select:focus{outline:none;border-color:var(--blue)}
-.dept-add-btn{background:var(--card);border:1px solid var(--border);color:var(--dim);width:32px;height:32px;border-radius:7px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;line-height:1}
-.dept-add-btn:hover{border-color:var(--blue);color:var(--blue2)}
-.dept-badge{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;max-width:100%}
+.dept-select{flex:1;background:var(--surface-soft);border:1px solid var(--hairline);color:var(--ink);padding:7px 10px;border-radius:8px;font-size:13px;appearance:none;cursor:pointer;font-family:inherit;min-width:0}
+.dept-select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(204,120,92,.12)}
+.dept-add-btn{background:var(--surface-soft);border:1px solid var(--hairline);color:var(--muted);width:32px;height:32px;border-radius:8px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;line-height:1}
+.dept-add-btn:hover{border-color:var(--primary);color:var(--primary)}
+.dept-badge{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:3px 10px;border-radius:9999px;font-size:11px;font-weight:500;max-width:100%}
 .dept-badge-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .dept-badge-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dept-hint{font-size:11px;color:var(--dim);padding:4px 2px;margin-top:2px}
+.dept-hint{font-size:11px;color:var(--muted-soft);padding:4px 2px;margin-top:2px}
 
 .sidebar-nav{padding:8px 8px 0;flex-shrink:0}
-.nav-item{width:100%;background:transparent;border:none;color:var(--dim);padding:8px 10px;border-radius:7px;font-size:13.5px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:9px;text-align:left;transition:all .15s;margin-bottom:2px}
-.nav-item:hover{background:var(--card2);color:var(--text)}
-.nav-item.active{background:var(--blue);color:#fff}
-.nav-item svg{width:16px;height:16px;flex-shrink:0;opacity:.85}
-.nav-item.active svg{opacity:1}
+.nav-item{width:100%;background:transparent;border:none;color:var(--muted);padding:8px 10px;border-radius:8px;font-size:13.5px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:9px;text-align:left;transition:all .15s;margin-bottom:2px;font-weight:500}
+.nav-item:hover{background:var(--surface-card);color:var(--ink)}
+.nav-item.active{background:var(--surface-card);color:var(--ink)}
+.nav-item svg{width:16px;height:16px;flex-shrink:0;opacity:.7}
+.nav-item.active svg{opacity:1;color:var(--primary)}
 
-.sources-block{padding:12px 10px;border-top:1px solid var(--border);margin-top:auto;flex-shrink:0}
-.source-item{display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px;color:var(--dim)}
-.sdot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0}
-.sdot.on{background:var(--green)}
+.sources-block{padding:12px 12px;border-top:1px solid var(--hairline);margin-top:auto;flex-shrink:0}
+.source-item{display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px;color:var(--muted)}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--hairline);flex-shrink:0}
+.sdot.on{background:var(--success)}
 
-/* MAIN */
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+/* ── MAIN ────────────────────────────────────────────────── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:var(--canvas)}
 .tab{display:none;flex:1;flex-direction:column;overflow:hidden}
 .tab.active{display:flex}
 
 /* LLM warning banner */
-.llm-banner{background:#2d1f00;border-bottom:1px solid #5a3e00;padding:10px 32px;font-size:12.5px;color:var(--yellow);display:flex;align-items:center;gap:10px;flex-shrink:0}
-.llm-banner a{color:var(--yellow);text-decoration:underline;cursor:pointer}
-.llm-banner .close-banner{margin-left:auto;cursor:pointer;opacity:.6;font-size:16px;line-height:1}
+.llm-banner{background:#fef3e8;border-bottom:1px solid #f0d4a8;padding:10px 32px;font-size:12.5px;color:#92400e;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.llm-banner a{color:var(--primary);text-decoration:underline;cursor:pointer}
+.llm-banner .close-banner{margin-left:auto;cursor:pointer;opacity:.5;font-size:16px;line-height:1}
 .llm-banner .close-banner:hover{opacity:1}
 
 /* ask */
-.ask-head{padding:22px 32px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
-.ask-head h1{font-size:21px;font-weight:700;margin-bottom:3px}
-.ask-sub{font-size:13px;color:var(--dim)}
-.chat-area{flex:1;overflow-y:auto;padding:24px 32px;display:flex;flex-direction:column;gap:18px}
-.empty-state{align-self:center;margin-top:50px;text-align:center;color:var(--dim);max-width:380px}
+.ask-head{padding:24px 32px 20px;border-bottom:1px solid var(--hairline);flex-shrink:0}
+.ask-head h1{font-size:22px;font-weight:600;margin-bottom:3px;color:var(--ink);letter-spacing:-.3px}
+.ask-sub{font-size:13px;color:var(--muted)}
+.chat-area{flex:1;overflow-y:auto;padding:24px 32px;display:flex;flex-direction:column;gap:18px;background:var(--canvas)}
+.empty-state{align-self:center;margin-top:50px;text-align:center;color:var(--muted);max-width:380px}
 .empty-state .es-icon{font-size:38px;margin-bottom:12px}
-.empty-state p{font-size:14px;margin-bottom:6px}
-.empty-state small{font-size:12px;line-height:1.6}
+.empty-state p{font-size:14px;margin-bottom:6px;color:var(--body-strong);font-weight:500}
+.empty-state small{font-size:12px;line-height:1.6;color:var(--muted)}
 .example-qs{display:flex;flex-direction:column;gap:7px;margin-top:16px}
-.example-q{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-size:13px;color:var(--dim);cursor:pointer;text-align:left;transition:all .15s}
-.example-q:hover{border-color:var(--blue);color:var(--text)}
+.example-q{background:var(--canvas);border:1px solid var(--hairline);border-radius:8px;padding:9px 14px;font-size:13px;color:var(--muted);cursor:pointer;text-align:left;transition:all .15s;font-family:inherit}
+.example-q:hover{border-color:var(--primary);color:var(--ink);background:var(--surface-soft)}
 
-.msg-q{align-self:flex-end;max-width:68%;background:#1a3a6b;color:#a8c8f0;padding:11px 15px;border-radius:14px 14px 3px 14px;font-size:14px;line-height:1.5;word-break:break-word}
+.msg-q{align-self:flex-end;max-width:68%;background:var(--surface-card);color:var(--ink);padding:11px 15px;border-radius:14px 14px 3px 14px;font-size:14px;line-height:1.55;word-break:break-word;border:1px solid var(--hairline)}
 .msg-a{align-self:flex-start;max-width:88%;width:fit-content}
 .loading{display:flex;gap:5px;padding:12px 0}
-.loading span{width:7px;height:7px;background:var(--dim);border-radius:50%;animation:bounce 1.1s infinite}
+.loading span{width:7px;height:7px;background:var(--hairline);border-radius:50%;animation:bounce 1.1s infinite}
 .loading span:nth-child(2){animation-delay:.18s}
 .loading span:nth-child(3){animation-delay:.36s}
 @keyframes bounce{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
 
-.answer-card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.35)}
-.answer-text{padding:15px 18px;color:#111827;font-size:14px;line-height:1.65;font-weight:500}
-.answer-sources{border-top:1px solid #e5e7eb}
-.src-row{display:flex;align-items:flex-start;gap:10px;padding:10px 18px;border-bottom:1px solid #f3f4f6}
+.answer-card{background:var(--canvas);border-radius:12px;overflow:hidden;border:1px solid var(--hairline);box-shadow:0 1px 3px rgba(20,20,19,.06)}
+.answer-text{padding:15px 18px;color:var(--ink);font-size:14px;line-height:1.65;font-weight:500}
+.answer-sources{border-top:1px solid var(--hairline-soft)}
+.src-row{display:flex;align-items:flex-start;gap:10px;padding:10px 18px;border-bottom:1px solid var(--hairline-soft)}
 .src-row:last-child{border-bottom:none}
-.src-icon{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;background:#f3f4f6;margin-top:2px}
+.src-icon{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;background:var(--surface-card);margin-top:2px}
 .src-detail{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.src-label{color:#6b7280;font-size:11.5px;font-weight:500;text-transform:capitalize}
-.src-summary{color:#111827;font-size:13px;line-height:1.45;word-break:break-word}
-.src-summary.stale{text-decoration:line-through;color:#9ca3af}
+.src-label{color:var(--muted);font-size:11.5px;font-weight:500;text-transform:capitalize}
+.src-summary{color:var(--body-strong);font-size:13px;line-height:1.45;word-break:break-word}
+.src-summary.stale{text-decoration:line-through;color:var(--muted-soft)}
 .src-badges{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;padding-top:2px}
-.pill{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
-.pill-current{background:#d1fae5;color:#065f46}
-.pill-stale{background:#fef3c7;color:#92400e}
-.pill-shared{background:#ede9fe;color:#5b21b6}
+.pill{padding:2px 9px;border-radius:9999px;font-size:11px;font-weight:500;white-space:nowrap}
+.pill-current{background:rgba(93,184,114,.15);color:#2d7a3a}
+.pill-stale{background:rgba(232,165,90,.15);color:#8a5a1a}
+.pill-shared{background:rgba(93,184,166,.15);color:#2a7a6a}
 
-.chat-foot{padding:14px 32px 18px;border-top:1px solid var(--border);flex-shrink:0}
-.input-wrap{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:4px 4px 4px 14px;transition:border-color .15s}
-.input-wrap:focus-within{border-color:var(--blue)}
-.chat-inp{flex:1;background:transparent;border:none;color:var(--text);font-size:14px;font-family:inherit;padding:8px 0;outline:none}
-.chat-inp::placeholder{color:var(--dim)}
-.send-btn{background:var(--blue);border:none;color:#fff;width:34px;height:34px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
-.send-btn:hover{background:var(--blue2)}
+.chat-foot{padding:14px 32px 18px;border-top:1px solid var(--hairline);flex-shrink:0;background:var(--canvas)}
+.input-wrap{display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--hairline);border-radius:10px;padding:4px 4px 4px 14px;transition:border-color .15s,box-shadow .15s}
+.input-wrap:focus-within{border-color:var(--primary);box-shadow:0 0 0 3px rgba(204,120,92,.12)}
+.chat-inp{flex:1;background:transparent;border:none;color:var(--ink);font-size:14px;font-family:inherit;padding:8px 0;outline:none}
+.chat-inp::placeholder{color:var(--muted-soft)}
+.send-btn{background:var(--primary);border:none;color:var(--on-primary);width:34px;height:34px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
+.send-btn:hover{background:var(--primary-active)}
 .send-btn svg{width:16px;height:16px}
-.disclaimer{margin-top:8px;font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:5px}
+.disclaimer{margin-top:8px;font-size:11.5px;color:var(--muted-soft);display:flex;align-items:center;gap:5px}
 
-/* CONNECTIONS */
-.tab-head{padding:22px 32px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
-.tab-head h1{font-size:21px;font-weight:700;margin-bottom:3px}
-.tab-head p{font-size:13px;color:var(--dim)}
-.tab-body{flex:1;overflow-y:auto;padding:24px 32px}
-.conn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:14px}
-.conn-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px;transition:border-color .15s}
-.conn-card.is-connected{border-color:#1a4a2e}
-.conn-card:hover{border-color:var(--blue)}
+/* ── COMMAND PALETTE ─────────────────────────────────────────── */
+.cmd-palette{position:absolute;bottom:calc(100% + 8px);left:0;right:0;background:var(--canvas);border:1px solid var(--hairline);border-radius:12px;box-shadow:0 8px 32px rgba(20,20,19,.14);overflow:hidden;z-index:200;display:none}
+.cmd-palette.open{display:block}
+.cmd-palette-header{padding:8px 14px 6px;font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-soft);border-bottom:1px solid var(--hairline-soft)}
+.cmd-item{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;transition:background .1s;border-bottom:1px solid var(--hairline-soft)}
+.cmd-item:last-child{border-bottom:none}
+.cmd-item:hover,.cmd-item.selected{background:var(--surface-soft)}
+.cmd-item.selected{background:var(--surface-card)}
+.cmd-slug{font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:600;color:var(--primary);min-width:110px;flex-shrink:0}
+.cmd-desc{font-size:13px;color:var(--body);flex:1}
+.cmd-args{font-size:11px;color:var(--muted-soft);font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.cmd-result{margin:10px 0 2px;padding:12px 16px;background:var(--surface-soft);border:1px solid var(--hairline);border-radius:10px;font-size:13px;line-height:1.6;color:var(--body-strong)}
+.cmd-result code{font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--surface-card);padding:1px 5px;border-radius:4px}
+
+/* ── CONNECTIONS ─────────────────────────────────────────── */
+.tab-head{padding:24px 32px 20px;border-bottom:1px solid var(--hairline);flex-shrink:0}
+.tab-head h1{font-size:22px;font-weight:600;margin-bottom:3px;color:var(--ink);letter-spacing:-.3px}
+.tab-head p{font-size:13px;color:var(--muted)}
+.tab-body{flex:1;overflow-y:auto;padding:24px 32px;background:var(--canvas)}
+.conn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.conn-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:12px;transition:border-color .15s,box-shadow .15s}
+.conn-card.is-connected{border-color:rgba(93,184,114,.35);background:var(--canvas)}
+.conn-card:hover{border-color:var(--primary);box-shadow:0 1px 3px rgba(20,20,19,.06)}
 .conn-top{display:flex;align-items:center;gap:10px}
-.conn-logo{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
-.conn-name{font-weight:600;font-size:14px}
-.conn-desc{font-size:12px;color:var(--dim);line-height:1.5;flex:1}
+.conn-logo{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;background:var(--surface-card)}
+.conn-name{font-weight:600;font-size:14px;color:var(--ink)}
+.conn-desc{font-size:12px;color:var(--muted);line-height:1.5;flex:1}
 .conn-foot{display:flex;align-items:center;justify-content:space-between;margin-top:2px}
 .status-row{display:flex;align-items:center;gap:5px;font-size:12px}
-.sdot2{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0}
-.sdot2.on{background:var(--green)}
-.status-connected{color:var(--green)}
-.status-disconnected{color:var(--dim)}
-.btn-sm{padding:6px 13px;border-radius:6px;font-size:12px;font-family:inherit;cursor:pointer;border:none;font-weight:500;transition:all .15s;white-space:nowrap}
-.btn-sync{background:var(--blue);color:#fff}
-.btn-sync:hover{background:var(--blue2)}
-.btn-demo{background:#7c3aed;color:#fff}
-.btn-demo:hover{background:#6d28d9}
-.btn-ghost{background:var(--card2);border:1px solid var(--border);color:var(--dim);cursor:default}
-.btn-setup{background:transparent;border:1px solid var(--border);color:var(--dim);cursor:pointer}
-.btn-setup:hover{border-color:var(--blue);color:var(--blue2)}
+.sdot2{width:7px;height:7px;border-radius:50%;background:var(--hairline);flex-shrink:0}
+.sdot2.on{background:var(--success)}
+.status-connected{color:var(--success)}
+.status-disconnected{color:var(--muted)}
+.btn-sm{padding:6px 14px;border-radius:8px;font-size:12px;font-family:inherit;cursor:pointer;border:none;font-weight:500;transition:all .15s;white-space:nowrap}
+.btn-sync{background:var(--primary);color:var(--on-primary)}
+.btn-sync:hover{background:var(--primary-active)}
+.btn-demo{background:var(--surface-dark);color:var(--on-dark)}
+.btn-demo:hover{background:var(--surface-dark-elevated)}
+.btn-ghost{background:var(--surface-soft);border:1px solid var(--hairline);color:var(--muted-soft);cursor:default}
+.btn-setup{background:transparent;border:1px solid var(--hairline);color:var(--muted);cursor:pointer}
+.btn-setup:hover{border-color:var(--primary);color:var(--primary)}
 
-/* ACTIVITY */
-.act-filter{display:flex;align-items:center;gap:10px;padding:14px 32px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
-.act-filter label{font-size:12px;color:var(--dim)}
-.act-filter select{background:var(--card);border:1px solid var(--border);color:var(--text);padding:5px 9px;border-radius:6px;font-size:12px;font-family:inherit}
-.act-refresh{margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--dim);padding:5px 12px;border-radius:6px;font-size:12px;font-family:inherit;cursor:pointer}
-.act-refresh:hover{color:var(--text);border-color:var(--text)}
-.act-list{flex:1;overflow-y:auto}
-.act-row{display:flex;align-items:center;gap:12px;padding:12px 32px;border-bottom:1px solid var(--border);transition:background .1s}
-.act-row:hover{background:var(--card2)}
-.act-query{flex:1;font-size:13.5px;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.act-team-badge{padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500;white-space:nowrap;flex-shrink:0}
-.act-surface{padding:2px 7px;border-radius:4px;font-size:11px;background:var(--card2);color:var(--dim);flex-shrink:0}
-.act-time{font-size:11.5px;color:var(--dim);white-space:nowrap;flex-shrink:0}
-.act-empty{padding:40px 32px;text-align:center;color:var(--dim);font-size:13px}
+/* ── ACTIVITY ────────────────────────────────────────────── */
+.act-filter{display:flex;align-items:center;gap:10px;padding:14px 32px 10px;border-bottom:1px solid var(--hairline);flex-shrink:0}
+.act-filter label{font-size:12px;color:var(--muted)}
+.act-filter select{background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:5px 9px;border-radius:8px;font-size:12px;font-family:inherit}
+.act-refresh{margin-left:auto;background:transparent;border:1px solid var(--hairline);color:var(--muted);padding:5px 12px;border-radius:8px;font-size:12px;font-family:inherit;cursor:pointer;transition:all .15s}
+.act-refresh:hover{color:var(--ink);border-color:var(--primary)}
+.act-list{flex:1;overflow-y:auto;background:var(--canvas)}
+.act-row{display:flex;align-items:center;gap:12px;padding:12px 32px;border-bottom:1px solid var(--hairline-soft);transition:background .1s}
+.act-row:hover{background:var(--surface-soft)}
+.act-query{flex:1;font-size:13.5px;color:var(--body-strong);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.act-team-badge{padding:2px 10px;border-radius:9999px;font-size:11px;font-weight:500;white-space:nowrap;flex-shrink:0}
+.act-surface{padding:2px 8px;border-radius:4px;font-size:11px;background:var(--surface-card);color:var(--muted);flex-shrink:0}
+.act-time{font-size:11.5px;color:var(--muted-soft);white-space:nowrap;flex-shrink:0}
+.act-empty{padding:40px 32px;text-align:center;color:var(--muted);font-size:13px}
 
-/* SETTINGS */
+/* ── SETTINGS ────────────────────────────────────────────── */
 .settings-wrap{display:flex;flex-direction:column;gap:20px}
-.settings-card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
-.settings-card-head{padding:14px 20px;border-bottom:1px solid var(--border);font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:space-between}
-.dept-trow{display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid var(--border)}
+.settings-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:12px;overflow:hidden}
+.settings-card-head{padding:14px 20px;border-bottom:1px solid var(--hairline);font-weight:600;font-size:14px;color:var(--ink);display:flex;align-items:center;justify-content:space-between}
+.dept-trow{display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid var(--hairline-soft)}
 .dept-trow:last-child{border-bottom:none}
 .dept-trow-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.dept-trow-name{font-weight:500;font-size:14px;min-width:130px}
-.dept-trow-id{font-size:12px;color:var(--dim);font-family:monospace;min-width:90px}
-.dept-trow-desc{font-size:12px;color:var(--dim);flex:1}
-.env-row{display:flex;align-items:center;gap:10px;padding:11px 20px;border-bottom:1px solid var(--border);font-size:13px}
+.dept-trow-name{font-weight:500;font-size:14px;color:var(--ink);min-width:130px}
+.dept-trow-id{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;min-width:90px}
+.dept-trow-desc{font-size:12px;color:var(--muted);flex:1}
+.env-row{display:flex;align-items:center;gap:10px;padding:11px 20px;border-bottom:1px solid var(--hairline-soft);font-size:13px}
 .env-row:last-child{border-bottom:none}
-.env-key{font-family:monospace;font-size:12px;color:var(--dim);min-width:200px}
-.env-val{font-size:12px}
-.env-set{color:var(--green)}
-.env-missing{color:var(--red)}
+.env-key{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);min-width:200px}
+.env-val{font-size:12px;font-weight:500}
+.env-set{color:var(--success)}
+.env-missing{color:var(--error)}
 
-/* MODAL */
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+/* ── MODAL ───────────────────────────────────────────────── */
+.overlay{position:fixed;inset:0;background:rgba(20,20,19,.4);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
 .overlay.show{display:flex}
-.modal{background:var(--sidebar);border:1px solid var(--border);border-radius:14px;width:430px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}
-.modal-head{padding:18px 20px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-.modal-head h2{font-size:16px;font-weight:600}
-.modal-close{background:transparent;border:none;color:var(--dim);font-size:22px;cursor:pointer;line-height:1;padding:2px}
-.modal-close:hover{color:var(--text)}
-.modal-body{padding:20px;display:flex;flex-direction:column;gap:15px}
+.modal{background:var(--canvas);border:1px solid var(--hairline);border-radius:16px;width:430px;overflow:hidden;box-shadow:0 20px 60px rgba(20,20,19,.18)}
+.modal-head{padding:18px 20px 16px;border-bottom:1px solid var(--hairline);display:flex;align-items:center;justify-content:space-between}
+.modal-head h2{font-size:16px;font-weight:600;color:var(--ink)}
+.modal-close{background:transparent;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:2px}
+.modal-close:hover{color:var(--ink)}
+.modal-body{padding:20px;display:flex;flex-direction:column;gap:15px;background:var(--canvas)}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{background:var(--card);border:1px solid var(--border);color:var(--dim);padding:4px 11px;border-radius:20px;font-size:12px;cursor:pointer;transition:all .15s}
-.chip:hover{border-color:var(--blue);color:var(--blue2)}
-.fgroup label{display:block;font-size:12.5px;font-weight:500;margin-bottom:6px;color:var(--dim)}
-.fgroup label span{font-weight:400}
-.fgroup input{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:7px;font-size:13px;font-family:inherit}
-.fgroup input:focus{outline:none;border-color:var(--blue)}
-.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
-.btn-cancel{background:transparent;border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:7px;font-size:13px;font-family:inherit;cursor:pointer}
-.btn-cancel:hover{background:var(--card2)}
-.btn-create{background:var(--blue);border:none;color:#fff;padding:8px 18px;border-radius:7px;font-size:13px;font-family:inherit;cursor:pointer;font-weight:500}
-.btn-create:hover{background:var(--blue2)}
+.chip{background:var(--surface-card);border:1px solid var(--hairline);color:var(--muted);padding:4px 12px;border-radius:9999px;font-size:12px;cursor:pointer;transition:all .15s;font-weight:500}
+.chip:hover{border-color:var(--primary);color:var(--primary);background:var(--canvas)}
+.fgroup label{display:block;font-size:12.5px;font-weight:500;margin-bottom:6px;color:var(--muted)}
+.fgroup label span{font-weight:400;color:var(--muted-soft)}
+.fgroup input{width:100%;background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;transition:border-color .15s,box-shadow .15s}
+.fgroup input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(204,120,92,.12)}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--hairline);display:flex;justify-content:flex-end;gap:10px;background:var(--surface-soft)}
+.btn-cancel{background:transparent;border:1px solid var(--hairline);color:var(--body);padding:8px 16px;border-radius:8px;font-size:13px;font-family:inherit;cursor:pointer;font-weight:500;transition:all .15s}
+.btn-cancel:hover{background:var(--surface-card)}
+.btn-create{background:var(--primary);border:none;color:var(--on-primary);padding:8px 18px;border-radius:8px;font-size:13px;font-family:inherit;cursor:pointer;font-weight:500;transition:background .15s}
+.btn-create:hover{background:var(--primary-active)}
 
-/* TOAST */
-.toast{position:fixed;bottom:24px;right:24px;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:11px 16px;font-size:13px;display:flex;align-items:center;gap:8px;z-index:999;transform:translateY(70px);opacity:0;transition:all .3s;max-width:340px}
+/* ── TOAST ───────────────────────────────────────────────── */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--canvas);border:1px solid var(--hairline);border-radius:10px;padding:11px 16px;font-size:13px;display:flex;align-items:center;gap:8px;z-index:999;transform:translateY(70px);opacity:0;transition:all .3s;max-width:340px;box-shadow:0 4px 16px rgba(20,20,19,.12);color:var(--body-strong)}
 .toast.show{transform:translateY(0);opacity:1}
-.toast.ok{border-color:var(--green);color:var(--green)}
-.toast.err{border-color:var(--red);color:var(--red)}
-.toast.warn{border-color:var(--yellow);color:var(--yellow)}
+.toast.ok{border-color:rgba(93,184,114,.4);color:#2d7a3a}
+.toast.err{border-color:rgba(198,69,69,.4);color:var(--error)}
+.toast.warn{border-color:rgba(212,160,23,.4);color:#7a5a00}
 
-::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--hairline);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--muted-soft)}
+
+/* ── AUTH SCREEN ─────────────────────────────────────────── */
+#authScreen{position:fixed;inset:0;background:var(--canvas);z-index:500;display:flex;align-items:center;justify-content:center}
+#authScreen.hidden{display:none}
+.auth-card{width:360px;background:var(--canvas);border:1px solid var(--hairline);border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(20,20,19,.12)}
+.auth-head{padding:28px 28px 24px;text-align:center;border-bottom:1px solid var(--hairline)}
+.auth-logo{width:44px;height:44px;background:var(--primary);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+.auth-head h1{font-size:18px;font-weight:600;color:var(--ink);letter-spacing:-.3px;margin-bottom:4px}
+.auth-head p{font-size:13px;color:var(--muted)}
+.auth-body{padding:24px 28px;display:flex;flex-direction:column;gap:14px}
+.auth-tabs{display:flex;gap:0;border:1px solid var(--hairline);border-radius:8px;overflow:hidden;margin-bottom:2px}
+.auth-tab{flex:1;background:transparent;border:none;padding:8px;font-size:13px;font-family:inherit;color:var(--muted);cursor:pointer;transition:all .15s}
+.auth-tab.active{background:var(--surface-card);color:var(--ink);font-weight:500}
+.auth-field{display:flex;flex-direction:column;gap:5px}
+.auth-field label{font-size:12px;font-weight:500;color:var(--muted)}
+.auth-field input{background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;transition:border-color .15s,box-shadow .15s}
+.auth-field input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(204,120,92,.12)}
+.auth-submit{background:var(--primary);color:var(--on-primary);border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:500;font-family:inherit;cursor:pointer;transition:background .15s}
+.auth-submit:hover{background:var(--primary-active)}
+.auth-submit:disabled{opacity:.55;cursor:not-allowed}
+.auth-err{font-size:12px;color:var(--error);text-align:center;min-height:16px}
+.auth-bypass{margin-top:4px;text-align:center;font-size:11.5px;color:var(--muted-soft)}
+.auth-bypass a{color:var(--primary);cursor:pointer;text-decoration:underline}
+
+/* user pill in sidebar */
+.user-pill{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--hairline);flex-shrink:0;cursor:pointer}
+.user-avatar{width:26px;height:26px;border-radius:50%;background:var(--primary);color:var(--on-primary);font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.user-info{flex:1;min-width:0}
+.user-email{font-size:12px;color:var(--ink);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-role{font-size:11px;color:var(--muted)}
+.user-signout{font-size:11px;color:var(--muted-soft);text-decoration:underline;background:none;border:none;cursor:pointer;font-family:inherit;padding:0}
+.user-signout:hover{color:var(--error)}
 </style>
 </head>
 <body>
 
+<!-- AUTH SCREEN (shown until signed in or bypass confirmed) -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="auth-head">
+      <div class="auth-logo">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+      </div>
+      <h1>Company Brain</h1>
+      <p>Sign in to access your team's knowledge</p>
+    </div>
+    <div class="auth-body">
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabSignIn" onclick="setAuthTab('signin')">Sign in</button>
+        <button class="auth-tab" id="tabSignUp" onclick="setAuthTab('signup')">Sign up</button>
+      </div>
+      <div class="auth-field">
+        <label>Email</label>
+        <input type="email" id="authEmail" placeholder="you@company.com" autocomplete="email">
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <div class="auth-err" id="authErr"></div>
+      <button class="auth-submit" id="authSubmit" onclick="doAuth()">Sign in</button>
+      <div class="auth-bypass" id="authBypassRow" style="display:none">
+        No Supabase configured — <a onclick="bypassAuth()">continue as local user</a>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="brand">
-    <div class="brand-icon">🧠</div>
-    <span class="brand-name">Company brain</span>
+    <div class="brand-icon">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+    </div>
+    <span class="brand-name">Company Brain</span>
   </div>
 
   <div class="dept-block">
     <div class="block-label">Department</div>
-    <div class="dept-row">
+    <!-- Admin view: dropdown + add button -->
+    <div class="dept-row" id="deptAdminRow">
       <select class="dept-select" id="deptSelect">
         <option value="">All Departments</option>
       </select>
       <button class="dept-add-btn" id="addDeptBtn" title="Add Department">+</button>
+    </div>
+    <!-- Member view: locked label (no switching) -->
+    <div id="deptMemberRow" style="display:none">
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 4px">
+        <span class="dept-badge-dot" id="deptMemberDot" style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--primary)"></span>
+        <span id="deptMemberName" style="font-size:13px;font-weight:500;color:var(--ink)">—</span>
+        <span style="font-size:11px;color:var(--muted-soft);margin-left:auto">locked</span>
+      </div>
     </div>
     <div id="deptBadgeWrap" style="display:none;margin-top:7px">
       <span class="dept-badge" id="deptBadgeInner">
@@ -240,6 +357,15 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
     <div class="block-label">Connected</div>
     <div id="sourceList"></div>
   </div>
+
+  <div class="user-pill" id="userPill" style="display:none">
+    <div class="user-avatar" id="userAvatar">?</div>
+    <div class="user-info">
+      <div class="user-email" id="userEmail">—</div>
+      <div class="user-role" id="userRoleLabel">member</div>
+    </div>
+    <button class="user-signout" onclick="signOut()">Sign out</button>
+  </div>
 </aside>
 
 <!-- MAIN -->
@@ -248,8 +374,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
   <!-- ASK -->
   <div class="tab active" id="tab-ask">
     <div id="llmBanner" class="llm-banner" style="display:none">
-      ⚠️ <strong>Demo mode</strong> — no LLM API key set. Extractions use hardcoded mock data only.
-      Add <code>OPENAI_API_KEY</code> or <code>ANTHROPIC_API_KEY</code> to your <code>.env</code> file, then restart.
+      ⚠️ <strong>Demo mode</strong> — no LLM API key set. Add <code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>, or <code>GROK_API_KEY</code> to your <code>.env</code> file, then restart.
       <span class="close-banner" onclick="this.parentElement.style.display='none'">×</span>
     </div>
     <div class="ask-head">
@@ -258,7 +383,9 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
     </div>
     <div class="chat-area" id="chatArea">
       <div class="empty-state" id="emptyState">
-        <div class="es-icon">🧠</div>
+        <div class="es-icon">
+          <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="var(--hairline)" stroke-width="1.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        </div>
         <p>Ask anything about your company</p>
         <small>The brain searches its memory and shows you the source of each answer — including when facts were updated or overruled.</small>
         <div class="example-qs">
@@ -269,15 +396,22 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
       </div>
     </div>
     <div class="chat-foot">
-      <div class="input-wrap">
-        <input class="chat-inp" id="chatInput" placeholder="Ask anything about your company..." autocomplete="off">
-        <button class="send-btn" id="sendBtn">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>
-        </button>
+      <div style="position:relative">
+        <!-- Command palette (shown when user types /) -->
+        <div class="cmd-palette" id="cmdPalette">
+          <div class="cmd-palette-header">Commands — type /command args and press Enter</div>
+          <div id="cmdList"></div>
+        </div>
+        <div class="input-wrap">
+          <input class="chat-inp" id="chatInput" placeholder="Ask anything… or type / for commands" autocomplete="off">
+          <button class="send-btn" id="sendBtn">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>
+          </button>
+        </div>
       </div>
       <div class="disclaimer">
         <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
-        you only see facts you have permission to see
+        type <kbd style="font-family:'JetBrains Mono',monospace;font-size:10px;background:var(--surface-card);padding:1px 5px;border-radius:3px;border:1px solid var(--hairline)">/</kbd> to see commands &nbsp;·&nbsp; you only see facts you have permission to see
       </div>
     </div>
   </div>
@@ -289,6 +423,22 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
       <p>Connect your tools. Token already in <code>.env</code>? It will show as Connected automatically.</p>
     </div>
     <div class="tab-body">
+      <!-- Composio hub banner -->
+      <div id="composioHub" style="display:none;margin-bottom:20px;background:var(--canvas);border:1px solid var(--primary);border-radius:12px;overflow:hidden">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:10px">
+          <div style="width:36px;height:36px;background:rgba(204,120,92,.12);border-radius:8px;display:flex;align-items:center;justify-content:center" id="composioHubIcon"></div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:14px;color:var(--ink)">Composio — 1,047+ apps connected</div>
+            <div style="font-size:12px;color:var(--muted)">Connect any app below with one click OAuth — no env vars needed</div>
+          </div>
+          <button class="btn-sm btn-sync" onclick="_runComposioSync()">↻ Sync all</button>
+        </div>
+        <div id="composioAppList" style="display:flex;flex-wrap:wrap;gap:8px;padding:14px 20px;max-height:160px;overflow-y:auto"></div>
+        <div style="padding:10px 20px;border-top:1px solid var(--hairline);display:flex;gap:8px;align-items:center">
+          <input id="composioAppSearch" placeholder="Search 1,047+ apps (github, hubspot, jira…)" style="flex:1;background:var(--surface-soft);border:1px solid var(--hairline);color:var(--ink);padding:7px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none">
+          <button class="btn-sm btn-sync" onclick="_connectComposioApp()">+ Connect app</button>
+        </div>
+      </div>
       <div class="conn-grid" id="connGrid"></div>
     </div>
   </div>
@@ -320,7 +470,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
             Departments
             <button class="btn-sm btn-sync" id="settingsAddDept">+ Add Department</button>
           </div>
-          <div id="deptTable"><div style="padding:20px;color:var(--dim);font-size:13px">No departments yet. Click "+ Add Department" or load data from Connections.</div></div>
+          <div id="deptTable"><div style="padding:20px;color:var(--muted);font-size:13px">No departments yet. Click "+ Add Department" or load data from Connections.</div></div>
         </div>
         <div class="settings-card">
           <div class="settings-card-head">API Keys &amp; Credentials</div>
@@ -328,11 +478,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
         </div>
         <div class="settings-card">
           <div class="settings-card-head">Workspace</div>
-          <div style="padding:16px 20px;font-size:13px;color:var(--dim);line-height:2">
-            <div><strong style="color:var(--text)">Workspace ID</strong> — ws_local</div>
-            <div><strong style="color:var(--text)">Storage</strong> — SQLite (brain.db)</div>
-            <div><strong style="color:var(--text)">Embeddings</strong> — bge-small-en, 384-dim, runs locally</div>
-            <div id="llmModelRow"><strong style="color:var(--text)">LLM</strong> — loading…</div>
+          <div style="padding:16px 20px;font-size:13px;color:var(--muted);line-height:2.1">
+            <div><strong style="color:var(--ink)">Workspace ID</strong> — ws_local</div>
+            <div><strong style="color:var(--ink)">Storage</strong> — SQLite (brain.db)</div>
+            <div><strong style="color:var(--ink)">Embeddings</strong> — bge-small-en, 384-dim, runs locally</div>
+            <div id="llmModelRow"><strong style="color:var(--ink)">LLM</strong> — loading…</div>
           </div>
         </div>
       </div>
@@ -388,13 +538,29 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 // ── state ─────────────────────────────────────────────────────────────────────
 const S = { teams: [], connectors: [], status: {}, currentTeam: null };
 
-const PALETTE = ['#1f6feb','#f0883e','#3fb950','#a371f7','#e3b341','#f78166','#79c0ff','#56d364','#ff7b72'];
+const PALETTE = ['#cc785c','#5db8a6','#e8a55a','#5db872','#a371f7','#6c6a64','#d4a017','#c64545'];
 function teamColor(id) {
   let h = 0; for (const c of String(id||'')) h=(h*31+c.charCodeAt(0))&0x7fffffff;
   return PALETTE[h%PALETTE.length];
 }
-const SRC_ICONS = {slack:'💬',gmail:'📧',gdoc:'📄',calendar:'📅',notion:'📝',sample:'🧪',human:'✍️'};
-function srcIcon(s){ return SRC_ICONS[s]||'🌐'; }
+const CONN_LOGOS = {
+  slack:   `<svg width="20" height="20" viewBox="0 0 24 24" fill="var(--muted)"><path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.528 2.528 0 01-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 01-2.523 2.521 2.527 2.527 0 01-2.52-2.521V2.522A2.527 2.527 0 0115.165 0a2.528 2.528 0 012.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 012.523 2.522A2.528 2.528 0 0115.165 24a2.527 2.527 0 01-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 01-2.52-2.523 2.526 2.526 0 012.52-2.52h6.313A2.527 2.527 0 0124 15.165a2.528 2.528 0 01-2.522 2.523h-6.313z"/></svg>`,
+  gmail:   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>`,
+  gdoc:    `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>`,
+  calendar:`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg>`,
+  notion:  `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>`,
+  composio:`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>`,
+  default: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>`,
+};
+const SRC_ICONS = {
+  slack:   `<svg width="13" height="13" viewBox="0 0 24 24" fill="var(--muted)"><path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.528 2.528 0 01-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 01-2.523 2.521 2.527 2.527 0 01-2.52-2.521V2.522A2.527 2.527 0 0115.165 0a2.528 2.528 0 012.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 012.523 2.522A2.528 2.528 0 0115.165 24a2.527 2.527 0 01-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 01-2.52-2.523 2.526 2.526 0 012.52-2.52h6.313A2.527 2.527 0 0124 15.165a2.528 2.528 0 01-2.522 2.523h-6.313z"/></svg>`,
+  gmail:   `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>`,
+  gdoc:    `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>`,
+  calendar:`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg>`,
+  notion:  `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>`,
+  human:   `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>`,
+};
+function srcIcon(s){ return SRC_ICONS[s]||SRC_ICONS.gdoc; }
 function fmtDate(s){
   if(!s) return '';
   const d=new Date(s); if(isNaN(d)) return String(s).slice(0,10);
@@ -402,10 +568,149 @@ function fmtDate(s){
 }
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+// ── auth ──────────────────────────────────────────────────────────────────────
+let _supabase = null;
+let _authToken = null;   // Bearer token sent with every API request
+let _authMode  = null;   // 'supabase' | 'bypass'
+
+async function initAuth() {
+  // Ask the server which auth mode it's running in
+  const st = await fetch('/api/status').then(r=>r.json()).catch(()=>({auth_mode:'bypass'}));
+  _authMode = st.auth_mode || 'bypass';
+
+  if (_authMode === 'bypass') {
+    // No Supabase configured — show bypass link and skip sign-in
+    document.getElementById('authBypassRow').style.display = 'block';
+    // Hide email/password fields; they are not needed
+    document.getElementById('authEmail').closest('.auth-field').style.display='none';
+    document.getElementById('authPassword').closest('.auth-field').style.display='none';
+    document.getElementById('authSubmit').style.display='none';
+    document.querySelector('.auth-tabs').style.display='none';
+    return false;  // caller should wait for user to click bypass link
+  }
+
+  // Supabase mode — init client
+  const SUPABASE_URL = window.__SUPABASE_URL__ || '';
+  const SUPABASE_ANON_KEY = window.__SUPABASE_ANON_KEY__ || '';
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    // Supabase secret set server-side but no client keys embedded — bypass UI
+    document.getElementById('authBypassRow').style.display='block';
+    document.getElementById('authBypassRow').innerHTML =
+      '<span style="color:var(--muted)">Auth active. <a onclick="bypassAuth()">Dev bypass</a> (set __SUPABASE_URL__ + __SUPABASE_ANON_KEY__ in index.html for full login UI)</span>';
+    return false;
+  }
+
+  _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Check for existing session
+  const { data: { session } } = await _supabase.auth.getSession();
+  if (session) {
+    _authToken = session.access_token;
+    return true;
+  }
+
+  // Listen for auth state changes (e.g. magic link redirect)
+  _supabase.auth.onAuthStateChange((_event, session) => {
+    if (session) {
+      _authToken = session.access_token;
+      showApp(session.user);
+    } else {
+      _authToken = null;
+      showAuthScreen();
+    }
+  });
+  return false;
+}
+
+function bypassAuth() {
+  _authToken = null;
+  showApp({ email: 'local@dev', user_metadata: { role: 'admin' } });
+}
+
+async function doAuth() {
+  if (!_supabase) { bypassAuth(); return; }
+  const email    = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const btn      = document.getElementById('authSubmit');
+  const err      = document.getElementById('authErr');
+  const mode     = document.getElementById('tabSignIn').classList.contains('active') ? 'signin' : 'signup';
+
+  if (!email || !password) { err.textContent = 'Email and password required'; return; }
+  err.textContent = '';
+  btn.disabled = true; btn.textContent = '…';
+
+  try {
+    let res;
+    if (mode === 'signin') {
+      res = await _supabase.auth.signInWithPassword({ email, password });
+    } else {
+      res = await _supabase.auth.signUp({ email, password });
+    }
+    if (res.error) throw res.error;
+    if (res.data?.session) {
+      _authToken = res.data.session.access_token;
+      showApp(res.data.user);
+    } else {
+      // Sign-up: confirmation email sent
+      err.style.color = 'var(--success)';
+      err.textContent = 'Check your email to confirm your account.';
+    }
+  } catch(e) {
+    err.textContent = e.message || 'Authentication failed';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = mode === 'signin' ? 'Sign in' : 'Create account';
+  }
+}
+
+async function signOut() {
+  if (_supabase) await _supabase.auth.signOut();
+  _authToken = null;
+  showAuthScreen();
+}
+
+function setAuthTab(tab) {
+  document.getElementById('tabSignIn').classList.toggle('active', tab==='signin');
+  document.getElementById('tabSignUp').classList.toggle('active', tab==='signup');
+  document.getElementById('authSubmit').textContent = tab==='signin' ? 'Sign in' : 'Create account';
+  document.getElementById('authPassword').autocomplete = tab==='signin' ? 'current-password' : 'new-password';
+}
+
+function showAuthScreen() {
+  document.getElementById('authScreen').classList.remove('hidden');
+  document.getElementById('authErr').textContent = '';
+}
+
+function showApp(user) {
+  document.getElementById('authScreen').classList.add('hidden');
+  // Populate user pill
+  const email = user?.email || 'local';
+  const role  = user?.user_metadata?.role || ((_authMode==='bypass')?'admin':'member');
+  document.getElementById('userEmail').textContent = email;
+  document.getElementById('userRoleLabel').textContent = role;
+  document.getElementById('userAvatar').textContent = email[0].toUpperCase();
+  document.getElementById('userPill').style.display = 'flex';
+}
+
 // ── api ───────────────────────────────────────────────────────────────────────
 const api = {
-  async get(p){ const r=await fetch(p); if(!r.ok) throw new Error(await r.text()); return r.json(); },
-  async post(p,b){ const r=await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}); if(!r.ok) throw new Error(await r.text()); return r.json(); }
+  _headers(extra={}) {
+    const h = {'Content-Type':'application/json', ...extra};
+    if (_authToken) h['Authorization'] = 'Bearer ' + _authToken;
+    return h;
+  },
+  async get(p) {
+    const r = await fetch(p, {headers: this._headers({'Content-Type':undefined})});
+    if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
+  async post(p, b) {
+    const r = await fetch(p, {method:'POST', headers:this._headers(), body:JSON.stringify(b)});
+    if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  }
 };
 
 // ── toast ─────────────────────────────────────────────────────────────────────
@@ -430,16 +735,39 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
 
 // ── dept sidebar ──────────────────────────────────────────────────────────────
 function renderDeptSelect(){
-  const sel=document.getElementById('deptSelect');
-  const cur=sel.value;
-  sel.innerHTML='<option value="">All Departments</option>';
-  S.teams.forEach(t=>{
-    const o=document.createElement('option');
-    o.value=t.id; o.textContent=t.name; sel.appendChild(o);
-  });
-  sel.value=cur||(S.currentTeam||'');
-  updateDeptBadge(sel.value);
+  const isAdmin = S.me?.is_admin !== false;  // true in bypass/admin mode, false for members
+  const adminRow  = document.getElementById('deptAdminRow');
+  const memberRow = document.getElementById('deptMemberRow');
+  const addBtn    = document.getElementById('addDeptBtn');
 
+  if(isAdmin){
+    // Admin: full dropdown + add button
+    adminRow.style.display  = '';
+    memberRow.style.display = 'none';
+    const sel=document.getElementById('deptSelect');
+    const cur=sel.value;
+    sel.innerHTML='<option value="">All Departments</option>';
+    S.teams.forEach(t=>{
+      const o=document.createElement('option');
+      o.value=t.id; o.textContent=t.name; sel.appendChild(o);
+    });
+    sel.value=cur||(S.currentTeam||'');
+    updateDeptBadge(sel.value);
+  } else {
+    // Member: locked to own team, no dropdown, no add button
+    adminRow.style.display  = 'none';
+    memberRow.style.display = '';
+    const myTeamId = S.me?.team_id || '';
+    const myTeam   = S.teams.find(t=>t.id===myTeamId);
+    const myTeamName = myTeam?.name || myTeamId || 'My Team';
+    const color = teamColor(myTeamId);
+    document.getElementById('deptMemberDot').style.background = color;
+    document.getElementById('deptMemberName').textContent = myTeamName;
+    S.currentTeam = myTeamId;
+    updateDeptBadge(myTeamId);
+  }
+
+  // Activity filter (always updated regardless of role)
   const af=document.getElementById('actTeamFilter');
   const afc=af.value;
   af.innerHTML='<option value="">All</option>';
@@ -490,66 +818,134 @@ function renderConnections(){
     card.className=`conn-card ${c.connected?'is-connected':''}`;
     const tid=S.currentTeam||'engineering';
 
-    let actionBtn='';
-    if(c.id==='sample'){
-      actionBtn=`<button class="btn-sm btn-demo conn-action" data-source="sample" data-team="${tid}">Load Demo Data</button>`;
-    } else if(c.connected){
-      actionBtn=`<button class="btn-sm btn-sync conn-action" data-source="${c.id}" data-team="${tid}">↻ Sync Now</button>`;
+    let actionBtns='';
+    if(c.connected){
+      actionBtns=`
+        <button class="btn-sm btn-sync conn-sync" data-source="${c.id}" data-team="${tid}" title="Fetch recent items only">↻ Sync</button>
+        <button class="btn-sm btn-setup conn-backfill" data-source="${c.id}" data-team="${tid}" title="Fetch full history (slow)">Full backfill</button>`;
     } else {
-      actionBtn=`<button class="btn-sm btn-setup" onclick="showSetupHelp('${c.id}')">How to connect →</button>`;
+      actionBtns=`<button class="btn-sm btn-setup conn-setup-btn" data-src="${c.id}">How to connect →</button>`;
     }
+
+    const envTag = c.env_var ? `<code style="font-size:10px;background:var(--surface-card);padding:1px 5px;border-radius:4px;color:var(--muted)">${escHtml(c.env_var)}</code>` : '';
 
     card.innerHTML=`
       <div class="conn-top">
-        <div class="conn-logo" style="background:${c.color}22">${c.icon}</div>
-        <div class="conn-name">${escHtml(c.name)}</div>
+        <div class="conn-logo">${CONN_LOGOS[c.icon]||CONN_LOGOS.default}</div>
+        <div>
+          <div class="conn-name">${escHtml(c.name)}</div>
+          ${envTag}
+        </div>
       </div>
       <div class="conn-desc">${escHtml(c.desc)}</div>
-      <div class="conn-foot">
+      <div class="conn-foot" style="gap:6px;flex-wrap:wrap">
         <div class="status-row">
           <div class="sdot2 ${c.connected?'on':''}"></div>
           <span class="${c.connected?'status-connected':'status-disconnected'}">${c.connected?'Connected':'Not connected'}</span>
         </div>
-        ${actionBtn}
+        <div style="display:flex;gap:6px">${actionBtns}</div>
       </div>`;
     grid.appendChild(card);
   });
 
-  // wire up all action buttons
-  grid.querySelectorAll('.conn-action').forEach(btn=>{
-    btn.addEventListener('click', async e=>{
-      const b=e.currentTarget;
-      const src=b.dataset.source;
-      const team=b.dataset.team||S.currentTeam||'engineering';
-      const orig=b.textContent;
-      b.textContent='Running…'; b.disabled=true;
-      try{
-        const res=await api.post('/api/backfill',{source:src,team_id:team});
-        toast(`✓ ${res.source}: ${res.episodes} new episodes, ${res.facts} facts → ${res.team}`,'ok');
-        // reload teams in case new dept appeared
-        S.teams=await api.get('/api/teams');
-        renderDeptSelect();
-        renderSources();
-        if(!S.currentTeam && S.teams.length){
-          S.currentTeam=S.teams[0].id;
-          document.getElementById('deptSelect').value=S.currentTeam;
-          updateDeptBadge(S.currentTeam);
-        }
-      } catch(err){ toast('Error: '+err.message,'err'); }
-      b.textContent=orig; b.disabled=false;
-    });
+  async function _runConnector(btn, endpoint){
+    const src=btn.dataset.source;
+    const team=btn.dataset.team||S.currentTeam||'engineering';
+    const orig=btn.textContent;
+    btn.textContent='Running…'; btn.disabled=true;
+    try{
+      const res=await api.post(endpoint,{source:src});
+      const eps=res.episodes??res.new_episodes??0;
+      const facts=res.facts??res.new_facts??0;
+      toast(`✓ ${res.source}: ${eps} new episodes, ${facts} facts`,'ok');
+      S.teams=await api.get('/api/teams');
+      renderDeptSelect(); renderSources();
+      if(!S.currentTeam && S.teams.length){
+        S.currentTeam=S.teams[0].id;
+        document.getElementById('deptSelect').value=S.currentTeam;
+        updateDeptBadge(S.currentTeam);
+      }
+    } catch(err){ toast('Error: '+err.message,'err'); }
+    btn.textContent=orig; btn.disabled=false;
+  }
+
+  grid.querySelectorAll('.conn-sync').forEach(btn=>{
+    btn.addEventListener('click', ()=>_runConnector(btn,'/api/sync'));
+  });
+  grid.querySelectorAll('.conn-backfill').forEach(btn=>{
+    btn.addEventListener('click', ()=>_runConnector(btn,'/api/backfill'));
+  });
+  grid.querySelectorAll('.conn-setup-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>showSetupHelp(btn.dataset.src));
   });
 }
 
 function showSetupHelp(src){
-  const msgs={
-    slack:'Add SLACK_BOT_TOKEN=xoxb-... to your .env file, then restart the server. See the Slack connection guide.',
-    gmail:'Add GOOGLE_CREDENTIALS_JSON=<path> to your .env file.',
-    gdoc:'Add GOOGLE_CREDENTIALS_JSON=<path> to your .env file.',
-    calendar:'Add GOOGLE_CREDENTIALS_JSON=<path> to your .env file.',
-    notion:'Add NOTION_TOKEN=secret_... to your .env file.',
-  };
-  toast((msgs[src]||'Add credentials to .env and restart.'),'warn');
+  const c=(S.connectors||[]).find(x=>x.id===src);
+  const msg=c?.setup||'Add credentials to .env and restart the server.';
+  // show a longer toast or alert
+  if(msg.length > 80){
+    alert(`How to connect ${c?.name||src}:\n\n${msg}`);
+  } else {
+    toast(msg,'warn');
+  }
+}
+
+// ── composio hub ─────────────────────────────────────────────────────────────
+async function loadComposioHub() {
+  const composioConn = (S.connectors||[]).find(c=>c.id==='composio');
+  if (!composioConn?.connected) return;
+
+  const hub = document.getElementById('composioHub');
+  hub.style.display = 'block';
+  document.getElementById('composioHubIcon').innerHTML = CONN_LOGOS.composio || '';
+
+  // Load connected apps from Composio
+  try {
+    const connected = await api.get('/api/composio/connected');
+    const list = document.getElementById('composioAppList');
+    list.innerHTML = '';
+    if (connected.length === 0) {
+      list.innerHTML = '<span style="font-size:12px;color:var(--muted)">No apps connected yet — search below and click "+ Connect app"</span>';
+    } else {
+      connected.forEach(acc => {
+        const chip = document.createElement('span');
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:9999px;font-size:12px;font-weight:500;background:rgba(93,184,114,.12);color:#2d7a3a;border:1px solid rgba(93,184,114,.25)';
+        chip.innerHTML = `✓ ${escHtml(acc.label||acc.app)}`;
+        list.appendChild(chip);
+      });
+    }
+  } catch(e) {
+    // silently ignore — Composio key might not have connected accounts yet
+  }
+}
+
+async function _connectComposioApp() {
+  const appSlug = document.getElementById('composioAppSearch').value.trim().toLowerCase().replace(/\s+/g,'-');
+  if (!appSlug) { toast('Type an app name first (e.g. github, hubspot, jira)','warn'); return; }
+  try {
+    const res = await api.post('/api/composio/connect', {app: appSlug, redirect_url: ''});
+    if (res.connect_url) {
+      window.open(res.connect_url, '_blank');
+      toast(`OAuth opened for ${appSlug} — complete it in the new tab, then sync`,'ok');
+    } else {
+      toast(`Could not get OAuth URL for ${appSlug}`,'err');
+    }
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+async function _runComposioSync() {
+  const btn = document.querySelector('[onclick="_runComposioSync()"]');
+  if (btn) { btn.textContent='Running…'; btn.disabled=true; }
+  try {
+    const res = await api.post('/api/sync', {source: 'composio'});
+    const eps = res.new_episodes ?? res.episodes ?? 0;
+    const facts = res.new_facts ?? res.facts ?? 0;
+    toast(`✓ Composio: ${eps} new episodes, ${facts} facts`,'ok');
+    S.teams = await api.get('/api/teams');
+    renderDeptSelect(); renderSources();
+  } catch(e) { toast('Error: '+e.message,'err'); }
+  if (btn) { btn.textContent='↻ Sync all'; btn.disabled=false; }
 }
 
 // ── chat ──────────────────────────────────────────────────────────────────────
@@ -566,14 +962,14 @@ function buildAnswerCard(result){
   const uncertain=result.answer!=='From company memory:';
 
   if(!facts.length){
-    return `<div class="answer-card"><div class="answer-text" style="color:#6b7280;font-style:italic">
+    return `<div class="answer-card"><div class="answer-text" style="color:var(--muted);font-style:italic">
       No relevant facts found in memory yet.<br>
-      <small style="font-size:12px">→ Load demo data from the Connections tab, then try: "Why did we drop Redis?"</small>
+      <small style="font-size:12px;color:var(--muted-soft)">→ Load demo data from the Connections tab, then try: "Why did we drop Redis?"</small>
     </div></div>`;
   }
 
   const headline=(()=>{
-    if(uncertain) return '<span style="color:#6b7280;font-size:13px;font-style:italic">Closest facts in memory (may not be directly relevant):</span>';
+    if(uncertain) return '<span style="color:var(--muted);font-size:13px;font-style:italic">Closest facts in memory (may not be directly relevant):</span>';
     const valid=facts.find(f=>f.status!=='stale');
     return escHtml((valid||facts[0]).summary);
   })();
@@ -608,12 +1004,268 @@ async function sendQuery(q){
     const res=await api.post('/api/search',{query:q,team_id:S.currentTeam||null,cross_team:!S.currentTeam});
     load.innerHTML=buildAnswerCard(res);
   } catch(e){
-    load.innerHTML=`<div class="answer-card"><div class="answer-text" style="color:#ef4444">Error: ${escHtml(e.message)}</div></div>`;
+    load.innerHTML=`<div class="answer-card"><div class="answer-text" style="color:var(--error)">Error: ${escHtml(e.message)}</div></div>`;
   }
 }
 
-document.getElementById('sendBtn').addEventListener('click',()=>{ const i=document.getElementById('chatInput'); sendQuery(i.value); i.value=''; });
-document.getElementById('chatInput').addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); const i=e.target; sendQuery(i.value); i.value=''; } });
+// ── command palette ───────────────────────────────────────────────────────────
+const COMMANDS = [
+  {
+    slug: '/record',
+    args: '<text>',
+    desc: 'Save a new fact directly to company memory',
+    async run(args) {
+      if (!args) return {error: 'Usage: /record <fact text>'};
+      const res = await api.post('/api/record', {text: args, shared: false});
+      return {ok: `Recorded ${res.new_facts ?? res.facts ?? 0} new fact(s).`};
+    },
+  },
+  {
+    slug: '/record-shared',
+    args: '<text>',
+    desc: 'Save a fact visible to all teams (company-wide)',
+    async run(args) {
+      if (!args) return {error: 'Usage: /record-shared <fact text>'};
+      const res = await api.post('/api/record', {text: args, shared: true});
+      return {ok: `Recorded ${res.new_facts ?? res.facts ?? 0} shared fact(s).`};
+    },
+  },
+  {
+    slug: '/correct',
+    args: '<fact_id> <correction>',
+    desc: 'Correct or supersede an existing fact by its ID',
+    async run(args) {
+      const parts = (args||'').trim().split(/\s+/);
+      if (parts.length < 2) return {error: 'Usage: /correct <fact_id> <correction text>'};
+      const [fact_id, ...rest] = parts;
+      const res = await api.post('/api/correct', {fact_id, correction: rest.join(' ')});
+      return {ok: `Fact corrected. New fact ID: ${res.new_fact_id || '(see facts tab)'}`};
+    },
+  },
+  {
+    slug: '/history',
+    args: '<subject>',
+    desc: 'Show decision history for a topic (e.g. /history pricing)',
+    async run(args) {
+      if (!args) return {error: 'Usage: /history <subject>'};
+      const res = await api.get(`/api/history?subject=${encodeURIComponent(args)}`);
+      const tl = res.timeline || [];
+      if (!tl.length) return {ok: `No decision history found for "${args}".`};
+      const lines = tl.map(f=>`• [${(f.occurred_at||'').slice(0,10)}] ${f.body||f.claim}`);
+      return {ok: `**${args} — decision history (${tl.length} entries)**\n\n${lines.join('\n')}`};
+    },
+  },
+  {
+    slug: '/sync',
+    args: '[source]',
+    desc: 'Pull recent items from a connector (slack, notion, composio…)',
+    async run(args) {
+      const src = (args||'').trim() || 'slack';
+      const res = await api.post('/api/sync', {source: src});
+      const eps = res.new_episodes ?? res.episodes ?? 0;
+      const facts = res.new_facts ?? res.facts ?? 0;
+      return {ok: `Synced ${src}: ${eps} new episodes → ${facts} new facts.`};
+    },
+  },
+  {
+    slug: '/backfill',
+    args: '<source>',
+    desc: 'Pull full history from a connector (slow — use once)',
+    async run(args) {
+      const src = (args||'').trim();
+      if (!src) return {error: 'Usage: /backfill <source>  (slack, gmail, gdoc, calendar, notion, composio)'};
+      const res = await api.post('/api/backfill', {source: src});
+      const eps = res.episodes ?? 0;
+      const facts = res.facts ?? 0;
+      return {ok: `Backfilled ${src}: ${eps} episodes → ${facts} facts.`};
+    },
+  },
+  {
+    slug: '/team',
+    args: '<team_id> <name>',
+    desc: 'Create a new department/team (admin only)',
+    async run(args) {
+      const parts = (args||'').trim().split(/\s+/);
+      if (parts.length < 2) return {error: 'Usage: /team <team_id> <display name>'};
+      const [team_id, ...nameParts] = parts;
+      const res = await api.post('/api/teams', {team_id, name: nameParts.join(' '), description: ''});
+      S.teams = await api.get('/api/teams');
+      renderDeptSelect();
+      return {ok: `Team "${res.name}" (${res.team_id}) created.`};
+    },
+  },
+  {
+    slug: '/facts',
+    args: '',
+    desc: 'Show the most recent facts in memory',
+    async run() {
+      const rows = await api.get('/api/facts?limit=10');
+      if (!rows.length) return {ok: 'No facts in memory yet. Sync a connector or record something.'};
+      const lines = rows.map(f=>`• [${f.team_id||'shared'}] ${f.claim||f.body||'(no body)'}`);
+      return {ok: `**Last ${rows.length} facts:**\n\n${lines.join('\n')}`};
+    },
+  },
+  {
+    slug: '/me',
+    args: '',
+    desc: 'Show your current identity (workspace, team, role)',
+    async run() {
+      const m = await api.get('/api/me');
+      return {ok: `**You:** ${m.email}\n**Team:** ${m.team_id} · **Role:** ${m.role}\n**Workspace:** ${m.workspace_id}`};
+    },
+  },
+  {
+    slug: '/status',
+    args: '',
+    desc: 'Show server status and which API keys are set',
+    async run() {
+      const s = await api.get('/api/status');
+      const keys = Object.entries(s.keys||{}).filter(([,v])=>v).map(([k])=>k).join(', ') || 'none';
+      return {ok: `**Mode:** ${s.mock_mode?'Demo (no LLM key)':'Live'} · ${s.llm_model}\n**Auth:** ${s.auth_mode}\n**Keys set:** ${keys}`};
+    },
+  },
+];
+
+let _cmdSelected = -1;
+
+function _matchCommands(input) {
+  const raw = input.trimStart();
+  if (!raw.startsWith('/')) return [];
+  const parts = raw.slice(1).split(/\s+/);
+  const slug = '/' + parts[0].toLowerCase();
+  // If they've typed a full slug + space, show only that command
+  if (parts.length > 1) return COMMANDS.filter(c => c.slug === slug);
+  // Otherwise filter by prefix
+  return COMMANDS.filter(c => c.slug.startsWith(slug));
+}
+
+function _renderPalette(matches) {
+  const palette = document.getElementById('cmdPalette');
+  const list = document.getElementById('cmdList');
+  if (!matches.length) { palette.classList.remove('open'); return; }
+  list.innerHTML = matches.map((c, i) => `
+    <div class="cmd-item${i===_cmdSelected?' selected':''}" data-idx="${i}">
+      <span class="cmd-slug">${escHtml(c.slug)}</span>
+      <span class="cmd-desc">${escHtml(c.desc)}</span>
+      <span class="cmd-args">${escHtml(c.args)}</span>
+    </div>`).join('');
+  palette.classList.add('open');
+  list.querySelectorAll('.cmd-item').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const idx = parseInt(el.dataset.idx);
+      _autocompleteCmd(matches[idx]);
+    });
+  });
+}
+
+function _autocompleteCmd(cmd) {
+  const inp = document.getElementById('chatInput');
+  inp.value = cmd.slug + ' ';
+  inp.focus();
+  _cmdSelected = -1;
+  _renderPalette([]);
+}
+
+async function _runCommandLine(raw) {
+  const trimmed = raw.trim();
+  const parts = trimmed.slice(1).split(/\s+/);
+  const slug = '/' + parts[0].toLowerCase();
+  const args = parts.slice(1).join(' ');
+  const cmd = COMMANDS.find(c => c.slug === slug);
+  if (!cmd) {
+    addMsg('a', `<div class="cmd-result" style="color:var(--error)">Unknown command: <code>${escHtml(slug)}</code>. Type / to see available commands.</div>`);
+    return;
+  }
+  const loadEl = addMsg('a', '<div class="loading"><span></span><span></span><span></span></div>');
+  try {
+    const result = await cmd.run(args);
+    if (result.error) {
+      loadEl.innerHTML = `<div class="cmd-result" style="border-color:var(--error);color:var(--error)">${escHtml(result.error)}</div>`;
+    } else {
+      // convert simple markdown-like **bold** and newlines
+      const html = escHtml(result.ok)
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+      loadEl.innerHTML = `<div class="cmd-result">${html}</div>`;
+    }
+  } catch(e) {
+    loadEl.innerHTML = `<div class="cmd-result" style="border-color:var(--error);color:var(--error)">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+// Wire up chat input with command palette support
+const _chatInp = document.getElementById('chatInput');
+const _sendBtn = document.getElementById('sendBtn');
+
+_chatInp.addEventListener('input', () => {
+  const val = _chatInp.value;
+  const matches = _matchCommands(val);
+  _cmdSelected = -1;
+  _renderPalette(matches);
+});
+
+_chatInp.addEventListener('keydown', e => {
+  const palette = document.getElementById('cmdPalette');
+  const isOpen = palette.classList.contains('open');
+  const matches = _matchCommands(_chatInp.value);
+
+  if (isOpen && e.key === 'ArrowDown') {
+    e.preventDefault();
+    _cmdSelected = Math.min(_cmdSelected + 1, matches.length - 1);
+    _renderPalette(matches);
+  } else if (isOpen && e.key === 'ArrowUp') {
+    e.preventDefault();
+    _cmdSelected = Math.max(_cmdSelected - 1, -1);
+    _renderPalette(matches);
+  } else if (isOpen && e.key === 'Tab') {
+    e.preventDefault();
+    const sel = _cmdSelected >= 0 ? matches[_cmdSelected] : matches[0];
+    if (sel) _autocompleteCmd(sel);
+  } else if (isOpen && e.key === 'Escape') {
+    palette.classList.remove('open');
+    _cmdSelected = -1;
+  } else if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    // If palette open and item selected, autocomplete
+    if (isOpen && _cmdSelected >= 0) {
+      _autocompleteCmd(matches[_cmdSelected]);
+      return;
+    }
+    palette.classList.remove('open');
+    const val = _chatInp.value.trim();
+    _chatInp.value = '';
+    _cmdSelected = -1;
+    if (!val) return;
+    if (val.startsWith('/')) {
+      _runCommandLine(val);
+    } else {
+      sendQuery(val);
+    }
+  }
+});
+
+_sendBtn.addEventListener('click', () => {
+  document.getElementById('cmdPalette').classList.remove('open');
+  const val = _chatInp.value.trim();
+  _chatInp.value = '';
+  _cmdSelected = -1;
+  if (!val) return;
+  if (val.startsWith('/')) {
+    _runCommandLine(val);
+  } else {
+    sendQuery(val);
+  }
+});
+
+// Close palette when clicking outside
+document.addEventListener('click', e => {
+  if (!e.target.closest('.chat-foot')) {
+    document.getElementById('cmdPalette').classList.remove('open');
+    _cmdSelected = -1;
+  }
+});
+
 document.querySelectorAll('.example-q').forEach(b=>b.addEventListener('click',()=>sendQuery(b.dataset.q)));
 
 // ── activity ──────────────────────────────────────────────────────────────────
@@ -626,7 +1278,7 @@ async function loadActivity(){
     if(!rows.length){ list.innerHTML='<div class="act-empty">No activity yet. Ask something in the Ask tab.</div>'; return; }
     list.innerHTML=rows.map(r=>{
       const tid2=r.team_id;
-      const color=tid2?teamColor(tid2):'#6b7280';
+      const color=tid2?teamColor(tid2):'var(--muted)';
       const tname=tid2?(S.teams.find(t=>t.id===tid2)?.name||tid2):'—';
       return `<div class="act-row">
         <div class="act-query">${escHtml(r.query)}</div>
@@ -642,10 +1294,9 @@ document.getElementById('actTeamFilter').addEventListener('change',loadActivity)
 
 // ── settings ──────────────────────────────────────────────────────────────────
 function renderSettings(){
-  // departments table
   const el=document.getElementById('deptTable');
   if(!S.teams.length){
-    el.innerHTML='<div style="padding:20px;color:var(--dim);font-size:13px">No departments yet. Use "+ Add Department" or load data from Connections first.</div>';
+    el.innerHTML='<div style="padding:20px;color:var(--muted);font-size:13px">No departments yet. Use "+ Add Department" or load data from Connections first.</div>';
   } else {
     el.innerHTML=S.teams.map(t=>{
       const color=teamColor(t.id);
@@ -658,25 +1309,25 @@ function renderSettings(){
     }).join('');
   }
 
-  // env/keys table
   const keys=S.status.keys||{};
   const model=S.status.llm_model||'gpt-4o-mini';
   const mock=S.status.mock_mode;
   document.getElementById('llmModelRow').innerHTML=
-    `<strong style="color:var(--text)">LLM</strong> — ${model} ${mock?'<span style="color:var(--red)">(demo mode – no API key)</span>':'<span style="color:var(--green)">(live)</span>'}`;
+    `<strong style="color:var(--ink)">LLM</strong> — ${model} ${mock?`<span style="color:var(--error)">(demo mode – no API key)</span>`:`<span style="color:var(--success)">(live)</span>`}`;
 
   const envRows=[
+    {key:'GROK_API_KEY', set:keys.grok, label:'Grok (xAI) — free tier available'},
     {key:'OPENAI_API_KEY', set:keys.openai, label:'OpenAI'},
     {key:'ANTHROPIC_API_KEY', set:keys.anthropic, label:'Anthropic (Claude)'},
     {key:'SLACK_BOT_TOKEN', set:keys.slack, label:'Slack'},
-    {key:'GOOGLE_CREDENTIALS_JSON', set:keys.google, label:'Google (Gmail/Docs/Calendar)'},
+    {key:'GOOGLE_CREDENTIALS_JSON', set:keys.google, label:'Google (Gmail / Docs / Calendar)'},
     {key:'NOTION_TOKEN', set:keys.notion, label:'Notion'},
   ];
   document.getElementById('envTable').innerHTML=envRows.map(r=>`
     <div class="env-row">
       <div class="env-key">${r.key}</div>
       <div class="env-val ${r.set?'env-set':'env-missing'}">${r.set?'✓ Set':'✗ Not set'}</div>
-      <div style="font-size:12px;color:var(--dim);flex:1">${r.label}</div>
+      <div style="font-size:12px;color:var(--muted);flex:1">${r.label}</div>
     </div>`).join('');
 }
 document.getElementById('settingsAddDept').addEventListener('click',()=>openModal());
@@ -727,15 +1378,15 @@ document.getElementById('deptModal').addEventListener('keydown',e=>{
 });
 
 // ── init ──────────────────────────────────────────────────────────────────────
-async function init(){
+async function loadApp(){
   try{
-    [S.teams, S.connectors, S.status] = await Promise.all([
+    [S.teams, S.connectors, S.status, S.me] = await Promise.all([
       api.get('/api/teams'),
       api.get('/api/connectors'),
       api.get('/api/status'),
+      api.get('/api/me'),
     ]);
 
-    // show LLM banner if in mock mode
     if(S.status.mock_mode){
       document.getElementById('llmBanner').style.display='flex';
     }
@@ -743,18 +1394,40 @@ async function init(){
     renderDeptSelect();
     renderSources();
     renderConnections();
+    loadComposioHub();
 
-    // auto-select first team
-    if(S.teams.length){
+    if(S.teams.length && S.me?.is_admin !== false){
       S.currentTeam=S.teams[0].id;
       document.getElementById('deptSelect').value=S.currentTeam;
       updateDeptBadge(S.currentTeam);
     } else if(S.connectors.some(c=>c.id==='sample'&&c.connected)){
-      // hint: no departments yet but sample is available
       document.getElementById('deptHint').style.display='block';
       document.getElementById('deptHint').textContent='Load demo data to auto-create a department';
     }
   } catch(e){ toast('Could not connect to API — is the server running?','err'); }
+}
+
+async function init(){
+  // Check auth before loading app data
+  const hasSession = await initAuth();
+  if (hasSession) {
+    // Existing Supabase session — get user and go straight to app
+    const { data: { user } } = await _supabase.auth.getUser();
+    showApp(user);
+    await loadApp();
+  } else if (_authMode === 'bypass') {
+    // Server is in bypass mode — show the bypass option, don't auto-proceed
+    // (user must click "continue as local user")
+    showAuthScreen();
+    // Override bypassAuth to also call loadApp
+    const _orig = bypassAuth;
+    window.bypassAuth = async function() {
+      _authToken = null;
+      showApp({ email: 'local@dev', user_metadata: { role: 'admin' } });
+      await loadApp();
+    };
+  }
+  // else: Supabase mode, no session → auth screen stays visible
 }
 init();
 </script>

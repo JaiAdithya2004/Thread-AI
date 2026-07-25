@@ -2,3 +2,7 @@
 brain.db
 .env
 __pycache__/
+*.pyc
+*.egg-info/
+token_*.json
+evals/results.json

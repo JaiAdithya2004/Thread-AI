@@ -1,15 +1,7 @@
-from .sample import SampleConnector
 from .slack import SlackConnector
-from .gmail import GmailConnector
-from .gdocs import GDocsConnector
-from .calendar import CalendarConnector
-from .notion import NotionConnector
+from .composio import ComposioConnector
 
 REGISTRY = {
-    "sample": SampleConnector,
-    "slack": SlackConnector,
-    "gmail": GmailConnector,
-    "gdoc": GDocsConnector,
-    "calendar": CalendarConnector,
-    "notion": NotionConnector,
+    "slack":    SlackConnector,
+    "composio": ComposioConnector,
 }
