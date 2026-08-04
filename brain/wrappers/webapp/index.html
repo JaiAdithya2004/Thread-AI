@@ -798,12 +798,10 @@ async function initAuth() {
   const st = await fetch('/api/status').then(r=>r.json()).catch(()=>({auth_mode:'bypass'}));
 
   if (st.auth_mode === 'bypass') {
-    document.getElementById('authBypassRow').style.display = 'block';
-    document.getElementById('authEmail').closest('.auth-field').style.display='none';
-    document.getElementById('authPassword').closest('.auth-field').style.display='none';
-    document.getElementById('authSubmit').style.display='none';
-    document.querySelector('.auth-tabs').style.display='none';
-    return false;
+    _authToken = 'dev-bypass';
+    showApp({ email: 'local@dev', user_metadata: { role: 'admin' } });
+    await loadApp();
+    return true;
   }
 
   const pk = window.__CLERK_PUBLISHABLE_KEY__ || '';
@@ -1249,7 +1247,11 @@ async function _loadAppsPage(reset) {
     _HUB.allApps.push(...items);
     _HUB.cursor = Array.isArray(data) ? null : (data.next_cursor || null);
     if (_HUB.cursor) document.getElementById('appsLoadMore').style.display = 'block';
-  } catch(e) {}
+  } catch(e) {
+    document.getElementById('appsLoading').textContent = 'Failed to load apps: ' + e.message;
+    _HUB.loading = false;
+    return;
+  }
 
   _HUB.loading = false;
   document.getElementById('appsLoading').style.display = 'none';
@@ -2308,25 +2310,17 @@ async function acceptInvite(){
 }
 
 async function init(){
-  // 1. Check for invite token first — takes over the whole auth screen
+  // 1. Check for invite token first
   const isInvite = await checkInviteToken();
-  if(isInvite) return;  // invite flow handles everything from here
+  if(isInvite) return;
 
   // 2. Normal auth init
   const hasSession = await initAuth();
   if (hasSession) {
-    const { data: { user } } = await _supabase.auth.getUser();
-    showApp(user);
-    await loadApp();
-  } else if (_authMode === 'bypass') {
-    showAuthScreen();
-    window.bypassAuth = async function() {
-      _authToken = null;
-      showApp({ email: 'local@dev', user_metadata: { role: 'admin' } });
-      await loadApp();
-    };
+    // Clerk session already active — loadApp via the listener in initAuth
+    // (listener calls showApp + loadApp when session is detected)
   }
-  // else: Supabase mode, no session → auth screen stays visible
+  // else: auth screen is already visible; bypass button or Clerk sign-in handles the rest
 }
 init();
 </script>
