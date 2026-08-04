@@ -132,6 +132,17 @@ def _ensure_auth_config(app_slug: str) -> str:
     return result["auth_config"]["id"]
 
 
+def disconnect_app(connected_account_id: str):
+    """Delete a connected account by its ID."""
+    import requests
+    resp = requests.delete(
+        f"{_BASE}/connected_accounts/{connected_account_id}",
+        headers=_headers(), timeout=15
+    )
+    resp.raise_for_status()
+    return {"ok": True}
+
+
 def get_connect_url(app_slug: str, user_id: str = "default", redirect_url: str = None):
     """Initiate OAuth for an app. Returns a URL the user opens in browser."""
     try:

@@ -405,6 +405,16 @@ def composio_connected():
         raise HTTPException(400, str(e))
 
 
+@app.delete("/api/composio/connected/{account_id}")
+def composio_disconnect(account_id: str):
+    """Disconnect a connected Composio account by its ID."""
+    try:
+        from brain.core.connectors.composio import disconnect_app
+        return disconnect_app(account_id)
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
 @app.post("/api/composio/connect")
 def composio_connect(
     req: ComposioConnectRequest,

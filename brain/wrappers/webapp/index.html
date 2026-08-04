@@ -1031,6 +1031,12 @@ const api = {
     if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
     if (!r.ok) throw new Error(await r.text());
     return r.json();
+  },
+  async _delete(p) {
+    const r = await fetch(p, {method:'DELETE', headers:this._headers({'Content-Type':undefined})});
+    if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
   }
 };
 
@@ -1316,10 +1322,11 @@ function _buildMarketCard(grid, app, isConnected) {
 
   const toolsLabel = tools ? `<span style="font-size:10px;color:var(--muted-soft)">${tools} actions</span>` : '';
 
+  const connId = isConnected ? (_HUB.connected[slug]?.id || '') : '';
   const btn = isConnected
     ? `<div style="display:flex;gap:5px">
         <button class="btn-sm btn-sync" style="flex:1;font-size:11px;padding:5px 0" onclick="_syncApp('composio','${slug}',this)">↻ Sync</button>
-        <button class="btn-sm" style="flex:1;font-size:11px;padding:5px 0;background:var(--surface-soft);color:var(--muted)" onclick="_backfillApp('composio','${slug}',this)">⬇ Full</button>
+        <button class="btn-sm" style="flex:1;font-size:11px;padding:5px 0;background:#fef2f2;color:#c64545;border:1px solid #fecaca" onclick="_disconnectApp('${escHtml(slug)}','${escHtml(connId)}',this)">✕ Disconnect</button>
        </div>`
     : `<button class="btn-sm" style="width:100%;font-size:11px;padding:6px 0;background:var(--surface-soft);color:var(--ink);border:1px solid var(--hairline)" onclick="_connectApp('${escHtml(slug)}',this)">+ Connect</button>`;
 
@@ -1431,6 +1438,24 @@ function _showOAuthSetupModal(slug) {
   // Close on backdrop click
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   document.body.appendChild(modal);
+}
+
+async function _disconnectApp(slug, accountId, btn) {
+  if (!confirm(`Disconnect ${slug}? You can reconnect anytime.`)) return;
+  const orig = btn.textContent;
+  btn.textContent = 'Disconnecting…'; btn.disabled = true;
+  try {
+    await api._delete(`/api/composio/connected/${encodeURIComponent(accountId)}`);
+    delete _HUB.connected[slug];
+    _HUB.loaded = false;  // force reload on next visit to reflect change
+    toast(`${slug} disconnected`, 'ok');
+    // Re-render immediately
+    _HUB.loaded = true;
+    _filterApps();
+  } catch(e) {
+    toast('Disconnect failed: ' + e.message, 'err');
+    btn.textContent = orig; btn.disabled = false;
+  }
 }
 
 async function _loadMoreApps() {
