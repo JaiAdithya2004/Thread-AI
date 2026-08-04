@@ -1342,12 +1342,95 @@ async function _connectApp(slug, btn) {
     const res = await api.post('/api/composio/connect', {app: slug, redirect_url: window.location.href});
     if (res.connect_url) {
       window.open(res.connect_url, '_blank');
-      toast(`Complete OAuth in the new tab, then refresh this page`,'ok');
+      toast(`Complete OAuth in the new tab, then refresh this page`, 'ok');
     } else {
-      toast(`Could not get OAuth URL for ${slug}`,'err');
+      toast(`Could not get OAuth URL for ${slug}`, 'err');
     }
-  } catch(e) { toast('Error: '+e.message,'err'); }
+  } catch(e) {
+    const msg = e.message || '';
+    // auth_config error = admin needs to set up OAuth credentials for this app
+    if (msg.includes('auth_config') || msg.includes('Could not initiate OAuth')) {
+      _showOAuthSetupModal(slug);
+    } else {
+      toast('Error: ' + msg, 'err');
+    }
+  }
   btn.textContent = orig; btn.disabled = false;
+}
+
+function _showOAuthSetupModal(slug) {
+  const name = slug.charAt(0).toUpperCase() + slug.slice(1).replace(/_/g,' ');
+
+  // Detect which platform and give specific instructions
+  const isGoogle = ['gmail','googlesheets','googledocs','googledrive','googlecalendar','google_maps','googletasks'].includes(slug);
+  const isMicrosoft = ['outlook','one_drive','microsoft_teams'].includes(slug);
+
+  let steps = '';
+  let docsUrl = 'https://docs.composio.dev/patterns/auth/setting-up-custom-oauth';
+
+  if (isGoogle) {
+    docsUrl = 'https://docs.composio.dev/patterns/auth/setting-up-custom-oauth';
+    steps = `
+      <ol style="margin:12px 0 0 16px;line-height:1.9;color:var(--body);font-size:13px">
+        <li>Go to <a href="https://console.cloud.google.com" target="_blank" style="color:var(--primary)">Google Cloud Console</a></li>
+        <li>Create a project → enable the <strong>${name} API</strong></li>
+        <li>Go to <strong>Credentials → Create OAuth 2.0 Client ID</strong></li>
+        <li>Copy your <strong>Client ID</strong> and <strong>Client Secret</strong></li>
+        <li>Go to <a href="https://app.composio.dev" target="_blank" style="color:var(--primary)">app.composio.dev</a> → <strong>Settings → Auth Config</strong></li>
+        <li>Find <strong>${name}</strong> → paste your credentials → Save</li>
+      </ol>`;
+  } else if (isMicrosoft) {
+    steps = `
+      <ol style="margin:12px 0 0 16px;line-height:1.9;color:var(--body);font-size:13px">
+        <li>Go to <a href="https://portal.azure.com" target="_blank" style="color:var(--primary)">Azure Portal → App Registrations</a></li>
+        <li>Create a new registration → copy <strong>Client ID</strong></li>
+        <li>Go to <strong>Certificates & Secrets → New client secret</strong></li>
+        <li>Go to <a href="https://app.composio.dev" target="_blank" style="color:var(--primary)">app.composio.dev</a> → <strong>Settings → Auth Config</strong></li>
+        <li>Find <strong>${name}</strong> → paste your credentials → Save</li>
+      </ol>`;
+  } else {
+    steps = `
+      <ol style="margin:12px 0 0 16px;line-height:1.9;color:var(--body);font-size:13px">
+        <li>Go to <a href="https://app.composio.dev" target="_blank" style="color:var(--primary)">app.composio.dev</a></li>
+        <li>Navigate to <strong>Settings → Auth Config</strong></li>
+        <li>Find <strong>${name}</strong> and configure your OAuth credentials</li>
+        <li>Come back here and try connecting again</li>
+      </ol>`;
+  }
+
+  // Remove any existing modal
+  document.getElementById('oauthSetupModal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'oauthSetupModal';
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(20,20,19,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px`;
+  modal.innerHTML = `
+    <div style="background:var(--canvas);border-radius:16px;padding:28px 32px;max-width:500px;width:100%;box-shadow:0 8px 40px rgba(20,20,19,.18);border:1px solid var(--hairline)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+        <div style="width:36px;height:36px;background:#fef3e8;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px">⚙️</div>
+        <div>
+          <div style="font-weight:700;font-size:16px;color:var(--ink)">Setup required for ${name}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:1px">One-time configuration by workspace admin</div>
+        </div>
+      </div>
+
+      <div style="background:var(--surface-soft);border-radius:10px;padding:14px 16px;margin:16px 0;border-left:3px solid var(--accent-amber)">
+        <div style="font-size:12.5px;color:var(--body-strong);font-weight:500;margin-bottom:4px">Why is this needed?</div>
+        <div style="font-size:12.5px;color:var(--muted);line-height:1.6">${name} requires your own OAuth credentials for security and compliance. This is a one-time setup — after this, all your team members can connect with one click.</div>
+      </div>
+
+      <div style="font-size:13px;font-weight:600;color:var(--ink)">How to set it up:</div>
+      ${steps}
+
+      <div style="display:flex;gap:10px;margin-top:22px">
+        <a href="${docsUrl}" target="_blank" style="flex:1;text-align:center;padding:9px;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:500;text-decoration:none">View Setup Guide →</a>
+        <button onclick="document.getElementById('oauthSetupModal').remove()" style="flex:1;padding:9px;border-radius:8px;background:var(--surface-soft);color:var(--muted);border:1px solid var(--hairline);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">Close</button>
+      </div>
+    </div>`;
+
+  // Close on backdrop click
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
 }
 
 async function _loadMoreApps() {
