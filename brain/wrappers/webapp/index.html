@@ -914,6 +914,10 @@ async function doAuth() {
       if (result.status === 'complete') {
         await _clerk.setActive({ session: result.createdSessionId });
         _authToken = await _clerk.session.getToken();
+        await fetch('/api/auth/sso-provision', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + _authToken},
+        }).catch(() => {});
         showApp({ email, user_metadata: { role: 'member' } });
         await loadApp();
       } else {
@@ -953,12 +957,11 @@ async function doAuth() {
       if (result.status === 'complete') {
         await _clerk.setActive({ session: result.createdSessionId });
         _authToken = await _clerk.session.getToken();
-        // Register in our DB
-        await fetch('/api/auth/signup', {
+        // Provision account row in our DB (idempotent)
+        await fetch('/api/auth/sso-provision', {
           method: 'POST',
-          headers: {'Content-Type':'application/json', 'Authorization':'Bearer '+_authToken},
-          body: JSON.stringify({ email, password: '', account_type: acctType, name }),
-        }).catch(()=>{});
+          headers: {'Authorization': 'Bearer ' + _authToken},
+        }).catch(() => {});
         showApp({ email, user_metadata: { role: 'owner' } });
         await loadApp();
       }

@@ -432,13 +432,13 @@ def composio_connect(
 @app.post("/api/auth/signup")
 def signup(req: SignupRequest):
     """
-    Create a Supabase auth user + local account + membership row.
-    Called from the signup UI before session exists, so NO auth required.
+    Register account + membership after Clerk creates the auth user.
+    Clerk handles passwords — we just store the workspace row.
+    Called right after Clerk signup completes with the Clerk user_id as user_id.
     """
     import re, uuid as _uuid
     from brain.core.db import BACKEND
 
-    # ── validate ────────────────────────────────────────────────────────────────
     req.email = req.email.lower().strip()
     req.name  = req.name.strip()
     req.account_type = req.account_type.strip().lower()
@@ -449,45 +449,32 @@ def signup(req: SignupRequest):
         raise HTTPException(400, "name is required")
     if not re.match(r'^[^@]+@[^@]+\.[^@]+$', req.email):
         raise HTTPException(400, "Invalid email address")
-    if len(req.password) < 8:
-        raise HTTPException(400, "Password must be at least 8 characters")
 
     domain = req.email.split("@")[1]
     if req.account_type == "company" and domain in _PUBLIC_DOMAINS:
         raise HTTPException(400,
-            "Company accounts require a work email address. "
-            "Public email providers (Gmail, Outlook, Yahoo…) are not allowed.")
+            "Company accounts require a work email. "
+            "Public providers (Gmail, Outlook…) are not allowed.")
 
-    # ── create Supabase auth user (if Supabase configured) ───────────────────
-    supabase_uid = None
-    supabase_url = os.getenv("SUPABASE_URL")
-    service_key  = os.getenv("SUPABASE_SERVICE_ROLE_KEY")  # needed for admin user creation
-    if supabase_url and service_key:
-        try:
-            import requests as _req
-            resp = _req.post(
-                f"{supabase_url}/auth/v1/admin/users",
-                headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
-                json={"email": req.email, "password": req.password, "email_confirm": True},
-                timeout=15,
-            )
-            if resp.status_code not in (200, 201):
-                detail = resp.json().get("message") or resp.text
-                raise HTTPException(400, f"Supabase: {detail}")
-            supabase_uid = resp.json().get("id")
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(500, f"Auth service error: {e}")
+    # user_id comes from the Clerk JWT (passed as password field since SignupRequest has it)
+    # Actually we get it from the auth identity
+    user_id = req.password  # repurposed: caller passes clerk user_id here
 
-    user_id = supabase_uid or str(_uuid.uuid4())
-
-    # ── create local account + membership rows ────────────────────────────────
     if BACKEND == "postgres":
         from brain.core import db_pg as _pg
         conn = _pg.connect()
         try:
             cur = conn.cursor()
+            # Idempotent — don't create duplicate account if already exists
+            cur.execute(
+                "SELECT m.account_id FROM memberships m WHERE m.user_id=%s AND m.status='active' LIMIT 1",
+                (user_id,)
+            )
+            existing = cur.fetchone()
+            if existing:
+                return {"user_id": user_id, "account_id": existing["account_id"],
+                        "account_type": req.account_type, "role": "owner", "existing": True}
+
             account_id = str(_uuid.uuid4())
             cur.execute(
                 "INSERT INTO accounts (id, type, name, domain) VALUES (%s,%s,%s,%s)",
