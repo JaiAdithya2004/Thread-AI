@@ -1,10 +1,10 @@
 from functools import lru_cache
-from fastembed import TextEmbedding
 from brain.config import EMBED_BATCH_SIZE
 
 
 @lru_cache(maxsize=1)
 def _m():
+    from fastembed import TextEmbedding
     return TextEmbedding("BAAI/bge-small-en-v1.5")
 
 

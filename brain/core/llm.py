@@ -1,6 +1,9 @@
 import json, os, sys
-from litellm import completion
 from brain.config import LLM_MODEL, LANGFUSE_ENABLED
+
+def _completion(**kwargs):
+    from litellm import completion
+    return completion(**kwargs)
 
 # Langfuse singleton — created once if credentials are set
 _langfuse = None
@@ -78,7 +81,7 @@ def chat_json(system: str, user: str, model: str = None, task_name: str = "unkno
     gen = _trace_start(task_name, kwargs["model"], kwargs["messages"])
 
     try:
-        resp = completion(**kwargs)
+        resp = _completion(**kwargs)
         text = resp.choices[0].message.content
         try:
             result = json.loads(text)
@@ -102,7 +105,7 @@ def chat_text(system: str, user: str, model: str = None, task_name: str = "unkno
     gen = _trace_start(task_name, kwargs["model"], kwargs["messages"])
 
     try:
-        resp = completion(**kwargs)
+        resp = _completion(**kwargs)
         result = resp.choices[0].message.content or ""
         _trace_end(gen, result)
         return result
