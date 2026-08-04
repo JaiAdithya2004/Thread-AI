@@ -1154,6 +1154,7 @@ const _HUB = {
   activeCat: 'all',  // current category filter
   cursor: null,      // pagination
   loading: false,
+  loaded: false,     // true after first successful load — skip API on tab revisit
 };
 
 // Canonical category groups (maps API categories → display label)
@@ -1198,6 +1199,13 @@ function _appDisplayCat(app) {
 }
 
 async function loadComposioHub() {
+  // Already loaded this session — just re-render, no API call
+  if (_HUB.loaded) {
+    _renderCatFilters();
+    _filterApps();
+    return;
+  }
+
   // Load connected apps first
   try {
     const list = await api.get('/api/composio/connected');
@@ -1206,6 +1214,7 @@ async function loadComposioHub() {
 
   _renderCatFilters();
   await _loadAppsPage(true);
+  _HUB.loaded = true;
 }
 
 function _renderCatFilters() {
@@ -1890,6 +1899,8 @@ function renderSettings(){
       {key:'SLACK_BOT_TOKEN', set:keys.slack, label:'Slack'},
       {key:'GOOGLE_CREDENTIALS_JSON', set:keys.google, label:'Google (Gmail / Docs / Calendar)'},
       {key:'NOTION_TOKEN', set:keys.notion, label:'Notion'},
+      {key:'COMPOSIO_API_KEY', set:keys.composio, label:'Composio (1,000+ app integrations)'},
+      {key:'CLERK_SECRET_KEY', set:keys.clerk, label:'Clerk (authentication)'},
     ];
     document.getElementById('envTable').innerHTML=envRows.map(r=>`
       <div class="env-row">

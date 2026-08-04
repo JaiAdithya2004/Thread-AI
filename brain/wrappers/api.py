@@ -196,6 +196,7 @@ def status():
             "google":    _get("GOOGLE_CREDENTIALS_JSON"),
             "notion":    _get("NOTION_TOKEN"),
             "clerk":     _get("CLERK_SECRET_KEY"),
+            "composio":  _get("COMPOSIO_API_KEY"),
         },
     }
 
@@ -345,9 +346,18 @@ def get_facts(
     return [dict(r) for r in rows]
 
 
+_COMPOSIO_CACHE: dict = {}   # cursor_key → (timestamp, payload)
+_COMPOSIO_CACHE_TTL = 3600  # 1 hour
+
 @app.get("/api/composio/apps")
 def composio_apps(limit: int = 50, cursor: str = None):
     """List Composio apps with pagination."""
+    import time
+    cache_key = f"{limit}:{cursor or ''}"
+    cached = _COMPOSIO_CACHE.get(cache_key)
+    if cached and (time.time() - cached[0]) < _COMPOSIO_CACHE_TTL:
+        return cached[1]
+
     try:
         import requests as _req, os
         key = os.getenv("COMPOSIO_API_KEY", "")
@@ -363,7 +373,7 @@ def composio_apps(limit: int = 50, cursor: str = None):
         r.raise_for_status()
         raw = r.json()
         items = raw.get("items", [])
-        return {
+        result = {
             "items": [
                 {
                     "slug":        item.get("slug", ""),
@@ -379,6 +389,8 @@ def composio_apps(limit: int = 50, cursor: str = None):
             "next_cursor": raw.get("next_cursor"),
             "total_items": raw.get("total_items"),
         }
+        _COMPOSIO_CACHE[cache_key] = (time.time(), result)
+        return result
     except Exception as e:
         raise HTTPException(400, str(e))
 
