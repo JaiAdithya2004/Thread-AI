@@ -131,16 +131,138 @@ def migrate(conn):
         );
     """)
 
+    # ── Auth / account tables ──────────────────────────────────────────────────
+
+    # accounts — one row per workspace (individual or company)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS accounts (
+            id           TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+            type         TEXT NOT NULL CHECK (type IN ('individual','company')),
+            name         TEXT NOT NULL,
+            domain       TEXT,
+            created_at   TIMESTAMPTZ DEFAULT now()
+        );
+    """)
+
+    # memberships — links Supabase users to accounts + role + department
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS memberships (
+            id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+            user_id    TEXT NOT NULL,
+            account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            role       TEXT NOT NULL DEFAULT 'employee'
+                           CHECK (role IN ('owner','admin','employee')),
+            team_id    TEXT,
+            status     TEXT NOT NULL DEFAULT 'active'
+                           CHECK (status IN ('invited','active','disabled')),
+            created_at TIMESTAMPTZ DEFAULT now(),
+            UNIQUE (user_id, account_id, team_id)
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS memberships_user ON memberships(user_id);")
+    cur.execute("CREATE INDEX IF NOT EXISTS memberships_acct ON memberships(account_id);")
+
+    # invitations — tokenized invite links sent by admins
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS invitations (
+            id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+            account_id  TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            email       TEXT NOT NULL,
+            team_ids    TEXT NOT NULL DEFAULT '[]',
+            role        TEXT NOT NULL DEFAULT 'employee',
+            token       TEXT NOT NULL UNIQUE,
+            invited_by  TEXT NOT NULL,
+            expires_at  TIMESTAMPTZ NOT NULL,
+            status      TEXT NOT NULL DEFAULT 'pending'
+                            CHECK (status IN ('pending','accepted','expired')),
+            created_at  TIMESTAMPTZ DEFAULT now()
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS invitations_token ON invitations(token);")
+    cur.execute("CREATE INDEX IF NOT EXISTS invitations_email ON invitations(email);")
+
+    # conversations — per-user chat threads (strictly private)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS conversations (
+            id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+            user_id    TEXT NOT NULL,
+            account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            team_id    TEXT,
+            title      TEXT NOT NULL DEFAULT 'New conversation',
+            created_at TIMESTAMPTZ DEFAULT now(),
+            updated_at TIMESTAMPTZ DEFAULT now()
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS conv_user ON conversations(user_id, account_id);")
+
+    # messages — individual Q/A turns inside a conversation
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id              TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+            conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+            role            TEXT NOT NULL CHECK (role IN ('user','assistant')),
+            content         TEXT NOT NULL,
+            cited_fact_ids  JSONB DEFAULT '[]',
+            created_at      TIMESTAMPTZ DEFAULT now()
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS msg_conv ON messages(conversation_id);")
+
+    # usage_events — metadata only, NEVER stores query/answer content
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS usage_events (
+            id                BIGSERIAL PRIMARY KEY,
+            account_id        TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            user_id           TEXT NOT NULL,
+            team_id           TEXT,
+            task              TEXT,
+            model             TEXT,
+            prompt_tokens     INTEGER DEFAULT 0,
+            completion_tokens INTEGER DEFAULT 0,
+            cost_usd          NUMERIC(10,6) DEFAULT 0,
+            ts                TIMESTAMPTZ DEFAULT now()
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS usage_acct ON usage_events(account_id, ts);")
+
     # Row-Level Security — defense in depth, workspace isolation
     for table in ("episodes", "facts", "fact_edges", "ledger", "teams"):
         cur.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
-        cur.execute(f"""
-            DROP POLICY IF EXISTS ws_isolation ON {table};
-        """)
+        cur.execute(f"DROP POLICY IF EXISTS ws_isolation ON {table};")
         cur.execute(f"""
             CREATE POLICY ws_isolation ON {table}
                 USING (workspace_id = current_setting('brain.workspace_id', true));
         """)
+
+    # RLS on conversations + messages: strictly user-scoped, NO admin override
+    # FORCE RLS ensures even the table owner (postgres) cannot bypass policies
+    for table in ("conversations", "messages"):
+        cur.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
+        cur.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;")
+        cur.execute(f"DROP POLICY IF EXISTS user_isolation ON {table};")
+
+    cur.execute("""
+        CREATE POLICY user_isolation ON conversations
+            USING (user_id = current_setting('brain.user_id', true));
+    """)
+    cur.execute("""
+        CREATE POLICY user_isolation ON messages
+            USING (
+                conversation_id IN (
+                    SELECT id FROM conversations
+                    WHERE user_id = current_setting('brain.user_id', true)
+                )
+            );
+    """)
+
+    # Grant DML to Supabase's non-bypassrls roles so SET LOCAL ROLE authenticated works
+    for table in ("conversations", "messages"):
+        try:
+            cur.execute(
+                f"GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO authenticated;"
+            )
+        except Exception:
+            pass  # role may not exist on local Postgres installs
 
     conn.commit()
     cur.close()
@@ -153,6 +275,20 @@ def migrate(conn):
 def _set_ws(conn, ws: str):
     cur = conn.cursor()
     cur.execute("SELECT set_config('brain.workspace_id', %s, false)", (ws,))
+    cur.close()
+
+
+def _set_user_id(conn, uid: str):
+    """Set brain.user_id session var so RLS policies can read it.
+    Also drops to 'authenticated' role so BYPASSRLS privilege is shed.
+    Falls back gracefully if 'authenticated' role doesn't exist (local PG).
+    """
+    cur = conn.cursor()
+    try:
+        cur.execute("SET LOCAL ROLE authenticated")
+    except Exception:
+        conn.rollback()
+    cur.execute("SELECT set_config('brain.user_id', %s, false)", (uid,))
     cur.close()
 
 

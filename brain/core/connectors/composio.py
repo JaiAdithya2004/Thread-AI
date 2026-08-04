@@ -78,40 +78,71 @@ def _post(path, body):
 
 
 def list_connected_apps():
-    """Return list of apps the user has connected in Composio dashboard."""
+    """Return list of apps the user has connected in Composio."""
     try:
-        data = _get("/connectedAccounts")
+        data = _get("/connected_accounts")
         return [
             {
-                "id":       item.get("id"),
-                "app":      item.get("appName", "").lower(),
+                "id":       item.get("id") or item.get("nanoid", ""),
+                "app":      (item.get("toolkit", {}).get("slug") or item.get("appName", "")).lower(),
+                "name":     item.get("toolkit", {}).get("name") or item.get("appName", ""),
+                "logo":     item.get("toolkit", {}).get("meta", {}).get("logo", ""),
                 "status":   item.get("status", ""),
-                "label":    item.get("displayName") or item.get("appName", ""),
             }
-            for item in (data.get("items") or data.get("data") or [])
-            if item.get("status") in ("ACTIVE", "active", "connected")
+            for item in (data.get("items") or [])
+            if item.get("status", "").upper() in ("ACTIVE", "INITIATED", "CONNECTED")
         ]
     except Exception as e:
         raise RuntimeError(f"Composio API error: {e}")
 
 
 def list_all_apps():
-    """Return full catalog of available Composio apps."""
+    """Return full catalog of available Composio apps (toolkits)."""
     try:
-        data = _get("/apps", params={"limit": 200})
-        return data.get("items") or data.get("data") or []
+        data = _get("/toolkits", params={"limit": 200})
+        return [
+            {
+                "slug":        item.get("slug", ""),
+                "name":        item.get("name", ""),
+                "logo":        (item.get("meta") or {}).get("logo", ""),
+                "description": (item.get("meta") or {}).get("description", ""),
+                "categories":  [(c.get("name","")) for c in (item.get("meta") or {}).get("categories", [])],
+                "tools_count": (item.get("meta") or {}).get("tools_count", 0),
+            }
+            for item in (data.get("items") or [])
+            if item.get("deprecated") is not True and not item.get("no_auth")
+        ]
     except Exception as e:
         raise RuntimeError(f"Composio API error: {e}")
 
 
+def _ensure_auth_config(app_slug: str) -> str:
+    """Get or create a composio-managed auth_config for an app. Returns auth_config id."""
+    # Check if one already exists
+    data = _get("/auth_configs", params={"toolkit_slug": app_slug})
+    items = data.get("items") or []
+    if items:
+        return items[0]["auth_config"]["id"]
+    # Create a new managed auth config
+    body = {
+        "toolkit": {"slug": app_slug},
+        "auth_config": {"type": "use_composio_managed_auth", "name": f"{app_slug}-managed"},
+    }
+    result = _post("/auth_configs", body)
+    return result["auth_config"]["id"]
+
+
 def get_connect_url(app_slug: str, user_id: str = "default", redirect_url: str = None):
-    """Initiate OAuth for an app. Returns a URL the user should open in browser."""
+    """Initiate OAuth for an app. Returns a URL the user opens in browser."""
     try:
-        body = {"appName": app_slug, "entityId": user_id}
-        if redirect_url:
-            body["redirectUrl"] = redirect_url
-        data = _post("/connectedAccounts", body)
-        return data.get("redirectUrl") or data.get("connectionUrl") or data.get("url", "")
+        auth_config_id = _ensure_auth_config(app_slug)
+        body = {
+            "auth_config_id": auth_config_id,
+            "user_id": user_id,
+            "callback_url": redirect_url or "http://localhost:7070",
+        }
+        data = _post("/connected_accounts/link", body)
+        return data.get("redirect_url") or data.get("redirectUrl") or ""
     except Exception as e:
         raise RuntimeError(f"Could not initiate OAuth for {app_slug}: {e}")
 

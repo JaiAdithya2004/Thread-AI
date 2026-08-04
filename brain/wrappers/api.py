@@ -12,7 +12,7 @@ exclusively from the verified token — never from query parameters or request b
 Development / single-tenant mode: if SUPABASE_JWT_SECRET is not set, auth runs in
 BYPASS mode and all requests use the config defaults.  See brain/auth.py.
 """
-import os
+import os, json
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +21,6 @@ from pathlib import Path
 
 from brain.auth import Identity, get_identity, require_admin
 from brain.engine import Brain
-from brain.core.connectors import REGISTRY
 from brain.core import db as _db
 from brain import config
 
@@ -63,6 +62,41 @@ class SyncRequest(BaseModel):
 class ComposioConnectRequest(BaseModel):
     app: str                        # composio app slug e.g. "gmail", "slack", "github"
     redirect_url: str = ""
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    account_type: str               # "individual" | "company"
+    name: str                       # person name (individual) or company name (company)
+
+class InviteRequest(BaseModel):
+    email: str
+    role: str = "employee"          # "employee" | "admin"
+    team_id: str = None             # optional department
+
+class MemberPatchRequest(BaseModel):
+    role: str = None                # "employee" | "admin"
+    status: str = None              # "active" | "disabled"
+    team_id: str = None             # department slug or "" to clear
+
+class InviteAcceptRequest(BaseModel):
+    password: str
+
+class ConversationRequest(BaseModel):
+    title: str = "New conversation"
+    team_id: str = None
+
+class MessageRequest(BaseModel):
+    role: str           # "user" | "assistant"
+    content: str
+
+_PUBLIC_DOMAINS = {
+    "gmail.com","googlemail.com","yahoo.com","yahoo.co.uk","yahoo.in",
+    "hotmail.com","outlook.com","live.com","msn.com","icloud.com",
+    "me.com","mac.com","aol.com","protonmail.com","pm.me","proton.me",
+    "yandex.com","yandex.ru","mail.com","zohomail.com","zoho.com",
+    "fastmail.com","tutanota.com","hey.com",
+}
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -128,7 +162,16 @@ def _auto_discover_teams(b: Brain):
 @app.get("/", response_class=HTMLResponse)
 def index():
     p = Path(__file__).parent / "webapp" / "index.html"
-    return HTMLResponse(p.read_text(encoding="utf-8"))
+    html = p.read_text(encoding="utf-8")
+    # Inject Supabase config so the frontend can initialise the client
+    supabase_url = os.getenv("SUPABASE_URL", "")
+    supabase_anon = os.getenv("SUPABASE_ANON_KEY", "")
+    injection = f"""<script>
+window.__SUPABASE_URL__ = {json.dumps(supabase_url)};
+window.__SUPABASE_ANON_KEY__ = {json.dumps(supabase_anon)};
+</script>"""
+    html = html.replace("</head>", injection + "\n</head>", 1)
+    return HTMLResponse(html)
 
 
 @app.get("/api/status")
@@ -165,6 +208,27 @@ def status():
 @app.get("/api/me")
 def me(identity: Identity = Depends(get_identity)):
     """Return the caller's resolved identity (debug / UI persona display)."""
+    account_type = "company"  # default — company UI until we know otherwise
+    from brain.core.db import BACKEND
+    if BACKEND == "postgres":
+        try:
+            from brain.core import db_pg as _pg
+            conn = _pg.connect()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT a.type FROM accounts a
+                JOIN memberships m ON m.account_id = a.id
+                WHERE m.user_id = %s AND m.status = 'active'
+                LIMIT 1
+            """, (identity.user_id,))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if row:
+                account_type = row["type"]
+        except Exception:
+            pass  # non-fatal; default to company mode
+
     return {
         "user_id":      identity.user_id,
         "email":        identity.email,
@@ -173,6 +237,7 @@ def me(identity: Identity = Depends(get_identity)):
         "role":         identity.role,
         "is_admin":     identity.is_admin,
         "principals":   identity.principals,
+        "account_type": account_type,
     }
 
 
@@ -284,17 +349,45 @@ def get_facts(
 
 
 @app.get("/api/composio/apps")
-def composio_apps(_identity: Identity = Depends(get_identity)):
-    """List all 1,047+ Composio apps available to connect."""
+def composio_apps(limit: int = 50, cursor: str = None):
+    """List Composio apps with pagination."""
     try:
-        from brain.core.connectors.composio import list_all_apps
-        return list_all_apps()
-    except RuntimeError as e:
+        import requests as _req, os
+        key = os.getenv("COMPOSIO_API_KEY", "")
+        params = {"limit": limit}
+        if cursor:
+            params["cursor"] = cursor
+        r = _req.get(
+            "https://backend.composio.dev/api/v3.1/toolkits",
+            headers={"x-api-key": key},
+            params=params,
+            timeout=15,
+        )
+        r.raise_for_status()
+        raw = r.json()
+        items = raw.get("items", [])
+        return {
+            "items": [
+                {
+                    "slug":        item.get("slug", ""),
+                    "name":        item.get("name", ""),
+                    "logo":        (item.get("meta") or {}).get("logo", ""),
+                    "description": (item.get("meta") or {}).get("description", ""),
+                    "categories":  [c.get("name","") for c in (item.get("meta") or {}).get("categories", [])],
+                    "tools_count": (item.get("meta") or {}).get("tools_count", 0),
+                }
+                for item in items
+                if not item.get("no_auth")
+            ],
+            "next_cursor": raw.get("next_cursor"),
+            "total_items": raw.get("total_items"),
+        }
+    except Exception as e:
         raise HTTPException(400, str(e))
 
 
 @app.get("/api/composio/connected")
-def composio_connected(_identity: Identity = Depends(get_identity)):
+def composio_connected():
     """List apps the user has already connected in their Composio account."""
     try:
         from brain.core.connectors.composio import list_connected_apps
@@ -317,37 +410,700 @@ def composio_connect(
         raise HTTPException(400, str(e))
 
 
+@app.post("/api/auth/signup")
+def signup(req: SignupRequest):
+    """
+    Create a Supabase auth user + local account + membership row.
+    Called from the signup UI before session exists, so NO auth required.
+    """
+    import re, uuid as _uuid
+    from brain.core.db import BACKEND
+
+    # ── validate ────────────────────────────────────────────────────────────────
+    req.email = req.email.lower().strip()
+    req.name  = req.name.strip()
+    req.account_type = req.account_type.strip().lower()
+
+    if req.account_type not in ("individual", "company"):
+        raise HTTPException(400, "account_type must be 'individual' or 'company'")
+    if not req.name:
+        raise HTTPException(400, "name is required")
+    if not re.match(r'^[^@]+@[^@]+\.[^@]+$', req.email):
+        raise HTTPException(400, "Invalid email address")
+    if len(req.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+
+    domain = req.email.split("@")[1]
+    if req.account_type == "company" and domain in _PUBLIC_DOMAINS:
+        raise HTTPException(400,
+            "Company accounts require a work email address. "
+            "Public email providers (Gmail, Outlook, Yahoo…) are not allowed.")
+
+    # ── create Supabase auth user (if Supabase configured) ───────────────────
+    supabase_uid = None
+    supabase_url = os.getenv("SUPABASE_URL")
+    service_key  = os.getenv("SUPABASE_SERVICE_ROLE_KEY")  # needed for admin user creation
+    if supabase_url and service_key:
+        try:
+            import requests as _req
+            resp = _req.post(
+                f"{supabase_url}/auth/v1/admin/users",
+                headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
+                json={"email": req.email, "password": req.password, "email_confirm": True},
+                timeout=15,
+            )
+            if resp.status_code not in (200, 201):
+                detail = resp.json().get("message") or resp.text
+                raise HTTPException(400, f"Supabase: {detail}")
+            supabase_uid = resp.json().get("id")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(500, f"Auth service error: {e}")
+
+    user_id = supabase_uid or str(_uuid.uuid4())
+
+    # ── create local account + membership rows ────────────────────────────────
+    if BACKEND == "postgres":
+        from brain.core import db_pg as _pg
+        conn = _pg.connect()
+        try:
+            cur = conn.cursor()
+            account_id = str(_uuid.uuid4())
+            cur.execute(
+                "INSERT INTO accounts (id, type, name, domain) VALUES (%s,%s,%s,%s)",
+                (account_id, req.account_type, req.name, domain),
+            )
+            role = "owner" if req.account_type == "individual" else "admin"
+            cur.execute(
+                "INSERT INTO memberships (id, user_id, account_id, role, status) VALUES (%s,%s,%s,%s,'active')",
+                (str(_uuid.uuid4()), user_id, account_id, role),
+            )
+            conn.commit()
+            cur.close()
+        except Exception as e:
+            conn.rollback()
+            raise HTTPException(500, f"DB error: {e}")
+        finally:
+            conn.close()
+    # SQLite mode: skip local tables (in-memory only dev scenario)
+
+    return {
+        "user_id":      user_id,
+        "account_id":   account_id if BACKEND == "postgres" else None,
+        "account_type": req.account_type,
+        "role":         role,
+    }
+
+
+@app.get("/api/conversations")
+def list_conversations(identity: Identity = Depends(get_identity)):
+    """Return the caller's conversation list, newest first. Strictly user-scoped."""
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        return []
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT set_config('brain.user_id', %s, false)", (identity.user_id,))
+        cur.execute("""
+            SELECT id, title, team_id, created_at, updated_at
+            FROM conversations
+            WHERE user_id = %s
+            ORDER BY updated_at DESC
+            LIMIT 100
+        """, (identity.user_id,))
+        return [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+@app.post("/api/conversations")
+def create_conversation(
+    req: ConversationRequest,
+    identity: Identity = Depends(get_identity),
+):
+    """Create a new conversation for the caller."""
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        import uuid as _uuid
+        return {"id": str(_uuid.uuid4()), "title": req.title}
+    from brain.core import db_pg as _pg
+    import uuid as _uuid
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        _pg._set_user_id(conn, identity.user_id)
+        # Get account_id
+        cur.execute("""
+            SELECT account_id FROM memberships
+            WHERE user_id = %s AND status = 'active' LIMIT 1
+        """, (identity.user_id,))
+        row = cur.fetchone()
+        account_id = row["account_id"] if row else identity.workspace_id
+        conv_id = str(_uuid.uuid4())
+        cur.execute("""
+            INSERT INTO conversations (id, user_id, account_id, team_id, title)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (conv_id, identity.user_id, account_id,
+              req.team_id or None, req.title or "New conversation"))
+        conn.commit()
+        cur.execute("SELECT * FROM conversations WHERE id=%s", (conv_id,))
+        return dict(cur.fetchone())
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/api/conversations/{conv_id}/messages")
+def get_messages(conv_id: str, identity: Identity = Depends(get_identity)):
+    """Return messages for a conversation. User can only read their own."""
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        return []
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        _pg._set_user_id(conn, identity.user_id)
+        # Verify ownership
+        cur.execute(
+            "SELECT id FROM conversations WHERE id=%s AND user_id=%s",
+            (conv_id, identity.user_id)
+        )
+        if not cur.fetchone():
+            raise HTTPException(403, "Conversation not found")
+        cur.execute("""
+            SELECT id, role, content, created_at
+            FROM messages WHERE conversation_id=%s ORDER BY created_at
+        """, (conv_id,))
+        return [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+@app.post("/api/conversations/{conv_id}/messages")
+def add_message(
+    conv_id: str,
+    req: MessageRequest,
+    identity: Identity = Depends(get_identity),
+):
+    """Append a message to a conversation. User can only write to their own."""
+    if req.role not in ("user", "assistant"):
+        raise HTTPException(400, "role must be 'user' or 'assistant'")
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        return {"ok": True}
+    from brain.core import db_pg as _pg
+    import uuid as _uuid
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        _pg._set_user_id(conn, identity.user_id)
+        cur.execute(
+            "SELECT id FROM conversations WHERE id=%s AND user_id=%s",
+            (conv_id, identity.user_id)
+        )
+        if not cur.fetchone():
+            raise HTTPException(403, "Conversation not found")
+        msg_id = str(_uuid.uuid4())
+        cur.execute("""
+            INSERT INTO messages (id, conversation_id, role, content)
+            VALUES (%s, %s, %s, %s)
+        """, (msg_id, conv_id, req.role, req.content))
+        cur.execute(
+            "UPDATE conversations SET updated_at=now() WHERE id=%s",
+            (conv_id,)
+        )
+        conn.commit()
+        return {"id": msg_id, "ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@app.delete("/api/conversations/{conv_id}")
+def delete_conversation(conv_id: str, identity: Identity = Depends(get_identity)):
+    """Delete a conversation and all its messages. User can only delete their own."""
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        return {"ok": True}
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        _pg._set_user_id(conn, identity.user_id)
+        cur.execute(
+            "DELETE FROM conversations WHERE id=%s AND user_id=%s",
+            (conv_id, identity.user_id)
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(403, "Conversation not found")
+        conn.commit()
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@app.post("/api/auth/sso-provision")
+def sso_provision(identity: Identity = Depends(get_identity)):
+    """
+    Called after every SSO login. Creates account + membership rows for first-time
+    SSO users. Idempotent — safe to call on every login.
+    """
+    import uuid as _uuid
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        return {"ok": True, "skipped": "sqlite"}
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        # Check if membership already exists
+        cur.execute(
+            "SELECT id FROM memberships WHERE user_id = %s AND status = 'active' LIMIT 1",
+            (identity.user_id,)
+        )
+        if cur.fetchone():
+            return {"ok": True, "provisioned": False}
+
+        # Check if this email is on a pending invite — if so, honour it
+        cur.execute(
+            """SELECT i.id, i.account_id, i.role, i.team_ids
+               FROM invitations i
+               WHERE i.email = %s AND i.status = 'pending' AND i.expires_at > now()
+               ORDER BY i.created_at DESC LIMIT 1""",
+            (identity.email,)
+        )
+        invite_row = cur.fetchone()
+
+        if invite_row:
+            import json as _json
+            invite_row = dict(invite_row)
+            team_ids = _json.loads(invite_row["team_ids"] or "[]")
+            team_id  = team_ids[0] if team_ids else None
+            cur.execute("""
+                INSERT INTO memberships (id, user_id, account_id, role, team_id, status)
+                VALUES (%s,%s,%s,%s,%s,'active')
+                ON CONFLICT (user_id, account_id, team_id) DO UPDATE SET status='active'
+            """, (str(_uuid.uuid4()), identity.user_id,
+                  invite_row["account_id"], invite_row["role"], team_id))
+            cur.execute("UPDATE invitations SET status='accepted' WHERE id=%s", (invite_row["id"],))
+            conn.commit()
+            return {"ok": True, "provisioned": True, "via": "invite"}
+
+        # No invite — auto-create a personal account
+        domain = identity.email.split("@")[1] if identity.email and "@" in identity.email else None
+        acct_type = "individual"
+        # Treat non-public domains as company accounts
+        public_domains = {
+            "gmail.com","googlemail.com","yahoo.com","hotmail.com","outlook.com",
+            "live.com","icloud.com","me.com","aol.com","protonmail.com","hey.com",
+        }
+        if domain and domain not in public_domains:
+            acct_type = "company"
+
+        acct_name = identity.email.split("@")[0].replace(".", " ").title()
+        account_id = str(_uuid.uuid4())
+        cur.execute(
+            "INSERT INTO accounts (id, type, name, domain) VALUES (%s,%s,%s,%s)",
+            (account_id, acct_type, acct_name, domain),
+        )
+        role = "admin" if acct_type == "company" else "owner"
+        cur.execute(
+            "INSERT INTO memberships (id, user_id, account_id, role, status) VALUES (%s,%s,%s,%s,'active')",
+            (str(_uuid.uuid4()), identity.user_id, account_id, role),
+        )
+        conn.commit()
+        return {"ok": True, "provisioned": True, "via": "auto", "account_type": acct_type}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/api/invite/{token}")
+def get_invite(token: str):
+    """Validate an invite token. Public — no auth required."""
+    import datetime
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        raise HTTPException(400, "Invites require Postgres backend")
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT i.id, i.email, i.role, i.team_ids, i.expires_at, i.status,
+                   a.name AS account_name, a.type AS account_type
+            FROM invitations i
+            JOIN accounts a ON a.id = i.account_id
+            WHERE i.token = %s
+        """, (token,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(404, "Invite link is invalid or has expired")
+        row = dict(row)
+        if row["status"] != "pending":
+            raise HTTPException(410, "This invite has already been used or revoked")
+        expires = row["expires_at"]
+        if isinstance(expires, str):
+            expires = datetime.datetime.fromisoformat(expires.replace("Z",""))
+        if expires.replace(tzinfo=None) < datetime.datetime.utcnow():
+            raise HTTPException(410, "This invite link has expired")
+        return {
+            "email":        row["email"],
+            "role":         row["role"],
+            "account_name": row["account_name"],
+            "account_type": row["account_type"],
+        }
+    finally:
+        conn.close()
+
+
+@app.post("/api/invite/{token}/accept")
+def accept_invite(token: str, req: InviteAcceptRequest):
+    """Accept an invite: create Supabase user + membership row, mark invite accepted. Public."""
+    import datetime, json as _json
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        raise HTTPException(400, "Invites require Postgres backend")
+    if len(req.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+
+    from brain.core import db_pg as _pg
+    import uuid as _uuid
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT i.id, i.email, i.role, i.team_ids, i.account_id, i.expires_at, i.status
+            FROM invitations i
+            WHERE i.token = %s
+        """, (token,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(404, "Invalid invite token")
+        row = dict(row)
+        if row["status"] != "pending":
+            raise HTTPException(410, "This invite has already been used or revoked")
+        expires = row["expires_at"]
+        if isinstance(expires, str):
+            expires = datetime.datetime.fromisoformat(expires.replace("Z",""))
+        if expires.replace(tzinfo=None) < datetime.datetime.utcnow():
+            raise HTTPException(410, "Invite has expired")
+
+        email      = row["email"]
+        role       = row["role"]
+        account_id = row["account_id"]
+        team_ids   = _json.loads(row["team_ids"] or "[]")
+        team_id    = team_ids[0] if team_ids else None
+
+        # 1. Create Supabase auth user
+        supabase_uid = None
+        supabase_url = os.getenv("SUPABASE_URL")
+        service_key  = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        if supabase_url and service_key:
+            try:
+                import requests as _req
+                resp = _req.post(
+                    f"{supabase_url}/auth/v1/admin/users",
+                    headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
+                    json={"email": email, "password": req.password, "email_confirm": True},
+                    timeout=15,
+                )
+                if resp.status_code not in (200, 201):
+                    detail = resp.json().get("message") or resp.text
+                    raise HTTPException(400, f"Auth error: {detail}")
+                supabase_uid = resp.json().get("id")
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(500, f"Auth service error: {e}")
+
+        user_id = supabase_uid or str(_uuid.uuid4())
+
+        # 2. Create membership row
+        cur.execute("""
+            INSERT INTO memberships (id, user_id, account_id, role, team_id, status)
+            VALUES (%s, %s, %s, %s, %s, 'active')
+            ON CONFLICT (user_id, account_id, team_id) DO UPDATE
+              SET role=EXCLUDED.role, status='active'
+        """, (str(_uuid.uuid4()), user_id, account_id, role, team_id))
+
+        # 3. Mark invite accepted
+        cur.execute(
+            "UPDATE invitations SET status='accepted' WHERE id=%s",
+            (row["id"],)
+        )
+        conn.commit()
+        return {"user_id": user_id, "email": email, "role": role}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/api/members")
+def get_members(identity: Identity = Depends(require_admin)):
+    """List all members in the caller's account. Admin-only."""
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        return []
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        # Find account for this user
+        cur.execute("""
+            SELECT account_id FROM memberships
+            WHERE user_id = %s AND status = 'active' LIMIT 1
+        """, (identity.user_id,))
+        row = cur.fetchone()
+        if not row:
+            return []
+        account_id = row["account_id"]
+        # List all members + pending invitations
+        cur.execute("""
+            SELECT m.user_id, m.role, m.team_id, m.status, m.created_at
+            FROM memberships m
+            WHERE m.account_id = %s
+            ORDER BY m.created_at
+        """, (account_id,))
+        members = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        return members
+    finally:
+        conn.close()
+
+
+@app.post("/api/members/invite")
+def invite_member(
+    req: InviteRequest,
+    identity: Identity = Depends(require_admin),
+):
+    """Create a pending invitation for a new member. Admin-only."""
+    import secrets, datetime
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        raise HTTPException(400, "Invitations require Postgres backend")
+
+    req.email = req.email.lower().strip()
+    if req.role not in ("employee", "admin"):
+        raise HTTPException(400, "role must be 'employee' or 'admin'")
+
+    from brain.core import db_pg as _pg
+    import uuid as _uuid
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT account_id FROM memberships
+            WHERE user_id = %s AND status = 'active' LIMIT 1
+        """, (identity.user_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(400, "Your account could not be found")
+        account_id = row["account_id"]
+
+        token = secrets.token_urlsafe(32)
+        expires = datetime.datetime.utcnow() + datetime.timedelta(days=7)
+        team_ids_json = f'["{req.team_id}"]' if req.team_id else "[]"
+        cur.execute("""
+            INSERT INTO invitations
+                (id, account_id, email, team_ids, role, token, invited_by, expires_at, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending')
+        """, (str(_uuid.uuid4()), account_id, req.email, team_ids_json,
+              req.role, token, identity.user_id, expires.isoformat()))
+        conn.commit()
+        cur.close()
+
+        invite_url = f"http://localhost:7070/?invite={token}"
+        return {"email": req.email, "role": req.role, "invite_url": invite_url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/api/members/invites")
+def list_invites(identity: Identity = Depends(require_admin)):
+    """List pending invitations for this account. Admin-only."""
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        return []
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT account_id FROM memberships
+            WHERE user_id = %s AND status = 'active' LIMIT 1
+        """, (identity.user_id,))
+        row = cur.fetchone()
+        if not row:
+            return []
+        cur.execute("""
+            SELECT id, email, role, team_ids, expires_at, status, created_at
+            FROM invitations
+            WHERE account_id = %s AND status = 'pending'
+              AND expires_at > now()
+            ORDER BY created_at DESC
+        """, (row["account_id"],))
+        return [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+@app.delete("/api/members/invites/{invite_id}")
+def revoke_invite(invite_id: str, identity: Identity = Depends(require_admin)):
+    """Revoke a pending invite. Admin-only."""
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        raise HTTPException(400, "Not supported in SQLite mode")
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT i.id FROM invitations i
+            JOIN memberships m ON m.account_id = i.account_id
+            WHERE i.id = %s AND m.user_id = %s AND m.status = 'active'
+        """, (invite_id, identity.user_id))
+        if not cur.fetchone():
+            raise HTTPException(404, "Invite not found")
+        cur.execute("UPDATE invitations SET status='expired' WHERE id=%s", (invite_id,))
+        conn.commit()
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@app.post("/api/members/{user_id}")
+def update_member(
+    user_id: str,
+    req: MemberPatchRequest,
+    identity: Identity = Depends(require_admin),
+):
+    """Update a member's role, status, or department. Admin-only. Cannot modify self."""
+    if user_id == identity.user_id:
+        raise HTTPException(400, "You cannot modify your own membership this way")
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        raise HTTPException(400, "Not supported in SQLite mode")
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        # Verify target is in same account
+        cur.execute("""
+            SELECT m2.id FROM memberships m2
+            WHERE m2.user_id = %s
+              AND m2.account_id = (
+                SELECT account_id FROM memberships
+                WHERE user_id = %s AND status='active' LIMIT 1
+              )
+        """, (user_id, identity.user_id))
+        if not cur.fetchone():
+            raise HTTPException(404, "Member not found in your account")
+
+        updates = []
+        params  = []
+        if req.role is not None:
+            if req.role not in ("employee", "admin"):
+                raise HTTPException(400, "role must be 'employee' or 'admin'")
+            updates.append("role = %s"); params.append(req.role)
+        if req.status is not None:
+            if req.status not in ("active", "disabled"):
+                raise HTTPException(400, "status must be 'active' or 'disabled'")
+            updates.append("status = %s"); params.append(req.status)
+        if req.team_id is not None:
+            updates.append("team_id = %s"); params.append(req.team_id or None)
+        if not updates:
+            return {"ok": True}
+
+        params.append(user_id)
+        cur.execute(
+            f"UPDATE memberships SET {', '.join(updates)} WHERE user_id = %s",
+            params,
+        )
+        conn.commit()
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@app.delete("/api/members/{user_id}")
+def remove_member(
+    user_id: str,
+    identity: Identity = Depends(require_admin),
+):
+    """Remove a member from the account. Admin-only. Cannot remove self."""
+    if user_id == identity.user_id:
+        raise HTTPException(400, "You cannot remove yourself")
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        raise HTTPException(400, "Not supported in SQLite mode")
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            DELETE FROM memberships
+            WHERE user_id = %s
+              AND account_id = (
+                SELECT account_id FROM memberships
+                WHERE user_id = %s AND status='active' LIMIT 1
+              )
+        """, (user_id, identity.user_id))
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Member not found in your account")
+        conn.commit()
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
 @app.get("/api/connectors")
 def connectors(_identity: Identity = Depends(get_identity)):
-    """Real connection status based on env vars."""
-    live = {
-        "slack":    bool(os.getenv("SLACK_BOT_TOKEN")),
-        "composio": bool(os.getenv("COMPOSIO_API_KEY")),
+    """Returns whether the integration hub (Composio) is configured."""
+    return {
+        "hub_connected": bool(os.getenv("COMPOSIO_API_KEY")),
     }
-    meta = {
-        "slack": {
-            "name": "Slack",
-            "desc": "Workspace channels and messages",
-            "icon": "slack",
-            "env_var": "SLACK_BOT_TOKEN",
-            "setup": "Create a Slack app → Bot Token Scopes: channels:history, channels:read, groups:history, groups:read → Install to workspace",
-        },
-        "composio": {
-            "name": "Composio (1,000+ apps)",
-            "desc": "Gmail, Notion, GitHub, HubSpot, Jira, Linear, Google Docs, Calendar, and 1,000+ more — one API key",
-            "icon": "composio",
-            "env_var": "COMPOSIO_API_KEY",
-            "setup": "Sign up at app.composio.dev → Settings → API Keys → copy key → add COMPOSIO_API_KEY to .env → use the Connections tab to connect individual apps via OAuth",
-        },
-    }
-    return [
-        {
-            "id": k,
-            "connected": live.get(k, False),
-            **meta.get(k, {"name": k, "desc": "", "icon": "default", "env_var": "", "setup": ""}),
-        }
-        for k in REGISTRY
-    ]
 
 
 @app.post("/api/backfill")

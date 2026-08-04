@@ -64,10 +64,25 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 .nav-item svg{width:16px;height:16px;flex-shrink:0;opacity:.7}
 .nav-item.active svg{opacity:1;color:var(--primary)}
 
-.sources-block{padding:12px 12px;border-top:1px solid var(--hairline);margin-top:auto;flex-shrink:0}
+.sources-block{padding:12px 12px;border-top:1px solid var(--hairline);flex-shrink:0}
 .source-item{display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px;color:var(--muted)}
 .sdot{width:7px;height:7px;border-radius:50%;background:var(--hairline);flex-shrink:0}
 .sdot.on{background:var(--success)}
+
+/* ── CONVERSATION HISTORY ─────────────────────────────────── */
+.conv-block{flex:1;display:flex;flex-direction:column;overflow:hidden;border-top:1px solid var(--hairline);min-height:0}
+.conv-head{padding:10px 12px 6px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.conv-new-btn{background:var(--primary);color:var(--on-primary);border:none;border-radius:6px;padding:4px 10px;font-size:11.5px;font-weight:500;font-family:inherit;cursor:pointer;transition:background .15s;line-height:1.4}
+.conv-new-btn:hover{background:var(--primary-active)}
+.conv-list{flex:1;overflow-y:auto;padding:0 6px 8px;scrollbar-width:thin}
+.conv-item{display:flex;align-items:center;gap:6px;padding:7px 8px;border-radius:7px;cursor:pointer;font-size:12.5px;color:var(--muted);transition:all .12s;position:relative;group:1}
+.conv-item:hover{background:var(--surface-soft);color:var(--ink)}
+.conv-item.active{background:var(--surface-card);color:var(--ink);font-weight:500}
+.conv-item-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.conv-item-del{display:none;background:none;border:none;color:var(--muted-soft);cursor:pointer;padding:2px 4px;font-size:14px;line-height:1;border-radius:4px;flex-shrink:0}
+.conv-item:hover .conv-item-del{display:block}
+.conv-item-del:hover{color:var(--error);background:var(--surface-cream-strong)}
+.conv-empty{padding:12px 10px;font-size:12px;color:var(--muted-soft);text-align:center;line-height:1.5}
 
 /* ── MAIN ────────────────────────────────────────────────── */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:var(--canvas)}
@@ -255,6 +270,22 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 .auth-bypass{margin-top:4px;text-align:center;font-size:11.5px;color:var(--muted-soft)}
 .auth-bypass a{color:var(--primary);cursor:pointer;text-decoration:underline}
 
+/* account-type picker buttons */
+.acct-type-btn{background:var(--surface-soft);border:2px solid var(--hairline);border-radius:10px;padding:14px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:all .15s;font-family:inherit;text-align:center}
+.acct-type-btn strong{font-size:13px;font-weight:600;color:var(--ink)}
+.acct-type-btn span{font-size:11px;color:var(--muted)}
+.acct-type-btn:hover{border-color:var(--primary);background:var(--surface-card)}
+.acct-type-btn.active{border-color:var(--primary);background:rgba(204,120,92,.08)}
+
+/* SSO buttons */
+.sso-divider{display:flex;align-items:center;gap:10px;margin:2px 0}
+.sso-divider::before,.sso-divider::after{content:'';flex:1;height:1px;background:var(--hairline)}
+.sso-divider span{font-size:11.5px;color:var(--muted-soft);white-space:nowrap}
+.sso-btn{display:flex;align-items:center;justify-content:center;gap:10px;background:var(--canvas);border:1px solid var(--hairline);border-radius:8px;padding:9px 14px;font-size:13px;font-weight:500;color:var(--ink);font-family:inherit;cursor:pointer;transition:all .15s;width:100%}
+.sso-btn:hover{background:var(--surface-soft);border-color:var(--surface-cream-strong)}
+.sso-btn:disabled{opacity:.5;cursor:not-allowed}
+.sso-btn svg{flex-shrink:0}
+
 /* user pill in sidebar */
 .user-pill{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--hairline);flex-shrink:0;cursor:pointer}
 .user-avatar{width:26px;height:26px;border-radius:50%;background:var(--primary);color:var(--on-primary);font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -269,31 +300,126 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 
 <!-- AUTH SCREEN (shown until signed in or bypass confirmed) -->
 <div id="authScreen">
-  <div class="auth-card">
+  <!-- Invite accept card (shown only when ?invite=TOKEN in URL) -->
+  <div class="auth-card" id="inviteCard" style="display:none">
+    <div class="auth-head">
+      <div class="auth-logo">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 9v.906a2.25 2.25 0 01-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 001.183 1.981l6.478 3.488m8.839 2.51l-4.66-2.51m0 0l-1.023-.55a2.25 2.25 0 00-2.134 0l-1.022.55m0 0l-4.661 2.51m16.5 1.615a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V8.844a2.25 2.25 0 011.183-1.98l7.5-4.04a2.25 2.25 0 012.134 0l7.5 4.04a2.25 2.25 0 011.183 1.98V19.5z"/></svg>
+      </div>
+      <h1>You're invited!</h1>
+      <p id="inviteHeadSub">Loading invite details…</p>
+    </div>
+    <div class="auth-body">
+      <div id="inviteLoadingMsg" style="padding:12px 0;text-align:center;color:var(--muted);font-size:13px">Verifying invite link…</div>
+      <div id="inviteAcceptForm" style="display:none;display:flex;flex-direction:column;gap:0">
+        <div class="auth-field">
+          <label>Email</label>
+          <input type="email" id="inviteAcceptEmail" readonly style="background:var(--surface-soft);color:var(--muted);cursor:default">
+        </div>
+        <div class="auth-field">
+          <label>Set your password</label>
+          <input type="password" id="inviteAcceptPassword" placeholder="At least 8 characters" autocomplete="new-password">
+        </div>
+        <div class="auth-field">
+          <label>Confirm password</label>
+          <input type="password" id="inviteAcceptConfirm" placeholder="Repeat password" autocomplete="new-password">
+        </div>
+        <div class="auth-err" id="inviteAcceptErr"></div>
+        <button class="auth-submit" id="inviteAcceptBtn" onclick="acceptInvite()">Join workspace</button>
+      </div>
+      <div id="inviteErrMsg" style="display:none;padding:12px 0;text-align:center">
+        <div style="color:var(--error);font-size:13px;margin-bottom:12px" id="inviteErrText"></div>
+        <a onclick="setAuthTab('signin');document.getElementById('inviteCard').style.display='none';document.getElementById('authCard').style.display='';"
+          style="color:var(--primary);cursor:pointer;font-size:13px;text-decoration:underline">Sign in instead</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sign-in / Sign-up card -->
+  <div class="auth-card" id="authCard">
     <div class="auth-head">
       <div class="auth-logo">
         <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
       </div>
       <h1>Company Brain</h1>
-      <p>Sign in to access your team's knowledge</p>
+      <p id="authHeadSub">Sign in to access your team's knowledge</p>
     </div>
     <div class="auth-body">
       <div class="auth-tabs">
         <button class="auth-tab active" id="tabSignIn" onclick="setAuthTab('signin')">Sign in</button>
         <button class="auth-tab" id="tabSignUp" onclick="setAuthTab('signup')">Sign up</button>
       </div>
-      <div class="auth-field">
-        <label>Email</label>
-        <input type="email" id="authEmail" placeholder="you@company.com" autocomplete="email">
+      <!-- Sign-in fields -->
+      <div id="signinFields">
+        <div class="auth-field">
+          <label>Email</label>
+          <input type="email" id="authEmail" placeholder="you@company.com" autocomplete="email">
+        </div>
+        <div class="auth-field">
+          <label>Password</label>
+          <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
+        </div>
       </div>
-      <div class="auth-field">
-        <label>Password</label>
-        <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
+      <!-- Sign-up flow (hidden until signup tab) -->
+      <div id="signupFields" style="display:none">
+        <!-- Step 1: choose account type -->
+        <div id="signupStep1">
+          <p style="font-size:12.5px;color:var(--muted);margin-bottom:14px">What brings you to Company Brain?</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+            <button class="acct-type-btn active" id="btnIndividual" onclick="selectAcctType('individual')">
+              <span style="font-size:22px">👤</span>
+              <strong>Individual</strong>
+              <span>Personal use &amp; solo projects</span>
+            </button>
+            <button class="acct-type-btn" id="btnCompany" onclick="selectAcctType('company')">
+              <span style="font-size:22px">🏢</span>
+              <strong>Company</strong>
+              <span>Team knowledge base</span>
+            </button>
+          </div>
+          <!-- Individual: just name -->
+          <div id="indivNameField" class="auth-field">
+            <label>Your name</label>
+            <input type="text" id="signupName" placeholder="Jane Smith" autocomplete="name">
+          </div>
+          <!-- Company: company name + note about work email -->
+          <div id="companyFields" style="display:none">
+            <div class="auth-field">
+              <label>Company name</label>
+              <input type="text" id="signupCompanyName" placeholder="Acme Inc." autocomplete="organization">
+            </div>
+            <p style="font-size:11.5px;color:var(--muted);margin-top:-6px;margin-bottom:8px">
+              ⚠️ Requires a work email (not Gmail, Outlook, Yahoo…)
+            </p>
+          </div>
+          <div class="auth-field">
+            <label>Email</label>
+            <input type="email" id="signupEmail" placeholder="you@company.com" autocomplete="email">
+          </div>
+          <div class="auth-field">
+            <label>Password</label>
+            <input type="password" id="signupPassword" placeholder="At least 8 characters" autocomplete="new-password">
+          </div>
+        </div>
       </div>
       <div class="auth-err" id="authErr"></div>
       <button class="auth-submit" id="authSubmit" onclick="doAuth()">Sign in</button>
-      <div class="auth-bypass" id="authBypassRow" style="display:none">
-        No Supabase configured — <a onclick="bypassAuth()">continue as local user</a>
+      <!-- SSO buttons — hidden until Supabase is configured -->
+      <div id="ssoSection" style="display:none">
+        <div class="sso-divider"><span>or continue with</span></div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="sso-btn" id="ssoGoogleBtn" onclick="doSSO('google')">
+            <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+            Continue with Google
+          </button>
+          <button class="sso-btn" id="ssoMicrosoftBtn" onclick="doSSO('azure')">
+            <svg width="18" height="18" viewBox="0 0 24 24"><path d="M11.4 0H0v11.4h11.4V0z" fill="#F25022"/><path d="M24 0H12.6v11.4H24V0z" fill="#7FBA00"/><path d="M11.4 12.6H0V24h11.4V12.6z" fill="#00A4EF"/><path d="M24 12.6H12.6V24H24V12.6z" fill="#FFB900"/></svg>
+            Continue with Microsoft
+          </button>
+        </div>
+      </div>
+      <div class="auth-bypass" id="authBypassRow" style="display:block">
+        <a onclick="bypassAuth()">Continue as developer (bypass login)</a>
       </div>
     </div>
   </div>
@@ -347,11 +473,27 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
       Activity
     </button>
+    <!-- admin-only nav items (hidden for employees) -->
+    <button class="nav-item admin-only" data-tab="members" style="display:none">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/></svg>
+      Members
+    </button>
     <button class="nav-item" data-tab="settings">
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
       Settings
     </button>
   </nav>
+
+  <!-- Conversation history panel -->
+  <div class="conv-block" id="convBlock">
+    <div class="conv-head">
+      <span class="block-label" style="margin:0">Chats</span>
+      <button class="conv-new-btn" onclick="newConversation()">+ New</button>
+    </div>
+    <div class="conv-list" id="convList">
+      <div class="conv-empty">Start a conversation to see it here.</div>
+    </div>
+  </div>
 
   <div class="sources-block">
     <div class="block-label">Connected</div>
@@ -419,27 +561,40 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
   <!-- CONNECTIONS -->
   <div class="tab" id="tab-connections">
     <div class="tab-head">
-      <h1>Connections</h1>
-      <p>Connect your tools. Token already in <code>.env</code>? It will show as Connected automatically.</p>
+      <h1>Integrations</h1>
+      <p>Connect your tools — one click OAuth, no credentials needed.</p>
     </div>
-    <div class="tab-body">
-      <!-- Composio hub banner -->
-      <div id="composioHub" style="display:none;margin-bottom:20px;background:var(--canvas);border:1px solid var(--primary);border-radius:12px;overflow:hidden">
-        <div style="padding:16px 20px;border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:10px">
-          <div style="width:36px;height:36px;background:rgba(204,120,92,.12);border-radius:8px;display:flex;align-items:center;justify-content:center" id="composioHubIcon"></div>
-          <div style="flex:1">
-            <div style="font-weight:600;font-size:14px;color:var(--ink)">Composio — 1,047+ apps connected</div>
-            <div style="font-size:12px;color:var(--muted)">Connect any app below with one click OAuth — no env vars needed</div>
-          </div>
-          <button class="btn-sm btn-sync" onclick="_runComposioSync()">↻ Sync all</button>
+    <div class="tab-body" style="padding:0;display:flex;flex-direction:column;height:100%">
+
+      <!-- Top bar: search + sync all -->
+      <div style="padding:16px 24px 12px;border-bottom:1px solid var(--hairline);display:flex;gap:10px;align-items:center;background:var(--canvas)">
+        <div style="position:relative;flex:1">
+          <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted);pointer-events:none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/></svg>
+          <input id="appSearch" placeholder="Search 1,000+ apps…" oninput="_filterApps()" style="width:100%;padding:8px 12px 8px 34px;background:var(--surface-soft);border:1px solid var(--hairline);color:var(--ink);border-radius:8px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box">
         </div>
-        <div id="composioAppList" style="display:flex;flex-wrap:wrap;gap:8px;padding:14px 20px;max-height:160px;overflow-y:auto"></div>
-        <div style="padding:10px 20px;border-top:1px solid var(--hairline);display:flex;gap:8px;align-items:center">
-          <input id="composioAppSearch" placeholder="Search 1,047+ apps (github, hubspot, jira…)" style="flex:1;background:var(--surface-soft);border:1px solid var(--hairline);color:var(--ink);padding:7px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none">
-          <button class="btn-sm btn-sync" onclick="_connectComposioApp()">+ Connect app</button>
+        <button class="btn-sm btn-sync" onclick="_runComposioSync(this)" style="white-space:nowrap">↻ Sync all connected</button>
+      </div>
+
+      <!-- Category filter chips -->
+      <div id="catFilters" style="display:flex;gap:6px;padding:10px 24px;overflow-x:auto;border-bottom:1px solid var(--hairline);background:var(--canvas);scrollbar-width:none;flex-shrink:0"></div>
+
+      <!-- Connected section -->
+      <div id="connectedSection" style="display:none;padding:16px 24px 0">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Connected</div>
+        <div id="connectedGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:20px"></div>
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">All Apps</div>
+      </div>
+
+      <!-- All apps grid -->
+      <div style="flex:1;overflow-y:auto;padding:16px 24px 24px" id="allAppsWrap">
+        <div id="allAppsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px"></div>
+        <div id="appsLoading" style="text-align:center;padding:40px;color:var(--muted);font-size:13px">Loading apps…</div>
+        <div id="appsEmpty" style="display:none;text-align:center;padding:40px;color:var(--muted);font-size:13px">No apps match your search</div>
+        <div id="appsLoadMore" style="display:none;text-align:center;padding:16px 0">
+          <button class="btn-sm" style="background:var(--surface-soft);color:var(--muted)" onclick="_loadMoreApps()">Load more apps</button>
         </div>
       </div>
-      <div class="conn-grid" id="connGrid"></div>
+
     </div>
   </div>
 
@@ -457,32 +612,99 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
     <div class="act-list" id="actList"></div>
   </div>
 
-  <!-- SETTINGS -->
-  <div class="tab" id="tab-settings">
+  <!-- MEMBERS (admin-only) -->
+  <div class="tab" id="tab-members">
     <div class="tab-head">
-      <h1>Settings</h1>
-      <p>Manage departments, API keys, and workspace configuration.</p>
+      <h1>Members</h1>
+      <p>Manage who has access to your company brain, their roles, and departments.</p>
     </div>
     <div class="tab-body">
       <div class="settings-wrap">
         <div class="settings-card">
+          <div class="settings-card-head">
+            Team Members
+            <button class="btn-sm btn-sync" onclick="loadMembersTable()">Refresh</button>
+          </div>
+          <div id="membersTable">
+            <div style="padding:20px;color:var(--muted);font-size:13px">Loading members…</div>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-head">Invite Member</div>
+          <div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="auth-field" style="margin:0">
+                <label>Email address</label>
+                <input type="email" id="inviteEmail" placeholder="colleague@company.com">
+              </div>
+              <div class="auth-field" style="margin:0">
+                <label>Department (optional)</label>
+                <select id="inviteTeam" style="background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none">
+                  <option value="">No department</option>
+                </select>
+              </div>
+            </div>
+            <div class="auth-field" style="margin:0;max-width:200px">
+              <label>Role</label>
+              <select id="inviteRole" style="background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none">
+                <option value="employee">Employee</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div id="inviteErr" style="font-size:12px;color:var(--error);min-height:16px"></div>
+            <div id="inviteResult" style="display:none;background:var(--surface-soft);border:1px solid var(--hairline);border-radius:8px;padding:12px 14px;font-size:12.5px">
+              <div style="font-weight:500;color:var(--ink);margin-bottom:6px">Invite link generated</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <input id="inviteLinkBox" readonly style="flex:1;background:var(--canvas);border:1px solid var(--hairline);border-radius:6px;padding:7px 10px;font-size:12px;font-family:monospace;color:var(--ink);outline:none">
+                <button class="btn-sm btn-sync" onclick="copyInviteLink()">Copy</button>
+              </div>
+              <p style="margin-top:6px;color:var(--muted);font-size:11.5px">Share this link with the invitee. Expires in 7 days.</p>
+            </div>
+            <button class="auth-submit" style="width:auto;align-self:flex-start;padding:9px 20px" onclick="sendInvite()">Generate Invite Link</button>
+          </div>
+        </div>
+        <div class="settings-card" id="pendingInvitesCard" style="display:none">
+          <div class="settings-card-head">
+            Pending Invites
+            <button class="btn-sm btn-sync" onclick="loadPendingInvites()">Refresh</button>
+          </div>
+          <div id="pendingInvitesTable"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="tab" id="tab-settings">
+    <div class="tab-head">
+      <h1>Settings</h1>
+      <p id="settingsSubhead">Manage your account and workspace configuration.</p>
+    </div>
+    <div class="tab-body">
+      <div class="settings-wrap">
+        <!-- admin-only: departments -->
+        <div class="settings-card admin-only" id="settingsDeptCard">
           <div class="settings-card-head">
             Departments
             <button class="btn-sm btn-sync" id="settingsAddDept">+ Add Department</button>
           </div>
           <div id="deptTable"><div style="padding:20px;color:var(--muted);font-size:13px">No departments yet. Click "+ Add Department" or load data from Connections.</div></div>
         </div>
-        <div class="settings-card">
+        <!-- admin-only: API keys -->
+        <div class="settings-card admin-only" id="settingsKeysCard">
           <div class="settings-card-head">API Keys &amp; Credentials</div>
           <div id="envTable"></div>
         </div>
         <div class="settings-card">
-          <div class="settings-card-head">Workspace</div>
+          <div class="settings-card-head">Account</div>
           <div style="padding:16px 20px;font-size:13px;color:var(--muted);line-height:2.1">
-            <div><strong style="color:var(--ink)">Workspace ID</strong> — ws_local</div>
-            <div><strong style="color:var(--ink)">Storage</strong> — SQLite (brain.db)</div>
-            <div><strong style="color:var(--ink)">Embeddings</strong> — bge-small-en, 384-dim, runs locally</div>
-            <div id="llmModelRow"><strong style="color:var(--ink)">LLM</strong> — loading…</div>
+            <div><strong style="color:var(--ink)">Email</strong> — <span id="settingsEmail">—</span></div>
+            <div><strong style="color:var(--ink)">Role</strong> — <span id="settingsRole">—</span></div>
+            <div><strong style="color:var(--ink)">Account type</strong> — <span id="settingsAcctType">—</span></div>
+            <div class="admin-only"><strong style="color:var(--ink)">Workspace ID</strong> — <span id="settingsWsId">—</span></div>
+            <div class="admin-only"><strong style="color:var(--ink)">Storage</strong> — Postgres (Supabase)</div>
+            <div class="admin-only"><strong style="color:var(--ink)">Embeddings</strong> — bge-small-en, 384-dim</div>
+            <div class="admin-only" id="llmModelRow"><strong style="color:var(--ink)">LLM</strong> — loading…</div>
           </div>
         </div>
       </div>
@@ -602,18 +824,25 @@ async function initAuth() {
 
   _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // Check for existing session
+  // Show SSO buttons now that Supabase is configured
+  document.getElementById('ssoSection').style.display = '';
+
+  // Check for existing session (also catches OAuth redirect with #access_token hash)
   const { data: { session } } = await _supabase.auth.getSession();
   if (session) {
     _authToken = session.access_token;
+    // If this is a fresh OAuth login, provision account if needed
+    await _provisionSSOUser(session);
     return true;
   }
 
-  // Listen for auth state changes (e.g. magic link redirect)
-  _supabase.auth.onAuthStateChange((_event, session) => {
+  // Listen for auth state changes (OAuth redirect, magic link, etc.)
+  _supabase.auth.onAuthStateChange(async (_event, session) => {
     if (session) {
       _authToken = session.access_token;
+      await _provisionSSOUser(session);
       showApp(session.user);
+      loadApp();
     } else {
       _authToken = null;
       showAuthScreen();
@@ -622,44 +851,134 @@ async function initAuth() {
   return false;
 }
 
+async function _provisionSSOUser(session){
+  // After an SSO login, tell the server to create an account+membership if this is a new user.
+  // We pass the JWT; the server verifies it and does the DB work.
+  try {
+    await fetch('/api/auth/sso-provision', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'Authorization': 'Bearer ' + session.access_token},
+    });
+  } catch(_){ /* non-fatal */ }
+}
+
+async function doSSO(provider) {
+  if(!_supabase){ toast('Supabase not configured — SSO unavailable','err'); return; }
+  const btns = document.querySelectorAll('.sso-btn');
+  btns.forEach(b=>{ b.disabled=true; });
+  document.getElementById('authErr').textContent = '';
+  try {
+    const { error } = await _supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin + window.location.pathname,
+        scopes: provider === 'google' ? 'email profile' : 'email profile openid',
+      },
+    });
+    if(error) throw error;
+    // Browser will navigate away to OAuth provider — no further JS runs here
+  } catch(e) {
+    document.getElementById('authErr').textContent = e.message || 'SSO failed';
+    btns.forEach(b=>{ b.disabled=false; });
+  }
+}
+
 function bypassAuth() {
-  _authToken = null;
+  _authToken = 'dev-bypass';
   showApp({ email: 'local@dev', user_metadata: { role: 'admin' } });
+}
+
+let _signupAcctType = 'individual';  // 'individual' | 'company'
+
+function selectAcctType(type) {
+  _signupAcctType = type;
+  document.getElementById('btnIndividual').classList.toggle('active', type==='individual');
+  document.getElementById('btnCompany').classList.toggle('active', type==='company');
+  document.getElementById('indivNameField').style.display = type==='individual' ? '' : 'none';
+  document.getElementById('companyFields').style.display  = type==='company'    ? '' : 'none';
+}
+
+function setAuthTab(tab) {
+  document.getElementById('tabSignIn').classList.toggle('active', tab==='signin');
+  document.getElementById('tabSignUp').classList.toggle('active', tab==='signup');
+  document.getElementById('signinFields').style.display  = tab==='signin' ? '' : 'none';
+  document.getElementById('signupFields').style.display  = tab==='signup' ? '' : 'none';
+  document.getElementById('authSubmit').textContent = tab==='signin' ? 'Sign in' : 'Create account';
+  document.getElementById('authErr').textContent = '';
+  document.getElementById('authHeadSub').textContent = tab==='signin'
+    ? "Sign in to access your team's knowledge"
+    : 'Create your account';
 }
 
 async function doAuth() {
   if (!_supabase) { bypassAuth(); return; }
-  const email    = document.getElementById('authEmail').value.trim();
-  const password = document.getElementById('authPassword').value;
-  const btn      = document.getElementById('authSubmit');
-  const err      = document.getElementById('authErr');
-  const mode     = document.getElementById('tabSignIn').classList.contains('active') ? 'signin' : 'signup';
+  const err  = document.getElementById('authErr');
+  const btn  = document.getElementById('authSubmit');
+  const mode = document.getElementById('tabSignIn').classList.contains('active') ? 'signin' : 'signup';
 
-  if (!email || !password) { err.textContent = 'Email and password required'; return; }
   err.textContent = '';
-  btn.disabled = true; btn.textContent = '…';
+  err.style.color = 'var(--error)';
 
-  try {
-    let res;
-    if (mode === 'signin') {
-      res = await _supabase.auth.signInWithPassword({ email, password });
-    } else {
-      res = await _supabase.auth.signUp({ email, password });
-    }
-    if (res.error) throw res.error;
-    if (res.data?.session) {
+  if (mode === 'signin') {
+    const email    = document.getElementById('authEmail').value.trim();
+    const password = document.getElementById('authPassword').value;
+    if (!email || !password) { err.textContent = 'Email and password required'; return; }
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const res = await _supabase.auth.signInWithPassword({ email, password });
+      if (res.error) throw res.error;
       _authToken = res.data.session.access_token;
       showApp(res.data.user);
-    } else {
-      // Sign-up: confirmation email sent
-      err.style.color = 'var(--success)';
-      err.textContent = 'Check your email to confirm your account.';
+      await loadApp();
+    } catch(e) {
+      err.textContent = e.message || 'Sign-in failed';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Sign in';
     }
-  } catch(e) {
-    err.textContent = e.message || 'Authentication failed';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = mode === 'signin' ? 'Sign in' : 'Create account';
+  } else {
+    // Signup path — collect fields based on account type
+    const acctType = _signupAcctType;
+    const email    = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    const name     = acctType === 'individual'
+      ? document.getElementById('signupName').value.trim()
+      : document.getElementById('signupCompanyName').value.trim();
+
+    if (!name)     { err.textContent = acctType==='individual' ? 'Your name is required' : 'Company name is required'; return; }
+    if (!email)    { err.textContent = 'Email is required'; return; }
+    if (!password) { err.textContent = 'Password is required'; return; }
+    if (password.length < 8) { err.textContent = 'Password must be at least 8 characters'; return; }
+
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      // 1. Call our signup endpoint — validates domain, creates account + membership
+      const signupRes = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email, password, account_type: acctType, name }),
+      });
+      if (!signupRes.ok) {
+        const body = await signupRes.json().catch(()=>({detail:'Signup failed'}));
+        throw new Error(body.detail || 'Signup failed');
+      }
+
+      // 2. Sign in with Supabase to get a session token
+      const res = await _supabase.auth.signInWithPassword({ email, password });
+      if (res.error) {
+        // Account created; Supabase might require email confirmation
+        err.style.color = 'var(--success)';
+        err.textContent = 'Account created! Check your email to confirm, then sign in.';
+        setAuthTab('signin');
+        return;
+      }
+      _authToken = res.data.session.access_token;
+      showApp(res.data.user);
+      await loadApp();
+    } catch(e) {
+      err.textContent = e.message || 'Signup failed';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Create account';
+    }
   }
 }
 
@@ -669,13 +988,6 @@ async function signOut() {
   showAuthScreen();
 }
 
-function setAuthTab(tab) {
-  document.getElementById('tabSignIn').classList.toggle('active', tab==='signin');
-  document.getElementById('tabSignUp').classList.toggle('active', tab==='signup');
-  document.getElementById('authSubmit').textContent = tab==='signin' ? 'Sign in' : 'Create account';
-  document.getElementById('authPassword').autocomplete = tab==='signin' ? 'current-password' : 'new-password';
-}
-
 function showAuthScreen() {
   document.getElementById('authScreen').classList.remove('hidden');
   document.getElementById('authErr').textContent = '';
@@ -683,13 +995,13 @@ function showAuthScreen() {
 
 function showApp(user) {
   document.getElementById('authScreen').classList.add('hidden');
-  // Populate user pill
   const email = user?.email || 'local';
   const role  = user?.user_metadata?.role || ((_authMode==='bypass')?'admin':'member');
   document.getElementById('userEmail').textContent = email;
   document.getElementById('userRoleLabel').textContent = role;
   document.getElementById('userAvatar').textContent = email[0].toUpperCase();
   document.getElementById('userPill').style.display = 'flex';
+  // loadApp() is called from main() and handles /api/me + account_type UI
 }
 
 // ── api ───────────────────────────────────────────────────────────────────────
@@ -730,6 +1042,7 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
     document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
     if(btn.dataset.tab==='activity') loadActivity();
     if(btn.dataset.tab==='settings') renderSettings();
+    if(btn.dataset.tab==='members')  { _populateInviteTeamSelect(); loadMembersTable(); loadPendingInvites(); }
   });
 });
 
@@ -803,149 +1116,266 @@ document.getElementById('deptSelect').addEventListener('change', e=>{
 // ── sources sidebar ───────────────────────────────────────────────────────────
 function renderSources(){
   const el=document.getElementById('sourceList'); el.innerHTML='';
-  S.connectors.forEach(c=>{
+  // Sources are driven by connected apps, updated after each sync
+  (S.activeSources||[]).forEach(src=>{
     const d=document.createElement('div'); d.className='source-item';
-    d.innerHTML=`<span class="sdot ${c.connected?'on':''}"></span>${c.name}`;
+    d.innerHTML=`<span class="sdot on"></span>${escHtml(src)}`;
     el.appendChild(d);
   });
+  if(!(S.activeSources||[]).length){
+    el.innerHTML='<div class="source-item" style="color:var(--muted);font-size:12px">No data synced yet</div>';
+  }
 }
 
 // ── connections tab ───────────────────────────────────────────────────────────
 function renderConnections(){
-  const grid=document.getElementById('connGrid'); grid.innerHTML='';
-  S.connectors.forEach(c=>{
-    const card=document.createElement('div');
-    card.className=`conn-card ${c.connected?'is-connected':''}`;
-    const tid=S.currentTeam||'engineering';
-
-    let actionBtns='';
-    if(c.connected){
-      actionBtns=`
-        <button class="btn-sm btn-sync conn-sync" data-source="${c.id}" data-team="${tid}" title="Fetch recent items only">↻ Sync</button>
-        <button class="btn-sm btn-setup conn-backfill" data-source="${c.id}" data-team="${tid}" title="Fetch full history (slow)">Full backfill</button>`;
-    } else {
-      actionBtns=`<button class="btn-sm btn-setup conn-setup-btn" data-src="${c.id}">How to connect →</button>`;
-    }
-
-    const envTag = c.env_var ? `<code style="font-size:10px;background:var(--surface-card);padding:1px 5px;border-radius:4px;color:var(--muted)">${escHtml(c.env_var)}</code>` : '';
-
-    card.innerHTML=`
-      <div class="conn-top">
-        <div class="conn-logo">${CONN_LOGOS[c.icon]||CONN_LOGOS.default}</div>
-        <div>
-          <div class="conn-name">${escHtml(c.name)}</div>
-          ${envTag}
-        </div>
-      </div>
-      <div class="conn-desc">${escHtml(c.desc)}</div>
-      <div class="conn-foot" style="gap:6px;flex-wrap:wrap">
-        <div class="status-row">
-          <div class="sdot2 ${c.connected?'on':''}"></div>
-          <span class="${c.connected?'status-connected':'status-disconnected'}">${c.connected?'Connected':'Not connected'}</span>
-        </div>
-        <div style="display:flex;gap:6px">${actionBtns}</div>
-      </div>`;
-    grid.appendChild(card);
-  });
-
-  async function _runConnector(btn, endpoint){
-    const src=btn.dataset.source;
-    const team=btn.dataset.team||S.currentTeam||'engineering';
-    const orig=btn.textContent;
-    btn.textContent='Running…'; btn.disabled=true;
-    try{
-      const res=await api.post(endpoint,{source:src});
-      const eps=res.episodes??res.new_episodes??0;
-      const facts=res.facts??res.new_facts??0;
-      toast(`✓ ${res.source}: ${eps} new episodes, ${facts} facts`,'ok');
-      S.teams=await api.get('/api/teams');
-      renderDeptSelect(); renderSources();
-      if(!S.currentTeam && S.teams.length){
-        S.currentTeam=S.teams[0].id;
-        document.getElementById('deptSelect').value=S.currentTeam;
-        updateDeptBadge(S.currentTeam);
-      }
-    } catch(err){ toast('Error: '+err.message,'err'); }
-    btn.textContent=orig; btn.disabled=false;
-  }
-
-  grid.querySelectorAll('.conn-sync').forEach(btn=>{
-    btn.addEventListener('click', ()=>_runConnector(btn,'/api/sync'));
-  });
-  grid.querySelectorAll('.conn-backfill').forEach(btn=>{
-    btn.addEventListener('click', ()=>_runConnector(btn,'/api/backfill'));
-  });
-  grid.querySelectorAll('.conn-setup-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>showSetupHelp(btn.dataset.src));
-  });
+  // No-op: connections are now rendered entirely by loadComposioHub()
 }
 
 function showSetupHelp(src){
-  const c=(S.connectors||[]).find(x=>x.id===src);
-  const msg=c?.setup||'Add credentials to .env and restart the server.';
-  // show a longer toast or alert
-  if(msg.length > 80){
-    alert(`How to connect ${c?.name||src}:\n\n${msg}`);
-  } else {
-    toast(msg,'warn');
-  }
+  toast('Add credentials to .env and restart the server.','warn');
 }
 
-// ── composio hub ─────────────────────────────────────────────────────────────
+// ── integrations marketplace ──────────────────────────────────────────────────
+const _HUB = {
+  allApps: [],       // full catalog from API
+  connected: {},     // slug → true for connected apps
+  activeCat: 'all',  // current category filter
+  cursor: null,      // pagination
+  loading: false,
+};
+
+// Canonical category groups (maps API categories → display label)
+const _CAT_MAP = {
+  'all':                    'All',
+  'team collaboration':     'Collaboration',
+  'team chat':              'Collaboration',
+  'crm':                    'CRM',
+  'project management':     'Project Mgmt',
+  'task management':        'Project Mgmt',
+  'developer tools':        'Dev Tools',
+  'databases':              'Dev Tools',
+  'email':                  'Email',
+  'email newsletters':      'Email',
+  'marketing automation':   'Marketing',
+  'social media marketing': 'Marketing',
+  'social media accounts':  'Social',
+  'analytics':              'Analytics',
+  'documents':              'Documents',
+  'spreadsheets':           'Documents',
+  'file management & storage': 'Storage',
+  'calendar':               'Calendar',
+  'scheduling & booking':   'Calendar',
+  'artificial intelligence':'AI',
+  'ai agents':              'AI',
+  'ai web scraping':        'AI',
+  'video & audio':          'Media',
+  'images & design':        'Media',
+  'ecommerce':              'E-Commerce',
+  'productivity':           'Productivity',
+  'notes':                  'Documents',
+};
+
+const _DISPLAY_CATS = ['All','Collaboration','CRM','Project Mgmt','Dev Tools','Email','Marketing','Analytics','Documents','Calendar','AI','Storage','Social','Media','E-Commerce','Productivity'];
+
+function _appDisplayCat(app) {
+  for (const raw of (app.categories||[])) {
+    const mapped = _CAT_MAP[raw.toLowerCase()];
+    if (mapped) return mapped;
+  }
+  return 'Other';
+}
+
 async function loadComposioHub() {
-  const composioConn = (S.connectors||[]).find(c=>c.id==='composio');
-  if (!composioConn?.connected) return;
-
-  const hub = document.getElementById('composioHub');
-  hub.style.display = 'block';
-  document.getElementById('composioHubIcon').innerHTML = CONN_LOGOS.composio || '';
-
-  // Load connected apps from Composio
+  // Load connected apps first
   try {
-    const connected = await api.get('/api/composio/connected');
-    const list = document.getElementById('composioAppList');
-    list.innerHTML = '';
-    if (connected.length === 0) {
-      list.innerHTML = '<span style="font-size:12px;color:var(--muted)">No apps connected yet — search below and click "+ Connect app"</span>';
-    } else {
-      connected.forEach(acc => {
-        const chip = document.createElement('span');
-        chip.style.cssText = 'display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:9999px;font-size:12px;font-weight:500;background:rgba(93,184,114,.12);color:#2d7a3a;border:1px solid rgba(93,184,114,.25)';
-        chip.innerHTML = `✓ ${escHtml(acc.label||acc.app)}`;
-        list.appendChild(chip);
-      });
-    }
-  } catch(e) {
-    // silently ignore — Composio key might not have connected accounts yet
+    const list = await api.get('/api/composio/connected');
+    list.forEach(a => { _HUB.connected[a.app] = a; });
+  } catch(e) {}
+
+  _renderCatFilters();
+  await _loadAppsPage(true);
+}
+
+function _renderCatFilters() {
+  const wrap = document.getElementById('catFilters');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  _DISPLAY_CATS.forEach(cat => {
+    const chip = document.createElement('button');
+    const key = cat === 'All' ? 'all' : cat;
+    const active = _HUB.activeCat === key;
+    chip.style.cssText = `padding:5px 14px;border-radius:9999px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${active?'var(--primary)':'var(--hairline)'};background:${active?'var(--primary)':'transparent'};color:${active?'#fff':'var(--muted)'};transition:.12s`;
+    chip.textContent = cat;
+    chip.onclick = () => { _HUB.activeCat = key; _filterApps(); _renderCatFilters(); };
+    wrap.appendChild(chip);
+  });
+}
+
+async function _loadAppsPage(reset) {
+  if (_HUB.loading) return;
+  _HUB.loading = true;
+  if (reset) { _HUB.allApps = []; _HUB.cursor = null; }
+
+  document.getElementById('appsLoading').style.display = 'block';
+  document.getElementById('appsEmpty').style.display = 'none';
+  document.getElementById('appsLoadMore').style.display = 'none';
+
+  try {
+    const params = { limit: 50 };
+    if (_HUB.cursor) params.cursor = _HUB.cursor;
+    const data = await api.get('/api/composio/apps?' + new URLSearchParams(params));
+    const items = Array.isArray(data) ? data : (data.items || data);
+    _HUB.allApps.push(...items);
+    _HUB.cursor = Array.isArray(data) ? null : (data.next_cursor || null);
+    if (_HUB.cursor) document.getElementById('appsLoadMore').style.display = 'block';
+  } catch(e) {}
+
+  _HUB.loading = false;
+  document.getElementById('appsLoading').style.display = 'none';
+  _filterApps();
+}
+
+function _filterApps() {
+  const q = (document.getElementById('appSearch')?.value || '').toLowerCase().trim();
+  const cat = _HUB.activeCat;
+
+  const filtered = _HUB.allApps.filter(app => {
+    const matchQ = !q || app.name.toLowerCase().includes(q) || app.slug.includes(q);
+    const matchCat = cat === 'all' || _appDisplayCat(app) === cat;
+    return matchQ && matchCat;
+  });
+
+  const connectedApps = filtered.filter(a => _HUB.connected[a.slug]);
+  const otherApps     = filtered.filter(a => !_HUB.connected[a.slug]);
+
+  // Connected section
+  const connSec  = document.getElementById('connectedSection');
+  const connGrid = document.getElementById('connectedGrid');
+  connGrid.innerHTML = '';
+  if (connectedApps.length > 0) {
+    connSec.style.display = 'block';
+    connectedApps.forEach(app => _buildMarketCard(connGrid, app, true));
+  } else {
+    connSec.style.display = 'none';
+  }
+
+  // All apps section — hide "All Apps" label when nothing connected
+  const allWrap = document.getElementById('allAppsWrap');
+  const allGrid = document.getElementById('allAppsGrid');
+  allGrid.innerHTML = '';
+  if (otherApps.length === 0 && connectedApps.length === 0) {
+    document.getElementById('appsEmpty').style.display = 'block';
+  } else {
+    document.getElementById('appsEmpty').style.display = 'none';
+    otherApps.forEach(app => _buildMarketCard(allGrid, app, false));
   }
 }
 
-async function _connectComposioApp() {
-  const appSlug = document.getElementById('composioAppSearch').value.trim().toLowerCase().replace(/\s+/g,'-');
-  if (!appSlug) { toast('Type an app name first (e.g. github, hubspot, jira)','warn'); return; }
+function _buildMarketCard(grid, app, isConnected) {
+  const slug = app.slug || '';
+  const name = app.name || slug;
+  const logo = app.logo || `https://logos.composio.dev/api/${slug}`;
+  const tools = app.tools_count || 0;
+  const cat = _appDisplayCat(app);
+
+  const card = document.createElement('div');
+  card.style.cssText = `background:var(--canvas);border:1px solid ${isConnected?'rgba(93,184,114,.4)':'var(--hairline)'};border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;cursor:default;transition:border-color .15s,box-shadow .15s`;
+  card.onmouseover = () => { card.style.borderColor = isConnected?'rgba(93,184,114,.7)':'var(--primary)'; card.style.boxShadow='0 1px 4px rgba(20,20,19,.08)'; };
+  card.onmouseout  = () => { card.style.borderColor = isConnected?'rgba(93,184,114,.4)':'var(--hairline)'; card.style.boxShadow='none'; };
+
+  const logoHtml = `<img src="${escHtml(logo)}" style="width:36px;height:36px;border-radius:8px;object-fit:contain;background:var(--surface-soft);padding:2px;flex-shrink:0" onerror="this.style.display='none'">`;
+
+  const status = isConnected
+    ? `<span style="font-size:10px;font-weight:600;color:#2d7a3a;background:rgba(93,184,114,.12);padding:2px 7px;border-radius:9999px">✓ Connected</span>`
+    : `<span style="font-size:10px;color:var(--muted-soft);background:var(--surface-soft);padding:2px 7px;border-radius:9999px">${escHtml(cat)}</span>`;
+
+  const toolsLabel = tools ? `<span style="font-size:10px;color:var(--muted-soft)">${tools} actions</span>` : '';
+
+  const btn = isConnected
+    ? `<div style="display:flex;gap:5px">
+        <button class="btn-sm btn-sync" style="flex:1;font-size:11px;padding:5px 0" onclick="_syncApp('composio','${slug}',this)">↻ Sync</button>
+        <button class="btn-sm" style="flex:1;font-size:11px;padding:5px 0;background:var(--surface-soft);color:var(--muted)" onclick="_backfillApp('composio','${slug}',this)">⬇ Full</button>
+       </div>`
+    : `<button class="btn-sm" style="width:100%;font-size:11px;padding:6px 0;background:var(--surface-soft);color:var(--ink);border:1px solid var(--hairline)" onclick="_connectApp('${escHtml(slug)}',this)">+ Connect</button>`;
+
+  card.innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:10px">
+      ${logoHtml}
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px">${escHtml(name)}</div>
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${status}${toolsLabel}</div>
+      </div>
+    </div>
+    ${btn}`;
+  grid.appendChild(card);
+}
+
+async function _connectApp(slug, btn) {
+  const orig = btn.textContent;
+  btn.textContent = 'Opening…'; btn.disabled = true;
   try {
-    const res = await api.post('/api/composio/connect', {app: appSlug, redirect_url: ''});
+    const res = await api.post('/api/composio/connect', {app: slug, redirect_url: window.location.href});
     if (res.connect_url) {
       window.open(res.connect_url, '_blank');
-      toast(`OAuth opened for ${appSlug} — complete it in the new tab, then sync`,'ok');
+      toast(`Complete OAuth in the new tab, then refresh this page`,'ok');
     } else {
-      toast(`Could not get OAuth URL for ${appSlug}`,'err');
+      toast(`Could not get OAuth URL for ${slug}`,'err');
     }
   } catch(e) { toast('Error: '+e.message,'err'); }
+  btn.textContent = orig; btn.disabled = false;
 }
 
-async function _runComposioSync() {
-  const btn = document.querySelector('[onclick="_runComposioSync()"]');
-  if (btn) { btn.textContent='Running…'; btn.disabled=true; }
+async function _loadMoreApps() {
+  await _loadAppsPage(false);
+}
+
+async function _syncApp(source, appSlug, btn) {
+  const orig = btn.textContent;
+  btn.textContent = '…'; btn.disabled = true;
   try {
-    const res = await api.post('/api/sync', {source: 'composio'});
+    const body = appSlug ? {source, app: appSlug} : {source};
+    const res = await api.post('/api/sync', body);
     const eps = res.new_episodes ?? res.episodes ?? 0;
     const facts = res.new_facts ?? res.facts ?? 0;
-    toast(`✓ Composio: ${eps} new episodes, ${facts} facts`,'ok');
+    toast(`✓ ${appSlug||source}: ${eps} episodes, ${facts} facts`,'ok');
+    S.teams = await api.get('/api/teams');
+    if (!S.activeSources) S.activeSources = [];
+    const label = appSlug || source;
+    if (!S.activeSources.includes(label)) S.activeSources.push(label);
+    renderDeptSelect(); renderSources();
+  } catch(e) { toast('Sync error: '+e.message,'err'); }
+  btn.textContent = orig; btn.disabled = false;
+}
+
+async function _backfillApp(source, appSlug, btn) {
+  const orig = btn.textContent;
+  btn.textContent = '…'; btn.disabled = true;
+  try {
+    const body = appSlug ? {source, app: appSlug} : {source};
+    const res = await api.post('/api/backfill', body);
+    const eps = res.new_episodes ?? res.episodes ?? 0;
+    toast(`✓ ${appSlug||source} backfill: ${eps} episodes`,'ok');
+  } catch(e) { toast('Backfill error: '+e.message,'err'); }
+  btn.textContent = orig; btn.disabled = false;
+}
+
+async function _runComposioSync(btn) {
+  if (btn) { btn.textContent='Running…'; btn.disabled=true; }
+  try {
+    const slugs = Object.keys(_HUB.connected);
+    if (!slugs.length) { toast('No apps connected yet — connect one first','warn'); if(btn){btn.textContent='↻ Sync all connected';btn.disabled=false;} return; }
+    let totalEps=0, totalFacts=0;
+    for (const slug of slugs) {
+      const res = await api.post('/api/sync', {source:'composio', app: slug});
+      totalEps   += res.new_episodes ?? res.episodes ?? 0;
+      totalFacts += res.new_facts ?? res.facts ?? 0;
+    }
+    toast(`✓ All synced: ${totalEps} episodes, ${totalFacts} facts`,'ok');
     S.teams = await api.get('/api/teams');
     renderDeptSelect(); renderSources();
   } catch(e) { toast('Error: '+e.message,'err'); }
-  if (btn) { btn.textContent='↻ Sync all'; btn.disabled=false; }
+  if (btn) { btn.textContent='↻ Sync all connected'; btn.disabled=false; }
 }
 
 // ── chat ──────────────────────────────────────────────────────────────────────
@@ -996,13 +1426,135 @@ function buildAnswerCard(result){
   </div>`;
 }
 
+// ── conversation state ────────────────────────────────────────────────────────
+S.convId = null;        // active conversation id
+S.convs  = [];          // list from server
+
+async function loadConvList(){
+  try {
+    S.convs = await api.get('/api/conversations');
+  } catch(_){ S.convs = []; }
+  renderConvList();
+}
+
+function renderConvList(){
+  const el = document.getElementById('convList');
+  if(!S.convs.length){
+    el.innerHTML = '<div class="conv-empty">No chats yet. Ask something to start one.</div>';
+    return;
+  }
+  el.innerHTML = S.convs.map(c=>`
+    <div class="conv-item${c.id===S.convId?' active':''}" onclick="switchConv('${escHtml(c.id)}')" title="${escHtml(c.title)}">
+      <span class="conv-item-title">${escHtml(c.title||'New conversation')}</span>
+      <button class="conv-item-del" onclick="event.stopPropagation();deleteConv('${escHtml(c.id)}')" title="Delete">×</button>
+    </div>`).join('');
+}
+
+async function newConversation(){
+  // Switch Ask tab into view
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('[data-tab="ask"]').classList.add('active');
+  document.getElementById('tab-ask').classList.add('active');
+
+  S.convId = null;
+  const area = document.getElementById('chatArea');
+  area.innerHTML = `<div class="empty-state" id="emptyState">
+    <div class="es-icon"><svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="var(--hairline)" stroke-width="1.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg></div>
+    <p>Ask anything about your company</p>
+    <small>The brain searches its memory and shows you the source of each answer.</small>
+    <div class="example-qs">
+      <button class="example-q" data-q="Why did we drop Redis?">Why did we drop Redis?</button>
+      <button class="example-q" data-q="When does the refunds feature ship?">When does the refunds feature ship?</button>
+      <button class="example-q" data-q="What is our brand voice?">What is our brand voice?</button>
+    </div>
+  </div>`;
+  document.querySelectorAll('.example-q').forEach(b=>b.addEventListener('click',()=>sendQuery(b.dataset.q)));
+  renderConvList();
+  document.getElementById('chatInput').focus();
+}
+
+async function switchConv(id){
+  S.convId = id;
+  // Switch to Ask tab
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('[data-tab="ask"]').classList.add('active');
+  document.getElementById('tab-ask').classList.add('active');
+
+  renderConvList();
+  const area = document.getElementById('chatArea');
+  area.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Loading…</div>';
+  try {
+    const msgs = await api.get(`/api/conversations/${encodeURIComponent(id)}/messages`);
+    area.innerHTML = '';
+    if(!msgs.length){
+      area.innerHTML = '<div class="empty-state" id="emptyState"><p>No messages yet.</p></div>';
+      return;
+    }
+    msgs.forEach(m=>{
+      const div = document.createElement('div');
+      div.className = m.role==='user' ? 'msg-q' : 'msg-a';
+      if(m.role==='user'){
+        div.innerHTML = escHtml(m.content);
+      } else {
+        // Re-render assistant messages as answer cards if they look like JSON, else plain
+        try {
+          const d = JSON.parse(m.content);
+          div.innerHTML = buildAnswerCard(d);
+        } catch(_){
+          div.innerHTML = `<div class="answer-card"><div class="answer-text">${escHtml(m.content)}</div></div>`;
+        }
+      }
+      area.appendChild(div);
+    });
+    area.scrollTop = area.scrollHeight;
+  } catch(e){
+    area.innerHTML = `<div style="padding:24px;color:var(--error);font-size:13px">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function deleteConv(id){
+  try {
+    const r = await fetch(`/api/conversations/${encodeURIComponent(id)}`, {
+      method: 'DELETE', headers: api._headers({'Content-Type':undefined})
+    });
+    if(!r.ok) throw new Error(await r.text());
+    if(S.convId === id){ S.convId = null; newConversation(); }
+    await loadConvList();
+  } catch(e){ toast('Delete failed: '+e.message,'err'); }
+}
+
+async function _ensureConv(firstMsg){
+  if(S.convId) return S.convId;
+  try {
+    const title = firstMsg.length > 50 ? firstMsg.slice(0,50)+'…' : firstMsg;
+    const data = await api.post('/api/conversations', {title, team_id: S.currentTeam||null});
+    S.convId = data.id;
+    S.convs.unshift(data);
+    renderConvList();
+    return S.convId;
+  } catch(_){ return null; }
+}
+
+async function _persistMsg(convId, role, content){
+  if(!convId) return;
+  try {
+    await api.post(`/api/conversations/${encodeURIComponent(convId)}/messages`, {role, content});
+  } catch(_){ /* non-fatal */ }
+}
+
 async function sendQuery(q){
   if(!q.trim()) return;
   addMsg('q', escHtml(q));
+  const convId = await _ensureConv(q);
+  await _persistMsg(convId, 'user', q);
   const load=addMsg('a','<div class="loading"><span></span><span></span><span></span></div>');
   try{
     const res=await api.post('/api/search',{query:q,team_id:S.currentTeam||null,cross_team:!S.currentTeam});
     load.innerHTML=buildAnswerCard(res);
+    // Persist assistant answer as JSON so we can re-render it when switching back
+    await _persistMsg(convId, 'assistant', JSON.stringify(res));
   } catch(e){
     load.innerHTML=`<div class="answer-card"><div class="answer-text" style="color:var(--error)">Error: ${escHtml(e.message)}</div></div>`;
   }
@@ -1294,41 +1846,47 @@ document.getElementById('actTeamFilter').addEventListener('change',loadActivity)
 
 // ── settings ──────────────────────────────────────────────────────────────────
 function renderSettings(){
-  const el=document.getElementById('deptTable');
-  if(!S.teams.length){
-    el.innerHTML='<div style="padding:20px;color:var(--muted);font-size:13px">No departments yet. Use "+ Add Department" or load data from Connections first.</div>';
-  } else {
-    el.innerHTML=S.teams.map(t=>{
-      const color=teamColor(t.id);
-      return `<div class="dept-trow">
-        <div class="dept-trow-dot" style="background:${color}"></div>
-        <div class="dept-trow-name">${escHtml(t.name)}</div>
-        <div class="dept-trow-id">${escHtml(t.id)}</div>
-        <div class="dept-trow-desc">${escHtml(t.description||'—')}</div>
-      </div>`;
-    }).join('');
+  const isAdmin = S.me?.is_admin !== false;
+
+  // Admin-only: department list
+  if(isAdmin){
+    const el=document.getElementById('deptTable');
+    if(!S.teams.length){
+      el.innerHTML='<div style="padding:20px;color:var(--muted);font-size:13px">No departments yet. Use "+ Add Department" or load data from Connections first.</div>';
+    } else {
+      el.innerHTML=S.teams.map(t=>{
+        const color=teamColor(t.id);
+        return `<div class="dept-trow">
+          <div class="dept-trow-dot" style="background:${color}"></div>
+          <div class="dept-trow-name">${escHtml(t.name)}</div>
+          <div class="dept-trow-id">${escHtml(t.id)}</div>
+          <div class="dept-trow-desc">${escHtml(t.description||'—')}</div>
+        </div>`;
+      }).join('');
+    }
+
+    const keys=S.status.keys||{};
+    const model=S.status.llm_model||'gpt-4o-mini';
+    const mock=S.status.mock_mode;
+    const lmr = document.getElementById('llmModelRow');
+    if(lmr) lmr.innerHTML=
+      `<strong style="color:var(--ink)">LLM</strong> — ${model} ${mock?`<span style="color:var(--error)">(demo mode – no API key)</span>`:`<span style="color:var(--success)">(live)</span>`}`;
+
+    const envRows=[
+      {key:'GROK_API_KEY', set:keys.grok, label:'Grok (xAI) — free tier available'},
+      {key:'OPENAI_API_KEY', set:keys.openai, label:'OpenAI'},
+      {key:'ANTHROPIC_API_KEY', set:keys.anthropic, label:'Anthropic (Claude)'},
+      {key:'SLACK_BOT_TOKEN', set:keys.slack, label:'Slack'},
+      {key:'GOOGLE_CREDENTIALS_JSON', set:keys.google, label:'Google (Gmail / Docs / Calendar)'},
+      {key:'NOTION_TOKEN', set:keys.notion, label:'Notion'},
+    ];
+    document.getElementById('envTable').innerHTML=envRows.map(r=>`
+      <div class="env-row">
+        <div class="env-key">${r.key}</div>
+        <div class="env-val ${r.set?'env-set':'env-missing'}">${r.set?'✓ Set':'✗ Not set'}</div>
+        <div style="font-size:12px;color:var(--muted);flex:1">${r.label}</div>
+      </div>`).join('');
   }
-
-  const keys=S.status.keys||{};
-  const model=S.status.llm_model||'gpt-4o-mini';
-  const mock=S.status.mock_mode;
-  document.getElementById('llmModelRow').innerHTML=
-    `<strong style="color:var(--ink)">LLM</strong> — ${model} ${mock?`<span style="color:var(--error)">(demo mode – no API key)</span>`:`<span style="color:var(--success)">(live)</span>`}`;
-
-  const envRows=[
-    {key:'GROK_API_KEY', set:keys.grok, label:'Grok (xAI) — free tier available'},
-    {key:'OPENAI_API_KEY', set:keys.openai, label:'OpenAI'},
-    {key:'ANTHROPIC_API_KEY', set:keys.anthropic, label:'Anthropic (Claude)'},
-    {key:'SLACK_BOT_TOKEN', set:keys.slack, label:'Slack'},
-    {key:'GOOGLE_CREDENTIALS_JSON', set:keys.google, label:'Google (Gmail / Docs / Calendar)'},
-    {key:'NOTION_TOKEN', set:keys.notion, label:'Notion'},
-  ];
-  document.getElementById('envTable').innerHTML=envRows.map(r=>`
-    <div class="env-row">
-      <div class="env-key">${r.key}</div>
-      <div class="env-val ${r.set?'env-set':'env-missing'}">${r.set?'✓ Set':'✗ Not set'}</div>
-      <div style="font-size:12px;color:var(--muted);flex:1">${r.label}</div>
-    </div>`).join('');
 }
 document.getElementById('settingsAddDept').addEventListener('click',()=>openModal());
 
@@ -1378,11 +1936,236 @@ document.getElementById('deptModal').addEventListener('keydown',e=>{
 });
 
 // ── init ──────────────────────────────────────────────────────────────────────
+function applyRoleUI(){
+  const me           = S.me || {};
+  const isAdmin      = me.is_admin !== false;
+  const isIndividual = me.account_type === 'individual';
+  const isCompany    = !isIndividual;
+
+  // Show/hide all admin-only elements
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = isAdmin ? '' : 'none';
+  });
+
+  // Department block: hide entirely for individual accounts
+  document.querySelector('.dept-block').style.display = isIndividual ? 'none' : '';
+
+  // Settings: populate account info
+  document.getElementById('settingsEmail').textContent    = me.email || '—';
+  document.getElementById('settingsRole').textContent     = me.role || '—';
+  document.getElementById('settingsAcctType').textContent = isIndividual ? 'Individual' : 'Company';
+  document.getElementById('settingsWsId').textContent     = me.workspace_id || '—';
+
+  // User pill role label
+  const roleLabel = me.role || (me.is_admin ? 'admin' : 'employee');
+  document.getElementById('userRoleLabel').textContent = roleLabel;
+
+  // Settings subhead
+  document.getElementById('settingsSubhead').textContent = isAdmin
+    ? 'Manage departments, API keys, and workspace configuration.'
+    : 'Your account details.';
+}
+
+function _populateInviteTeamSelect(){
+  const sel = document.getElementById('inviteTeam');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">No department</option>' +
+    S.teams.map(t=>`<option value="${escHtml(t.id)}">${escHtml(t.name)}</option>`).join('');
+}
+
+async function loadMembersTable(){
+  const el = document.getElementById('membersTable');
+  if(!el) return;
+  el.innerHTML = '<div style="padding:20px;color:var(--muted);font-size:13px">Loading…</div>';
+  try {
+    const data = await api.get('/api/members');
+    if(!data.length){
+      el.innerHTML = '<div style="padding:20px;color:var(--muted);font-size:13px">No members yet. Send an invite below to get started.</div>';
+      return;
+    }
+    const isAdmin = S.me?.is_admin !== false;
+    const teamOpts = S.teams.map(t=>`<option value="${escHtml(t.id)}">${escHtml(t.name)}</option>`).join('');
+    el.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--hairline)">
+            <th style="text-align:left;padding:10px 20px;color:var(--muted);font-weight:500">Member</th>
+            <th style="text-align:left;padding:10px 16px;color:var(--muted);font-weight:500">Role</th>
+            <th style="text-align:left;padding:10px 16px;color:var(--muted);font-weight:500">Department</th>
+            <th style="text-align:left;padding:10px 16px;color:var(--muted);font-weight:500">Status</th>
+            ${isAdmin ? '<th style="text-align:right;padding:10px 20px;color:var(--muted);font-weight:500">Actions</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${data.map(m=>{
+            const isSelf = m.user_id === S.me?.user_id;
+            const deptSel = isAdmin && !isSelf ? `
+              <select onchange="updateMember('${escHtml(m.user_id)}',{team_id:this.value})"
+                style="background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:4px 8px;border-radius:6px;font-size:12px;font-family:inherit;outline:none;max-width:130px">
+                <option value="">No dept</option>${teamOpts}
+              </select>` : `<span style="color:var(--muted)">${escHtml(m.team_id||'—')}</span>`;
+            const actions = isAdmin && !isSelf ? `
+              <div style="display:flex;gap:6px;justify-content:flex-end">
+                <button class="btn-sm" title="${m.role==='admin'?'Demote to Employee':'Promote to Admin'}"
+                  onclick="updateMember('${escHtml(m.user_id)}',{role:'${m.role==='admin'?'employee':'admin'}'})"
+                  style="font-size:11px;padding:4px 10px">
+                  ${m.role==='admin'?'Demote':'Promote'}
+                </button>
+                <button class="btn-sm" title="${m.status==='active'?'Disable access':'Re-enable'}"
+                  onclick="updateMember('${escHtml(m.user_id)}',{status:'${m.status==='active'?'disabled':'active'}'})"
+                  style="font-size:11px;padding:4px 10px;color:${m.status==='active'?'var(--error)':'var(--success)'}">
+                  ${m.status==='active'?'Disable':'Enable'}
+                </button>
+                <button class="btn-sm" title="Remove member"
+                  onclick="removeMember('${escHtml(m.user_id)}','${escHtml(m.email||m.user_id)}')"
+                  style="font-size:11px;padding:4px 10px;color:var(--error)">
+                  Remove
+                </button>
+              </div>` : (isSelf ? '<span style="font-size:11px;color:var(--muted)">You</span>' : '');
+            return `
+            <tr style="border-bottom:1px solid var(--hairline-soft)">
+              <td style="padding:10px 20px">
+                <div style="font-weight:500;color:var(--ink)">${escHtml(m.email||m.user_id)}</div>
+                ${isSelf?'<div style="font-size:11px;color:var(--primary)">You</div>':''}
+              </td>
+              <td style="padding:10px 16px">
+                ${isAdmin && !isSelf ? `
+                <select onchange="updateMember('${escHtml(m.user_id)}',{role:this.value})"
+                  style="background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:4px 8px;border-radius:6px;font-size:12px;font-family:inherit;outline:none">
+                  <option value="employee" ${m.role==='employee'?'selected':''}>Employee</option>
+                  <option value="admin" ${m.role==='admin'?'selected':''}>Admin</option>
+                </select>` : `
+                <span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:500;
+                  background:${m.role==='admin'?'rgba(204,120,92,.12)':'var(--surface-soft)'};
+                  color:${m.role==='admin'?'var(--primary)':'var(--muted)'}">
+                  ${escHtml(m.role)}
+                </span>`}
+              </td>
+              <td style="padding:10px 16px">${deptSel}</td>
+              <td style="padding:10px 16px">
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;
+                  color:${m.status==='active'?'var(--success)':m.status==='disabled'?'var(--error)':'var(--muted)'}">
+                  <span style="width:6px;height:6px;border-radius:50%;
+                    background:${m.status==='active'?'var(--success)':m.status==='disabled'?'var(--error)':'var(--hairline)'}">
+                  </span>
+                  ${escHtml(m.status)}
+                </span>
+              </td>
+              ${isAdmin ? `<td style="padding:10px 20px">${actions}</td>` : ''}
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+    // Sync dept select values
+    data.forEach(m=>{
+      const sel = el.querySelector(`[onchange*="'${m.user_id}',{team_id"]`);
+      if(sel && m.team_id) sel.value = m.team_id;
+    });
+  } catch(e){
+    el.innerHTML = `<div style="padding:20px;color:var(--error);font-size:13px">${escHtml(e.message)}</div>`;
+  }
+}
+
+async function updateMember(userId, patch){
+  try {
+    await api.post(`/api/members/${encodeURIComponent(userId)}`, patch);
+    toast('Member updated', 'ok');
+    loadMembersTable();
+  } catch(e){
+    toast('Error: ' + (e.message||'Update failed'), 'err');
+    loadMembersTable(); // revert display
+  }
+}
+
+async function removeMember(userId, email){
+  if(!confirm(`Remove ${email} from this workspace? This cannot be undone.`)) return;
+  try {
+    const r = await fetch(`/api/members/${encodeURIComponent(userId)}`, {
+      method: 'DELETE', headers: api._headers({'Content-Type':undefined})
+    });
+    if(!r.ok) throw new Error(await r.text());
+    toast(`${email} removed`, 'ok');
+    loadMembersTable();
+  } catch(e){
+    toast('Error: ' + (e.message||'Remove failed'), 'err');
+  }
+}
+
+async function sendInvite(){
+  const email  = document.getElementById('inviteEmail').value.trim();
+  const role   = document.getElementById('inviteRole').value;
+  const teamId = document.getElementById('inviteTeam').value;
+  const err    = document.getElementById('inviteErr');
+  const res    = document.getElementById('inviteResult');
+  err.textContent = ''; res.style.display = 'none';
+  if(!email){ err.textContent = 'Email required'; return; }
+  try {
+    const data = await api.post('/api/members/invite', { email, role, team_id: teamId||null });
+    document.getElementById('inviteLinkBox').value = data.invite_url;
+    res.style.display = '';
+    document.getElementById('inviteEmail').value = '';
+    loadPendingInvites();
+    toast(`Invite link generated for ${email}`, 'ok');
+  } catch(e){
+    err.textContent = e.message || 'Failed to generate invite';
+  }
+}
+
+function copyInviteLink(){
+  const box = document.getElementById('inviteLinkBox');
+  navigator.clipboard.writeText(box.value).then(()=>toast('Link copied!','ok'));
+}
+
+async function loadPendingInvites(){
+  const card = document.getElementById('pendingInvitesCard');
+  const el   = document.getElementById('pendingInvitesTable');
+  try {
+    const data = await api.get('/api/members/invites');
+    if(!data.length){ card.style.display='none'; return; }
+    card.style.display='';
+    el.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--hairline)">
+            <th style="text-align:left;padding:10px 20px;color:var(--muted);font-weight:500">Email</th>
+            <th style="text-align:left;padding:10px 16px;color:var(--muted);font-weight:500">Role</th>
+            <th style="text-align:left;padding:10px 16px;color:var(--muted);font-weight:500">Expires</th>
+            <th style="text-align:right;padding:10px 20px;color:var(--muted);font-weight:500">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.map(inv=>`
+            <tr style="border-bottom:1px solid var(--hairline-soft)">
+              <td style="padding:10px 20px;color:var(--ink)">${escHtml(inv.email)}</td>
+              <td style="padding:10px 16px;color:var(--muted)">${escHtml(inv.role)}</td>
+              <td style="padding:10px 16px;color:var(--muted)">${fmtDate(inv.expires_at)}</td>
+              <td style="padding:10px 20px;text-align:right">
+                <button class="btn-sm" onclick="revokeInvite('${escHtml(inv.id)}')"
+                  style="font-size:11px;padding:4px 10px;color:var(--error)">Revoke</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+  } catch(e){ card.style.display='none'; }
+}
+
+async function revokeInvite(inviteId){
+  try {
+    const r = await fetch(`/api/members/invites/${encodeURIComponent(inviteId)}`, {
+      method: 'DELETE', headers: api._headers({'Content-Type':undefined})
+    });
+    if(!r.ok) throw new Error(await r.text());
+    toast('Invite revoked', 'ok');
+    loadPendingInvites();
+  } catch(e){ toast('Error: '+e.message,'err'); }
+}
+
 async function loadApp(){
   try{
-    [S.teams, S.connectors, S.status, S.me] = await Promise.all([
+    [S.teams, S.status, S.me] = await Promise.all([
       api.get('/api/teams'),
-      api.get('/api/connectors'),
       api.get('/api/status'),
       api.get('/api/me'),
     ]);
@@ -1391,36 +2174,128 @@ async function loadApp(){
       document.getElementById('llmBanner').style.display='flex';
     }
 
+    // LLM model row
+    const lmr = document.getElementById('llmModelRow');
+    if(lmr) lmr.innerHTML = `<strong style="color:var(--ink)">LLM</strong> — ${escHtml(S.status.llm_model||'mock')}`;
+
+    // Apply role-based UI: show/hide admin-only elements
+    applyRoleUI();
+
     renderDeptSelect();
     renderSources();
     renderConnections();
     loadComposioHub();
+    loadConvList();
 
-    if(S.teams.length && S.me?.is_admin !== false){
+    const isIndividual = S.me?.account_type === 'individual';
+    if(!isIndividual && S.teams.length && S.me?.is_admin !== false){
       S.currentTeam=S.teams[0].id;
       document.getElementById('deptSelect').value=S.currentTeam;
       updateDeptBadge(S.currentTeam);
-    } else if(S.connectors.some(c=>c.id==='sample'&&c.connected)){
-      document.getElementById('deptHint').style.display='block';
-      document.getElementById('deptHint').textContent='Load demo data to auto-create a department';
     }
   } catch(e){ toast('Could not connect to API — is the server running?','err'); }
 }
 
+// ── invite accept flow ────────────────────────────────────────────────────────
+let _inviteToken = null;
+let _inviteData  = null;
+
+async function checkInviteToken(){
+  const params = new URLSearchParams(window.location.search);
+  const token  = params.get('invite');
+  if(!token) return false;
+
+  _inviteToken = token;
+  // Show invite card, hide normal auth card
+  document.getElementById('inviteCard').style.display = '';
+  document.getElementById('authCard').style.display   = 'none';
+
+  try {
+    const data = await fetch(`/api/invite/${encodeURIComponent(token)}`).then(r=>{
+      if(!r.ok) return r.json().then(b=>{ throw new Error(b.detail||'Invalid invite'); });
+      return r.json();
+    });
+    _inviteData = data;
+    document.getElementById('inviteHeadSub').textContent =
+      `You've been invited to join ${escHtml(data.account_name||'a workspace')} as ${escHtml(data.role)}.`;
+    document.getElementById('inviteAcceptEmail').value = data.email;
+    document.getElementById('inviteLoadingMsg').style.display  = 'none';
+    document.getElementById('inviteAcceptForm').style.display  = 'flex';
+    document.getElementById('inviteAcceptForm').style.flexDirection = 'column';
+    document.getElementById('inviteAcceptForm').style.gap = '0';
+  } catch(e){
+    document.getElementById('inviteLoadingMsg').style.display = 'none';
+    document.getElementById('inviteErrMsg').style.display     = '';
+    document.getElementById('inviteErrText').textContent      = e.message || 'This invite link is invalid or has expired.';
+  }
+  return true;
+}
+
+async function acceptInvite(){
+  const password = document.getElementById('inviteAcceptPassword').value;
+  const confirm  = document.getElementById('inviteAcceptConfirm').value;
+  const err      = document.getElementById('inviteAcceptErr');
+  const btn      = document.getElementById('inviteAcceptBtn');
+  err.textContent = '';
+
+  if(password.length < 8){ err.textContent = 'Password must be at least 8 characters'; return; }
+  if(password !== confirm){ err.textContent = 'Passwords do not match'; return; }
+
+  btn.disabled = true; btn.textContent = 'Joining…';
+  try {
+    const res = await fetch(`/api/invite/${encodeURIComponent(_inviteToken)}/accept`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ password }),
+    });
+    if(!res.ok){
+      const b = await res.json().catch(()=>({detail:'Failed to accept invite'}));
+      throw new Error(b.detail || 'Failed to accept invite');
+    }
+    const data = await res.json();
+
+    // Clean URL (remove ?invite=...)
+    window.history.replaceState({}, '', window.location.pathname);
+
+    // If Supabase configured, sign in immediately
+    if(_supabase){
+      const signIn = await _supabase.auth.signInWithPassword({
+        email: _inviteData.email, password
+      });
+      if(signIn.data?.session){
+        _authToken = signIn.data.session.access_token;
+        showApp(signIn.data.user);
+        await loadApp();
+        return;
+      }
+    }
+    // No Supabase or sign-in failed — redirect to sign-in with success message
+    document.getElementById('inviteCard').style.display = 'none';
+    document.getElementById('authCard').style.display   = '';
+    setAuthTab('signin');
+    document.getElementById('authEmail').value = _inviteData.email;
+    document.getElementById('authErr').style.color = 'var(--success)';
+    document.getElementById('authErr').textContent = 'Account created! Sign in to continue.';
+  } catch(e){
+    err.textContent = e.message || 'Failed to join workspace';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Join workspace';
+  }
+}
+
 async function init(){
-  // Check auth before loading app data
+  // 1. Check for invite token first — takes over the whole auth screen
+  const isInvite = await checkInviteToken();
+  if(isInvite) return;  // invite flow handles everything from here
+
+  // 2. Normal auth init
   const hasSession = await initAuth();
   if (hasSession) {
-    // Existing Supabase session — get user and go straight to app
     const { data: { user } } = await _supabase.auth.getUser();
     showApp(user);
     await loadApp();
   } else if (_authMode === 'bypass') {
-    // Server is in bypass mode — show the bypass option, don't auto-proceed
-    // (user must click "continue as local user")
     showAuthScreen();
-    // Override bypassAuth to also call loadApp
-    const _orig = bypassAuth;
     window.bypassAuth = async function() {
       _authToken = null;
       showApp({ email: 'local@dev', user_metadata: { role: 'admin' } });

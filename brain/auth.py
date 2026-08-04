@@ -32,7 +32,7 @@ from brain import config
 _bearer = HTTPBearer(auto_error=False)
 
 _SUPABASE_JWT_SECRET: Optional[str] = os.getenv("SUPABASE_JWT_SECRET")
-_BYPASS = not bool(_SUPABASE_JWT_SECRET)
+_BYPASS = not bool(_SUPABASE_JWT_SECRET) or os.getenv("BRAIN_DEV_BYPASS", "").lower() in ("1", "true", "yes")
 
 if _BYPASS:
     import sys
