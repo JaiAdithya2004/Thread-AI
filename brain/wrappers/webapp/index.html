@@ -819,19 +819,27 @@ async function initAuth() {
   // Check existing session
   if (_clerk.session) {
     _authToken = await _clerk.session.getToken();
+    const u = _clerk.user;
+    showApp({ email: u?.primaryEmailAddress?.emailAddress || '', user_metadata: { role: 'admin' } });
+    await loadApp();
     return true;
   }
 
-  // Show Clerk's built-in SSO buttons
-  document.getElementById('ssoSection').style.display = '';
+  // No session — show login screen
+  showAuthScreen();
 
-  // Listen for sign-in changes
+  // Listen for future sign-in/sign-out
   _clerk.addListener(async ({ session }) => {
     if (session) {
       _authToken = await session.getToken();
       const u = _clerk.user;
+      // Provision account row on first login
+      await fetch('/api/auth/sso-provision', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + _authToken }
+      }).catch(() => {});
       showApp({ email: u?.primaryEmailAddress?.emailAddress || '', user_metadata: { role: 'admin' } });
-      loadApp();
+      await loadApp();
     } else {
       _authToken = null;
       showAuthScreen();
