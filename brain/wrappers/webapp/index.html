@@ -1003,8 +1003,17 @@ async function doVerify() {
 }
 
 async function signOut() {
-  if (_clerk) await _clerk.signOut();
+  try {
+    if (_clerk) await _clerk.signOut();
+  } catch(e) {}
   _authToken = null;
+  // Clear all cached state
+  Object.assign(S, { teams: [], connectors: [], status: {}, currentTeam: null, me: null });
+  _HUB.allApps = [];
+  _HUB.connected = {};
+  _HUB.loaded = false;
+  _HUB.cursor = null;
+  localStorage.clear();
   showAuthScreen();
 }
 
