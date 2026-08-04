@@ -6,7 +6,7 @@
 <title>Company Brain</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js" crossorigin="anonymous"></script>
 <style>
 :root{
   --canvas:#faf9f5;
@@ -790,102 +790,81 @@ function fmtDate(s){
 }
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// ── auth ──────────────────────────────────────────────────────────────────────
-let _supabase = null;
+// ── auth (Clerk) ──────────────────────────────────────────────────────────────
+let _clerk    = null;
 let _authToken = null;   // Bearer token sent with every API request
-let _authMode  = null;   // 'supabase' | 'bypass'
 
 async function initAuth() {
-  // Ask the server which auth mode it's running in
   const st = await fetch('/api/status').then(r=>r.json()).catch(()=>({auth_mode:'bypass'}));
-  _authMode = st.auth_mode || 'bypass';
 
-  if (_authMode === 'bypass') {
-    // No Supabase configured — show bypass link and skip sign-in
+  if (st.auth_mode === 'bypass') {
     document.getElementById('authBypassRow').style.display = 'block';
-    // Hide email/password fields; they are not needed
     document.getElementById('authEmail').closest('.auth-field').style.display='none';
     document.getElementById('authPassword').closest('.auth-field').style.display='none';
     document.getElementById('authSubmit').style.display='none';
     document.querySelector('.auth-tabs').style.display='none';
-    return false;  // caller should wait for user to click bypass link
-  }
-
-  // Supabase mode — init client
-  const SUPABASE_URL = window.__SUPABASE_URL__ || '';
-  const SUPABASE_ANON_KEY = window.__SUPABASE_ANON_KEY__ || '';
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    // Supabase secret set server-side but no client keys embedded — bypass UI
-    document.getElementById('authBypassRow').style.display='block';
-    document.getElementById('authBypassRow').innerHTML =
-      '<span style="color:var(--muted)">Auth active. <a onclick="bypassAuth()">Dev bypass</a> (set __SUPABASE_URL__ + __SUPABASE_ANON_KEY__ in index.html for full login UI)</span>';
     return false;
   }
 
-  _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const pk = window.__CLERK_PUBLISHABLE_KEY__ || '';
+  if (!pk) {
+    document.getElementById('authBypassRow').style.display='block';
+    document.getElementById('authBypassRow').innerHTML =
+      '<span style="color:var(--muted)">Auth active. <a onclick="bypassAuth()">Dev bypass</a></span>';
+    return false;
+  }
 
-  // Show SSO buttons now that Supabase is configured
-  document.getElementById('ssoSection').style.display = '';
+  // Init Clerk
+  _clerk = window.Clerk;
+  await _clerk.load({ publishableKey: pk });
 
-  // Check for existing session (also catches OAuth redirect with #access_token hash)
-  const { data: { session } } = await _supabase.auth.getSession();
-  if (session) {
-    _authToken = session.access_token;
-    // If this is a fresh OAuth login, provision account if needed
-    await _provisionSSOUser(session);
+  // Check existing session
+  if (_clerk.session) {
+    _authToken = await _clerk.session.getToken();
     return true;
   }
 
-  // Listen for auth state changes (OAuth redirect, magic link, etc.)
-  _supabase.auth.onAuthStateChange(async (_event, session) => {
+  // Show Clerk's built-in SSO buttons
+  document.getElementById('ssoSection').style.display = '';
+
+  // Listen for sign-in changes
+  _clerk.addListener(async ({ session }) => {
     if (session) {
-      _authToken = session.access_token;
-      await _provisionSSOUser(session);
-      showApp(session.user);
+      _authToken = await session.getToken();
+      const u = _clerk.user;
+      showApp({ email: u?.primaryEmailAddress?.emailAddress || '', user_metadata: { role: 'admin' } });
       loadApp();
     } else {
       _authToken = null;
       showAuthScreen();
     }
   });
+
   return false;
 }
 
-async function _provisionSSOUser(session){
-  // After an SSO login, tell the server to create an account+membership if this is a new user.
-  // We pass the JWT; the server verifies it and does the DB work.
-  try {
-    await fetch('/api/auth/sso-provision', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json', 'Authorization': 'Bearer ' + session.access_token},
-    });
-  } catch(_){ /* non-fatal */ }
-}
-
-async function doSSO(provider) {
-  if(!_supabase){ toast('Supabase not configured — SSO unavailable','err'); return; }
-  const btns = document.querySelectorAll('.sso-btn');
-  btns.forEach(b=>{ b.disabled=true; });
-  document.getElementById('authErr').textContent = '';
-  try {
-    const { error } = await _supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: window.location.origin + window.location.pathname,
-        scopes: provider === 'google' ? 'email profile' : 'email profile openid',
-      },
-    });
-    if(error) throw error;
-    // Browser will navigate away to OAuth provider — no further JS runs here
-  } catch(e) {
-    document.getElementById('authErr').textContent = e.message || 'SSO failed';
-    btns.forEach(b=>{ b.disabled=false; });
+async function _refreshToken() {
+  if (_clerk?.session) {
+    _authToken = await _clerk.session.getToken();
   }
 }
 
 function bypassAuth() {
   _authToken = 'dev-bypass';
   showApp({ email: 'local@dev', user_metadata: { role: 'admin' } });
+}
+
+async function doSSO(provider) {
+  if (!_clerk) { toast('Clerk not configured','err'); return; }
+  try {
+    await _clerk.signIn.authenticateWithRedirect({
+      strategy: provider === 'google' ? 'oauth_google' : 'oauth_microsoft',
+      redirectUrl: window.location.href,
+      redirectUrlComplete: window.location.href,
+    });
+  } catch(e) {
+    document.getElementById('authErr').textContent = e.message || 'SSO failed';
+  }
 }
 
 let _signupAcctType = 'individual';  // 'individual' | 'company'
@@ -911,7 +890,7 @@ function setAuthTab(tab) {
 }
 
 async function doAuth() {
-  if (!_supabase) { bypassAuth(); return; }
+  if (!_clerk) { bypassAuth(); return; }
   const err  = document.getElementById('authErr');
   const btn  = document.getElementById('authSubmit');
   const mode = document.getElementById('tabSignIn').classList.contains('active') ? 'signin' : 'signup';
@@ -925,18 +904,21 @@ async function doAuth() {
     if (!email || !password) { err.textContent = 'Email and password required'; return; }
     btn.disabled = true; btn.textContent = '…';
     try {
-      const res = await _supabase.auth.signInWithPassword({ email, password });
-      if (res.error) throw res.error;
-      _authToken = res.data.session.access_token;
-      showApp(res.data.user);
-      await loadApp();
+      const result = await _clerk.signIn.create({ identifier: email, password });
+      if (result.status === 'complete') {
+        await _clerk.setActive({ session: result.createdSessionId });
+        _authToken = await _clerk.session.getToken();
+        showApp({ email, user_metadata: { role: 'member' } });
+        await loadApp();
+      } else {
+        err.textContent = 'Additional verification required.';
+      }
     } catch(e) {
-      err.textContent = e.message || 'Sign-in failed';
+      err.textContent = e.errors?.[0]?.message || e.message || 'Sign-in failed';
     } finally {
       btn.disabled = false; btn.textContent = 'Sign in';
     }
   } else {
-    // Signup path — collect fields based on account type
     const acctType = _signupAcctType;
     const email    = document.getElementById('signupEmail').value.trim();
     const password = document.getElementById('signupPassword').value;
@@ -951,39 +933,68 @@ async function doAuth() {
 
     btn.disabled = true; btn.textContent = '…';
     try {
-      // 1. Call our signup endpoint — validates domain, creates account + membership
-      const signupRes = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ email, password, account_type: acctType, name }),
-      });
-      if (!signupRes.ok) {
-        const body = await signupRes.json().catch(()=>({detail:'Signup failed'}));
-        throw new Error(body.detail || 'Signup failed');
-      }
-
-      // 2. Sign in with Supabase to get a session token
-      const res = await _supabase.auth.signInWithPassword({ email, password });
-      if (res.error) {
-        // Account created; Supabase might require email confirmation
+      // 1. Create Clerk account
+      const result = await _clerk.signUp.create({ emailAddress: email, password, firstName: name });
+      if (result.status === 'missing_requirements') {
+        // Email verification needed
+        await result.prepareEmailAddressVerification({ strategy: 'email_code' });
         err.style.color = 'var(--success)';
-        err.textContent = 'Account created! Check your email to confirm, then sign in.';
-        setAuthTab('signin');
+        err.textContent = 'Check your email for a verification code.';
+        // Show verification input
+        _showVerifyStep(result);
         return;
       }
-      _authToken = res.data.session.access_token;
-      showApp(res.data.user);
-      await loadApp();
+      if (result.status === 'complete') {
+        await _clerk.setActive({ session: result.createdSessionId });
+        _authToken = await _clerk.session.getToken();
+        // Register in our DB
+        await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json', 'Authorization':'Bearer '+_authToken},
+          body: JSON.stringify({ email, password: '', account_type: acctType, name }),
+        }).catch(()=>{});
+        showApp({ email, user_metadata: { role: 'owner' } });
+        await loadApp();
+      }
     } catch(e) {
-      err.textContent = e.message || 'Signup failed';
+      err.textContent = e.errors?.[0]?.message || e.message || 'Signup failed';
     } finally {
       btn.disabled = false; btn.textContent = 'Create account';
     }
   }
 }
 
+function _showVerifyStep(signUpAttempt) {
+  const body = document.querySelector('#authCard .auth-body');
+  body.innerHTML = `
+    <div class="auth-field">
+      <label>Verification code</label>
+      <input id="verifyCode" type="text" placeholder="Enter code from email" style="letter-spacing:4px;font-size:16px;text-align:center">
+    </div>
+    <div class="auth-err" id="verifyErr"></div>
+    <button class="auth-submit" onclick="doVerify()">Verify email</button>
+  `;
+  window._pendingSignUp = signUpAttempt;
+}
+
+async function doVerify() {
+  const code = document.getElementById('verifyCode').value.trim();
+  const err  = document.getElementById('verifyErr');
+  try {
+    const result = await window._pendingSignUp.attemptEmailAddressVerification({ code });
+    if (result.status === 'complete') {
+      await _clerk.setActive({ session: result.createdSessionId });
+      _authToken = await _clerk.session.getToken();
+      showApp({ email: _clerk.user?.primaryEmailAddress?.emailAddress || '', user_metadata: { role: 'owner' } });
+      await loadApp();
+    }
+  } catch(e) {
+    err.textContent = e.errors?.[0]?.message || 'Invalid code';
+  }
+}
+
 async function signOut() {
-  if (_supabase) await _supabase.auth.signOut();
+  if (_clerk) await _clerk.signOut();
   _authToken = null;
   showAuthScreen();
 }
@@ -996,7 +1007,7 @@ function showAuthScreen() {
 function showApp(user) {
   document.getElementById('authScreen').classList.add('hidden');
   const email = user?.email || 'local';
-  const role  = user?.user_metadata?.role || ((_authMode==='bypass')?'admin':'member');
+  const role  = user?.user_metadata?.role || (_authToken==='dev-bypass'?'admin':'member');
   document.getElementById('userEmail').textContent = email;
   document.getElementById('userRoleLabel').textContent = role;
   document.getElementById('userAvatar').textContent = email[0].toUpperCase();

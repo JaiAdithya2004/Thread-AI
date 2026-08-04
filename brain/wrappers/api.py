@@ -163,12 +163,9 @@ def _auto_discover_teams(b: Brain):
 def index():
     p = Path(__file__).parent / "webapp" / "index.html"
     html = p.read_text(encoding="utf-8")
-    # Inject Supabase config so the frontend can initialise the client
-    supabase_url = os.getenv("SUPABASE_URL", "")
-    supabase_anon = os.getenv("SUPABASE_ANON_KEY", "")
+    clerk_pk = os.getenv("CLERK_PUBLISHABLE_KEY", "")
     injection = f"""<script>
-window.__SUPABASE_URL__ = {json.dumps(supabase_url)};
-window.__SUPABASE_ANON_KEY__ = {json.dumps(supabase_anon)};
+window.__CLERK_PUBLISHABLE_KEY__ = {json.dumps(clerk_pk)};
 </script>"""
     html = html.replace("</head>", injection + "\n</head>", 1)
     return HTMLResponse(html)
@@ -189,7 +186,7 @@ def status():
         "mock_mode":  not (_get("OPENAI_API_KEY") or _get("ANTHROPIC_API_KEY")
                            or _get("GEMINI_API_KEY") or _get("GROK_API_KEY")),
         "llm_model":  config.LLM_MODEL,
-        "auth_mode":  "bypass" if _BYPASS else "supabase",
+        "auth_mode":  "bypass" if _BYPASS else "clerk",
         "keys": {
             "openai":    _get("OPENAI_API_KEY"),
             "anthropic": _get("ANTHROPIC_API_KEY"),
@@ -198,7 +195,7 @@ def status():
             "slack":     _get("SLACK_BOT_TOKEN"),
             "google":    _get("GOOGLE_CREDENTIALS_JSON"),
             "notion":    _get("NOTION_TOKEN"),
-            "supabase":  _get("SUPABASE_JWT_SECRET"),
+            "clerk":     _get("CLERK_SECRET_KEY"),
         },
     }
 

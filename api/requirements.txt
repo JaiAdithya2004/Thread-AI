@@ -5,4 +5,4 @@ requests>=2.31
 psycopg2-binary>=2.9
 PyJWT>=2.8
 slack_sdk>=3.27
-litellm>=1.40
+httpx>=0.27
