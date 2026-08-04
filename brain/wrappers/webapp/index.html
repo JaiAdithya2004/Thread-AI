@@ -1257,6 +1257,9 @@ async function _loadAppsPage(reset) {
 }
 
 function _filterApps() {
+  // Don't filter while still loading — avoids "No apps match" flash
+  if (_HUB.loading || (!_HUB.loaded && _HUB.allApps.length === 0)) return;
+
   const q = (document.getElementById('appSearch')?.value || '').toLowerCase().trim();
   const cat = _HUB.activeCat;
 
@@ -1280,8 +1283,7 @@ function _filterApps() {
     connSec.style.display = 'none';
   }
 
-  // All apps section — hide "All Apps" label when nothing connected
-  const allWrap = document.getElementById('allAppsWrap');
+  // All apps section
   const allGrid = document.getElementById('allAppsGrid');
   allGrid.innerHTML = '';
   if (otherApps.length === 0 && connectedApps.length === 0) {
