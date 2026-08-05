@@ -160,6 +160,12 @@ def _auto_discover_teams(b: Brain):
 # ── public endpoints (no auth required) ──────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
+def landing():
+    p = Path(__file__).parent / "webapp" / "landing.html"
+    return HTMLResponse(p.read_text(encoding="utf-8"))
+
+
+@app.get("/app", response_class=HTMLResponse)
 def index():
     p = Path(__file__).parent / "webapp" / "index.html"
     html = p.read_text(encoding="utf-8")
