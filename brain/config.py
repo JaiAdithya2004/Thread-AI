@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-load_dotenv(override=True)
+load_dotenv()  # env vars already in environment take precedence over .env
 
 def _auto_model():
     explicit = os.getenv("BRAIN_LLM_MODEL")
