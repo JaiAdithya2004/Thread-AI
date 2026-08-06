@@ -12,10 +12,12 @@ exclusively from the verified token — never from query parameters or request b
 Development / single-tenant mode: if SUPABASE_JWT_SECRET is not set, auth runs in
 BYPASS mode and all requests use the config defaults.  See brain/auth.py.
 """
-import os, json
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+import os, json, time, threading, re
+from collections import defaultdict
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from pathlib import Path
 
@@ -24,25 +26,89 @@ from brain.engine import Brain
 from brain.core import db as _db
 from brain import config
 
-app = FastAPI(title="Company Brain")
+# ── CORS: tighten in production ───────────────────────────────────────────────
+_ALLOWED_ORIGINS = (
+    os.getenv("ALLOWED_ORIGINS", "").split(",")
+    if os.getenv("ALLOWED_ORIGINS")
+    else ["*"]   # dev default; set ALLOWED_ORIGINS=https://yourdomain.com in prod
+)
+
+app = FastAPI(title="Intellark")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    expose_headers=[],
+    max_age=600,
 )
+
+# ── Security headers middleware ───────────────────────────────────────────────
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        resp: Response = await call_next(request)
+        resp.headers["X-Content-Type-Options"]  = "nosniff"
+        resp.headers["X-Frame-Options"]          = "DENY"
+        resp.headers["X-XSS-Protection"]         = "1; mode=block"
+        resp.headers["Referrer-Policy"]           = "strict-origin-when-cross-origin"
+        resp.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+        # Permissive CSP for the SPA (inline scripts/styles required)
+        resp.headers["Content-Security-Policy"]  = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com data:; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none';"
+        )
+        return resp
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+# ── In-process rate limiter (sliding-window per IP) ───────────────────────────
+_rl_lock  = threading.Lock()
+_rl_store: dict = defaultdict(list)   # ip -> [timestamp, ...]
+
+def _rate_limit(request: Request, limit: int, window: int):
+    """Raise 429 if the caller's IP has exceeded `limit` requests in `window` seconds."""
+    ip  = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    with _rl_lock:
+        hits = _rl_store[ip]
+        # Evict entries outside the window
+        hits = [t for t in hits if now - t < window]
+        if len(hits) >= limit:
+            _rl_store[ip] = hits
+            raise HTTPException(status_code=429, detail="Too many requests — slow down.")
+        hits.append(now)
+        _rl_store[ip] = hits
+
+def _rl_auth(request: Request):
+    """20 requests per 60 s — auth endpoints (signup, login)."""
+    _rate_limit(request, limit=20, window=60)
+
+def _rl_llm(request: Request):
+    """60 requests per 60 s — LLM endpoints (search, record, correct)."""
+    _rate_limit(request, limit=60, window=60)
+
+def _rl_write(request: Request):
+    """120 requests per 60 s — general write endpoints."""
+    _rate_limit(request, limit=120, window=60)
 
 # ── request models ────────────────────────────────────────────────────────────
 # NOTE: team_id is intentionally absent from all write-request bodies.
 #       The caller's team comes from the verified JWT, not from the client.
 
+_SLUG_RE = re.compile(r'^[a-z0-9_\-]{1,64}$')
+
 class SearchRequest(BaseModel):
     query: str
-    cross_team: bool = False          # privileged: include other teams' shared facts
+    cross_team: bool = False
 
 class RecordRequest(BaseModel):
     text: str
-    shared: bool = False              # true = mark as company-wide (visibility="shared")
+    shared: bool = False
 
 class CorrectRequest(BaseModel):
     fact_id: str
@@ -53,42 +119,104 @@ class CreateTeamRequest(BaseModel):
     name: str
     description: str = ""
 
+    def model_post_init(self, __context):
+        if not _SLUG_RE.match(self.team_id):
+            raise ValueError("team_id must be 1-64 lowercase letters, numbers, _ or -")
+        if not self.name.strip() or len(self.name) > 128:
+            raise ValueError("name must be 1-128 chars")
+        if len(self.description) > 500:
+            raise ValueError("description must be ≤500 chars")
+
 class BackfillRequest(BaseModel):
     source: str
+
+    def model_post_init(self, __context):
+        if not _SLUG_RE.match(self.source):
+            raise ValueError("source must be a valid slug")
 
 class SyncRequest(BaseModel):
     source: str
 
+    def model_post_init(self, __context):
+        if not _SLUG_RE.match(self.source):
+            raise ValueError("source must be a valid slug")
+
 class ComposioConnectRequest(BaseModel):
-    app: str                        # composio app slug e.g. "gmail", "slack", "github"
+    app: str
     redirect_url: str = ""
+
+    def model_post_init(self, __context):
+        if not _SLUG_RE.match(self.app):
+            raise ValueError("app must be a valid slug")
+        if self.redirect_url and len(self.redirect_url) > 512:
+            raise ValueError("redirect_url too long")
 
 class SignupRequest(BaseModel):
     email: str
     password: str
-    account_type: str               # "individual" | "company"
-    name: str                       # person name (individual) or company name (company)
+    account_type: str
+    name: str
+
+    def model_post_init(self, __context):
+        if len(self.email) > 254:
+            raise ValueError("email too long")
+        if len(self.name) > 200:
+            raise ValueError("name too long")
+        if self.account_type not in ("individual", "company"):
+            raise ValueError("account_type must be 'individual' or 'company'")
 
 class InviteRequest(BaseModel):
     email: str
-    role: str = "employee"          # "employee" | "admin"
-    team_id: str = None             # optional department
+    role: str = "employee"
+    team_id: str = None
+
+    def model_post_init(self, __context):
+        if len(self.email) > 254:
+            raise ValueError("email too long")
+        if self.role not in ("employee", "admin"):
+            raise ValueError("role must be 'employee' or 'admin'")
+        if self.team_id and not _SLUG_RE.match(self.team_id):
+            raise ValueError("team_id must be a valid slug")
 
 class MemberPatchRequest(BaseModel):
-    role: str = None                # "employee" | "admin"
-    status: str = None              # "active" | "disabled"
-    team_id: str = None             # department slug or "" to clear
+    role: str = None
+    status: str = None
+    team_id: str = None
+
+    def model_post_init(self, __context):
+        if self.role is not None and self.role not in ("employee", "admin"):
+            raise ValueError("role must be 'employee' or 'admin'")
+        if self.status is not None and self.status not in ("active", "disabled"):
+            raise ValueError("status must be 'active' or 'disabled'")
+        if self.team_id and not _SLUG_RE.match(self.team_id):
+            raise ValueError("team_id must be a valid slug")
 
 class InviteAcceptRequest(BaseModel):
     password: str
+
+    def model_post_init(self, __context):
+        if len(self.password) > 1024:
+            raise ValueError("password too long")
 
 class ConversationRequest(BaseModel):
     title: str = "New conversation"
     team_id: str = None
 
+    def model_post_init(self, __context):
+        if len(self.title) > 200:
+            raise ValueError("title must be ≤200 chars")
+
 class MessageRequest(BaseModel):
     role: str           # "user" | "assistant"
     content: str
+
+    def model_post_init(self, __context):
+        if self.role not in ("user", "assistant"):
+            raise ValueError("role must be 'user' or 'assistant'")
+        if not self.content or not self.content.strip():
+            raise ValueError("content must not be empty")
+        if len(self.content) > 100_000:
+            raise ValueError("content exceeds maximum length (100,000 chars)")
 
 _PUBLIC_DOMAINS = {
     "gmail.com","googlemail.com","yahoo.com","yahoo.co.uk","yahoo.in",
@@ -134,6 +262,11 @@ def _brain(identity: Identity, team_id: str = None) -> Brain:
         principals=identity.principals,
         account_id=account_id or None,
     )
+    # Set brain.workspace_id session var so RLS policies apply to all queries on this connection.
+    from brain.core.db import BACKEND
+    if BACKEND == "postgres":
+        from brain.core import db_pg as _pg
+        _pg._set_ws(b.conn, b.ws)
     # Set LLM billing context so every chat_json/chat_text call in this request
     # writes a usage_events row attributed to the correct account.
     from brain.core.llm import set_billing_context
@@ -228,15 +361,15 @@ def status():
         "llm_model":  config.LLM_MODEL,
         "auth_mode":  "bypass" if _BYPASS else "clerk",
         "keys": {
-            "openai":    _get("OPENAI_API_KEY"),
-            "anthropic": _get("ANTHROPIC_API_KEY"),
-            "gemini":    _get("GEMINI_API_KEY"),
-            "grok":      _get("GROK_API_KEY"),
-            "slack":     _get("SLACK_BOT_TOKEN"),
-            "google":    _get("GOOGLE_CREDENTIALS_JSON"),
-            "notion":    _get("NOTION_TOKEN"),
-            "clerk":     _get("CLERK_SECRET_KEY"),
-            "composio":  _get("COMPOSIO_API_KEY"),
+            "openai":       _get("OPENAI_API_KEY"),
+            "anthropic":    _get("ANTHROPIC_API_KEY"),
+            "gemini":       _get("GEMINI_API_KEY"),
+            "grok":         _get("GROK_API_KEY"),
+            "slack":        _get("SLACK_BOT_TOKEN"),
+            "google":       _get("GOOGLE_CREDENTIALS_JSON"),
+            "notion":       _get("NOTION_TOKEN"),
+            "clerk":        _get("CLERK_SECRET_KEY"),
+            "integrations": _get("COMPOSIO_API_KEY"),  # vendor name hidden
         },
     }
 
@@ -297,12 +430,18 @@ def create_team(
 @app.post("/api/search")
 def search(
     req: SearchRequest,
+    request: Request,
     identity: Identity = Depends(get_identity),
 ):
+    _rl_llm(request)
+    if not req.query or not req.query.strip():
+        raise HTTPException(400, "query must not be empty")
+    if len(req.query) > 2000:
+        raise HTTPException(400, "query exceeds maximum length (2000 chars)")
     # cross_team is honoured only if the caller has admin role
     cross = req.cross_team and identity.is_admin
     b = _brain(identity)
-    result = b.search(req.query, surface="web", cross_team=cross)
+    result = b.search(req.query.strip(), surface="web", cross_team=cross)
     _enrich(result.get("facts", []), b.conn)
     return result
 
@@ -323,18 +462,30 @@ def history(
 @app.post("/api/record")
 def record(
     req: RecordRequest,
+    request: Request,
     identity: Identity = Depends(get_identity),
 ):
+    _rl_write(request)
+    if not req.text or not req.text.strip():
+        raise HTTPException(400, "text must not be empty")
+    if len(req.text) > 50_000:
+        raise HTTPException(400, "text exceeds maximum length (50,000 chars)")
     visibility = "shared" if req.shared else "team"
-    return _brain(identity).record(req.text, visibility=visibility)
+    return _brain(identity).record(req.text.strip(), visibility=visibility)
 
 
 @app.post("/api/correct")
 def correct(
     req: CorrectRequest,
+    request: Request,
     identity: Identity = Depends(get_identity),
 ):
-    return _brain(identity).correct(req.fact_id, req.correction)
+    _rl_write(request)
+    if not req.fact_id or not req.correction or not req.correction.strip():
+        raise HTTPException(400, "fact_id and correction are required")
+    if len(req.correction) > 10_000:
+        raise HTTPException(400, "correction exceeds maximum length (10,000 chars)")
+    return _brain(identity).correct(req.fact_id, req.correction.strip())
 
 
 @app.get("/api/ledger")
@@ -390,8 +541,9 @@ _COMPOSIO_CACHE: dict = {}   # cursor_key → (timestamp, payload)
 _COMPOSIO_CACHE_TTL = 3600  # 1 hour
 
 @app.get("/api/composio/apps")
-def composio_apps(limit: int = 50, cursor: str = None):
-    """List Composio apps with pagination."""
+def composio_apps(limit: int = 50, cursor: str = None,
+                  _identity: Identity = Depends(get_identity)):
+    """List available integration apps with pagination. Authenticated users only."""
     import time
     cache_key = f"{limit}:{cursor or ''}"
     cached = _COMPOSIO_CACHE.get(cache_key)
@@ -436,8 +588,8 @@ def composio_apps(limit: int = 50, cursor: str = None):
 
 
 @app.get("/api/composio/connected")
-def composio_connected():
-    """List apps the user has already connected in their Composio account."""
+def composio_connected(_identity: Identity = Depends(require_admin)):
+    """List apps connected for this workspace. Admin only."""
     try:
         from brain.core.connectors.composio import list_connected_apps
         return list_connected_apps()
@@ -446,8 +598,9 @@ def composio_connected():
 
 
 @app.delete("/api/composio/connected/{account_id}")
-def composio_disconnect(account_id: str):
-    """Disconnect a connected Composio account by its ID."""
+def composio_disconnect(account_id: str,
+                        _identity: Identity = Depends(require_admin)):
+    """Disconnect a connected integration by its account ID. Admin only."""
     try:
         from brain.core.connectors.composio import disconnect_app
         return disconnect_app(account_id)
@@ -470,13 +623,14 @@ def composio_connect(
 
 
 @app.post("/api/auth/signup")
-def signup(req: SignupRequest):
+def signup(req: SignupRequest, request: Request):
     """
     Register account + membership after Clerk creates the auth user.
     Clerk handles passwords — we just store the workspace row.
     Called right after Clerk signup completes with the Clerk user_id as user_id.
     """
-    import re, uuid as _uuid
+    _rl_auth(request)
+    import uuid as _uuid
     from brain.core.db import BACKEND
 
     req.email = req.email.lower().strip()
@@ -708,11 +862,12 @@ def delete_conversation(conv_id: str, identity: Identity = Depends(get_identity)
 
 
 @app.post("/api/auth/sso-provision")
-def sso_provision(identity: Identity = Depends(get_identity)):
+def sso_provision(request: Request, identity: Identity = Depends(get_identity)):
     """
     Called after every SSO login. Creates account + membership rows for first-time
     SSO users. Idempotent — safe to call on every login.
     """
+    _rl_auth(request)
     import uuid as _uuid
     from brain.core.db import BACKEND
     if BACKEND != "postgres":
@@ -828,8 +983,11 @@ def get_invite(token: str):
 
 
 @app.post("/api/invite/{token}/accept")
-def accept_invite(token: str, req: InviteAcceptRequest):
+def accept_invite(token: str, req: InviteAcceptRequest, request: Request):
     """Accept an invite: create Supabase user + membership row, mark invite accepted. Public."""
+    _rl_auth(request)
+    if not token or len(token) > 128:
+        raise HTTPException(400, "Invalid invite token")
     import datetime, json as _json
     from brain.core.db import BACKEND
     if BACKEND != "postgres":
@@ -1277,7 +1435,7 @@ def get_llm_settings(_identity: Identity = Depends(get_identity)):
 @app.post("/api/settings/llm")
 def save_llm_settings(
     req: LLMSettingsRequest,
-    _identity: Identity = Depends(get_identity),
+    _identity: Identity = Depends(require_admin),
 ):
     """Save LLM provider API key to .env file."""
     if req.provider not in _PROVIDER_ENV_MAP:

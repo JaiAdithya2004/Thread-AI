@@ -4,11 +4,13 @@ Clerk Auth — JWT verification and identity extraction.
 Every API request must carry an Authorization: Bearer <session_token> header.
 The token is a Clerk-issued JWT verified against Clerk's public keys (JWKS).
 
-DEV / SINGLE-TENANT BYPASS:
-  If CLERK_SECRET_KEY is not set, or BRAIN_DEV_BYPASS=true, auth runs in
-  BYPASS mode — every request gets the identity from config defaults.
+DEV BYPASS:
+  Only active when BRAIN_ENV=development AND BRAIN_DEV_BYPASS=true.
+  The server REFUSES to boot in production (BRAIN_ENV=production) if bypass
+  is enabled — see the startup check at the bottom of this module.
 """
 import os
+import sys
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -21,23 +23,54 @@ _bearer = HTTPBearer(auto_error=False)
 
 _CLERK_SECRET_KEY: Optional[str] = os.getenv("CLERK_SECRET_KEY")
 _CLERK_PUBLISHABLE_KEY: Optional[str] = os.getenv("CLERK_PUBLISHABLE_KEY")
-_BYPASS = (
-    not bool(_CLERK_SECRET_KEY)
-    or os.getenv("BRAIN_DEV_BYPASS", "").lower() in ("1", "true", "yes")
+
+# BRAIN_ENV controls whether dev shortcuts are permitted.
+# Default is "development" for local use; set to "production" when deploying.
+_ENV: str = os.getenv("BRAIN_ENV", "development").lower().strip()
+_IS_PRODUCTION: bool = _ENV == "production"
+
+# Bypass is ONLY allowed in non-production AND when no Clerk key is configured
+# (single-tenant dev mode) OR when BRAIN_DEV_BYPASS=true is explicitly set.
+_DEV_BYPASS_FLAG: bool = os.getenv("BRAIN_DEV_BYPASS", "").lower() in ("1", "true", "yes")
+_BYPASS: bool = (
+    not _IS_PRODUCTION
+    and (not bool(_CLERK_SECRET_KEY) or _DEV_BYPASS_FLAG)
 )
 
-if _BYPASS:
-    import sys
-    print("[auth] CLERK_SECRET_KEY not set — running in BYPASS mode.", file=sys.stderr)
+# ── Production safety check ───────────────────────────────────────────────────
+# This runs at import time (server startup). If someone accidentally sets
+# BRAIN_DEV_BYPASS=true in a production environment, we refuse to start.
+if _IS_PRODUCTION and _DEV_BYPASS_FLAG:
+    print(
+        "[auth] FATAL: BRAIN_DEV_BYPASS=true is set but BRAIN_ENV=production. "
+        "The dev-bypass path is not allowed in production. "
+        "Unset BRAIN_DEV_BYPASS or change BRAIN_ENV before starting the server.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
-# Derive Clerk frontend API from publishable key: pk_test_xxx -> xxx.clerk.accounts.dev
+if _IS_PRODUCTION and not _CLERK_SECRET_KEY:
+    print(
+        "[auth] FATAL: BRAIN_ENV=production but CLERK_SECRET_KEY is not set. "
+        "Authentication cannot run without a Clerk secret key in production.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+if _BYPASS:
+    print(
+        "[auth] DEV MODE — auth bypass active (BRAIN_ENV=development, no Clerk key). "
+        "Set BRAIN_ENV=production and CLERK_SECRET_KEY to enforce authentication.",
+        file=sys.stderr,
+    )
+
+
+# Derive Clerk JWKS URL from publishable key: pk_test_xxx -> domain.clerk.accounts.dev
 _CLERK_JWKS_URL: Optional[str] = None
 if _CLERK_PUBLISHABLE_KEY and not _BYPASS:
     try:
         import base64
-        # publishable key format: pk_test_<base64(domain)>
         b64 = _CLERK_PUBLISHABLE_KEY.split("_", 2)[-1].rstrip("$")
-        # pad base64
         b64 += "=" * (-len(b64) % 4)
         domain = base64.b64decode(b64).decode("utf-8").rstrip("$")
         _CLERK_JWKS_URL = f"https://{domain}/.well-known/jwks.json"
@@ -87,7 +120,6 @@ def _decode_clerk_jwt(token: str) -> dict:
     except ImportError:
         raise ValueError("PyJWT not installed")
 
-    # Get JWKS and find matching key
     jwks = _get_jwks()
     headers = pyjwt.get_unverified_header(token)
     kid = headers.get("kid")
@@ -112,9 +144,7 @@ def _decode_clerk_jwt(token: str) -> dict:
 
 def _identity_from_clerk_payload(payload: dict) -> Identity:
     user_id = payload.get("sub", "anonymous")
-    # Clerk puts email in email_addresses or as a top-level claim
     email = payload.get("email", "")
-    # Clerk metadata
     public_meta = payload.get("public_metadata") or {}
     unsafe_meta = payload.get("unsafe_metadata") or {}
 
@@ -142,6 +172,7 @@ def _identity_from_clerk_payload(payload: dict) -> Identity:
 def get_identity(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
 ) -> Identity:
+    # Dev bypass — only reachable when _BYPASS is True (not production)
     if _BYPASS:
         return _default_identity()
 
@@ -153,9 +184,16 @@ def get_identity(
         )
 
     token = creds.credentials
-    # Allow dev-bypass sentinel token
+
+    # In production the "dev-bypass" sentinel token must never work.
+    # _BYPASS is False here by definition (checked above), so this path
+    # is already unreachable — but assert explicitly for clarity.
     if token == "dev-bypass":
-        return _default_identity()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     try:
         payload = _decode_clerk_jwt(token)

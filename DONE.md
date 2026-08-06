@@ -108,3 +108,77 @@ Completed: 2026-08-06
 - Workspace API Key card (admin-only): list/add/remove BYO keys
 - _api() convenience fetch helper added
 - _loadUsageCredits(), _loadBYOKeys(), _saveBYOKey(), _deleteBYOKey()
+
+---
+
+# Phase 3 — Security Hardening
+
+Completed: 2026-08-06
+
+## What was done
+
+### Dev-bypass removal (brain/auth.py)
+- Bypass is now ONLY active when BRAIN_ENV=development (not production) AND no Clerk key is configured (or BRAIN_DEV_BYPASS=true is explicitly set)
+- Production boot guard: server REFUSES to start (sys.exit(1)) if BRAIN_ENV=production AND BRAIN_DEV_BYPASS=true
+- Production boot guard: server REFUSES to start if BRAIN_ENV=production AND CLERK_SECRET_KEY is not set
+- dev-bypass sentinel token ("dev-bypass") now returns 401 in any non-bypass mode
+- _BYPASS, _IS_PRODUCTION, _ENV constants clearly defined
+
+### Endpoint auth audit (brain/wrappers/api.py)
+- GET /api/composio/apps: added get_identity dependency (was unauthenticated)
+- GET /api/composio/connected: elevated to require_admin (was unauthenticated)
+- DELETE /api/composio/connected/{id}: elevated to require_admin (was unauthenticated)
+- POST /api/settings/llm: elevated to require_admin (was get_identity)
+
+### Secrets handling
+- /api/status "composio" key renamed to "integrations" (vendor name hidden)
+- BYO-key GET endpoint returns only provider/created_at/created_by; never key value
+- No secret values ever returned in any response
+
+### Rate limiting (brain/wrappers/api.py)
+- In-process sliding-window rate limiter (_rl_store + _rl_lock) — no external dependency
+- _rl_auth: 20 req/60s — signup, sso_provision, accept_invite
+- _rl_llm: 60 req/60s — search
+- _rl_write: 120 req/60s — record, correct
+
+### Input validation (Pydantic model_post_init on all request models)
+- SearchRequest: 2000 char max, non-empty
+- RecordRequest: 50,000 char max, non-empty
+- CorrectRequest: 10,000 char max, non-empty
+- CreateTeamRequest: team_id slug-validated, name 128 char max, description 500 char max
+- BackfillRequest / SyncRequest / ComposioConnectRequest: slug-validated source/app
+- SignupRequest: email 254 char max, name 200 char max, account_type enum
+- InviteRequest: email 254 char max, role enum, team_id slug-validated
+- MemberPatchRequest: role/status enum, team_id slug-validated
+- InviteAcceptRequest: password 1024 char max
+- ConversationRequest: title 200 char max
+- MessageRequest: role enum, content non-empty + 100,000 char max
+- accept_invite: token length capped at 128
+
+### HTTP security headers (SecurityHeadersMiddleware)
+- X-Content-Type-Options: nosniff
+- X-Frame-Options: DENY
+- X-XSS-Protection: 1; mode=block
+- Referrer-Policy: strict-origin-when-cross-origin
+- Strict-Transport-Security: max-age=63072000; includeSubDomains
+- Content-Security-Policy: default-src self, script/style inline, no external connect
+
+### CORS tightening
+- allow_origins now reads ALLOWED_ORIGINS env var (comma-separated) in production
+- allow_headers restricted to Authorization + Content-Type
+- expose_headers cleared; max_age=600
+
+### RLS verification (brain/wrappers/api.py + brain/core/db_pg.py)
+- _brain() now explicitly calls _pg._set_ws(b.conn, b.ws) before returning the Brain instance, guaranteeing brain.workspace_id is set for RLS on all subsequent queries including the get_facts direct SQL path
+- Confirmed: episodes/facts/fact_edges/ledger/teams have ws_isolation RLS; conversations/messages have FORCE RLS user_isolation
+- Phase 2 account-scoped tables (subscriptions, workspace_llm_keys, usage_events, integration_usage) use explicit account_id WHERE clauses — correct pattern for service-role connections
+
+## Security properties after Phase 3
+- No unauthenticated write endpoints
+- No connector management endpoints without admin auth
+- Production refuses to start without Clerk secret key
+- Production refuses to start with dev-bypass enabled
+- Every LLM and write endpoint rate-limited per IP
+- All request bodies have length caps and enum validation
+- RLS guaranteed on every Brain connection from first query
+- No vendor names (Composio) exposed in any API response
