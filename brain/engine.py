@@ -22,6 +22,47 @@ class Brain:
         self.conn = db.connect()
         db.migrate(self.conn)
 
+    # ---- plan limit helpers ----
+    def _plan(self) -> dict:
+        """Return plan dict for this account; free defaults if no postgres / no account."""
+        from brain.core.db import BACKEND
+        if BACKEND != "postgres" or not self.account_id:
+            return {"name": "free", "monthly_credits": 500, "max_seats": 1,
+                    "max_connectors": 0, "max_backfill": 500}
+        from brain.core.db_pg import get_plan_for_account
+        return get_plan_for_account(self.account_id)
+
+    def _check_seat_limit(self):
+        from brain.core.db import BACKEND
+        if BACKEND != "postgres" or not self.account_id:
+            return
+        plan = self._plan()
+        max_seats = plan.get("max_seats", 1)
+        from brain.core.db_pg import get_seat_count
+        seats = get_seat_count(self.account_id)
+        if seats >= max_seats:
+            raise ValueError(
+                f"Seat limit reached ({seats}/{max_seats}). Upgrade your plan to add more members."
+            )
+
+    def _check_connector_limit(self, existing_count: int):
+        plan = self._plan()
+        max_conn = plan.get("max_connectors", 0)
+        if existing_count >= max_conn:
+            raise ValueError(
+                f"Integration limit reached ({existing_count}/{max_conn}). "
+                "Upgrade your plan to connect more integrations."
+            )
+
+    def _check_backfill_limit(self, items_ingested: int):
+        plan = self._plan()
+        max_bf = plan.get("max_backfill", 500)
+        if items_ingested > max_bf:
+            raise ValueError(
+                f"Backfill item limit exceeded ({items_ingested}/{max_bf}). "
+                "Upgrade your plan for larger backfills."
+            )
+
     # ---- teams ----
     def create_team(self, team_id: str, name: str, description: str = "") -> dict:
         db.ensure_team(self.conn, self.ws, team_id, name, description)
@@ -64,6 +105,13 @@ class Brain:
         connector = REGISTRY[source]()
         n_ep = ingest.run(self.conn, self.ws, connector.backfill(), team_id=tid)
         clear_billing_context()
+
+        # Warn (non-fatal) if backfill exceeded plan limit
+        try:
+            self._check_backfill_limit(n_ep)
+        except ValueError as e:
+            import sys
+            print(f"[Intellark] backfill limit warning: {e}", file=sys.stderr)
 
         if USE_ASYNC_WORKER:
             enqueued = self._async_enqueue("extract_facts", ws=self.ws, team_id=tid)

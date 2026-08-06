@@ -249,6 +249,60 @@ def migrate(conn):
             ON integration_usage(account_id, period);
     """)
 
+    # ── Phase 2: plans, subscriptions, BYO-key ────────────────────────────────
+
+    # plans — product tiers seeded at startup; never written by customer-facing code
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS plans (
+            id              TEXT PRIMARY KEY,
+            name            TEXT NOT NULL UNIQUE,
+            monthly_credits INTEGER NOT NULL DEFAULT 500,
+            max_seats       INTEGER NOT NULL DEFAULT 1,
+            max_connectors  INTEGER NOT NULL DEFAULT 0,
+            max_backfill    INTEGER NOT NULL DEFAULT 500,
+            price_usd_month NUMERIC(8,2) NOT NULL DEFAULT 0
+        );
+    """)
+    # Seed default tiers idempotently
+    cur.execute("""
+        INSERT INTO plans (id, name, monthly_credits, max_seats, max_connectors, max_backfill, price_usd_month)
+        VALUES
+            ('plan_free',     'free',     500,   1,  0,    500,  0.00),
+            ('plan_team',     'team',     5000,  20, 5,    10000, 49.00),
+            ('plan_business', 'business', 50000, 100, 20,  100000, 299.00)
+        ON CONFLICT (id) DO NOTHING;
+    """)
+
+    # subscriptions — one active row per account
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+            account_id  TEXT NOT NULL UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
+            plan_id     TEXT NOT NULL REFERENCES plans(id),
+            status      TEXT NOT NULL DEFAULT 'active'
+                            CHECK (status IN ('active','past_due','cancelled')),
+            started_at  TIMESTAMPTZ DEFAULT now(),
+            renews_at   TIMESTAMPTZ,
+            cancelled_at TIMESTAMPTZ
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS subs_acct ON subscriptions(account_id);")
+
+    # workspace_llm_keys — BYO-key: encrypted at-rest (envelope encryption not yet
+    # implemented; stored as plaintext in this MVP — Phase 3 adds KMS wrapping)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS workspace_llm_keys (
+            id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+            account_id  TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            provider    TEXT NOT NULL,
+            api_key     TEXT NOT NULL,
+            created_at  TIMESTAMPTZ DEFAULT now(),
+            created_by  TEXT NOT NULL,
+            UNIQUE (account_id, provider)
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS wlk_acct ON workspace_llm_keys(account_id);")
+
     # Row-Level Security — defense in depth, workspace isolation
     for table in ("episodes", "facts", "fact_edges", "ledger", "teams"):
         cur.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
@@ -501,6 +555,163 @@ def read_ledger(conn, ws, limit, team_id=None):
 # ---------------------------------------------------------------------------
 # Integration usage metering (COGS tracker — internal only)
 # ---------------------------------------------------------------------------
+
+def get_plan_for_account(account_id: str) -> dict:
+    """Return the plan row for the account's active subscription, or the free plan."""
+    if not account_id:
+        return {"name": "free", "monthly_credits": 500, "max_seats": 1,
+                "max_connectors": 0, "max_backfill": 500}
+    try:
+        conn = connect()
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT p.name, p.monthly_credits, p.max_seats,
+                       p.max_connectors, p.max_backfill
+                FROM subscriptions s
+                JOIN plans p ON p.id = s.plan_id
+                WHERE s.account_id = %s AND s.status = 'active'
+                LIMIT 1
+            """, (account_id,))
+            row = cur.fetchone()
+            cur.close()
+            if row:
+                return dict(row)
+            return {"name": "free", "monthly_credits": 500, "max_seats": 1,
+                    "max_connectors": 0, "max_backfill": 500}
+        finally:
+            conn.close()
+    except Exception:
+        return {"name": "free", "monthly_credits": 500, "max_seats": 1,
+                "max_connectors": 0, "max_backfill": 500}
+
+
+def get_credits_used_this_month(account_id: str) -> int:
+    """Return credits consumed this calendar month (1 credit = $0.001 spend)."""
+    if not account_id:
+        return 0
+    import datetime as _dt
+    from brain.config import CREDIT_USD_COST
+    now = _dt.date.today()
+    period_start = now.replace(day=1)
+    if period_start.month == 12:
+        period_end = period_start.replace(year=period_start.year + 1, month=1, day=1)
+    else:
+        period_end = period_start.replace(month=period_start.month + 1, day=1)
+    try:
+        conn = connect()
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT COALESCE(SUM(cost_usd), 0) AS total_cost
+                FROM usage_events
+                WHERE account_id = %s AND ts >= %s AND ts < %s
+            """, (account_id, period_start.isoformat(), period_end.isoformat()))
+            row = cur.fetchone() or {}
+            cur.close()
+            cost = float(row.get("total_cost") or 0.0)
+            return int(cost / CREDIT_USD_COST) if CREDIT_USD_COST else 0
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
+def get_seat_count(account_id: str) -> int:
+    """Return number of active members in this account."""
+    if not account_id:
+        return 0
+    try:
+        conn = connect()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM memberships WHERE account_id=%s AND status='active'",
+                (account_id,)
+            )
+            row = cur.fetchone() or {}
+            cur.close()
+            return int(row.get("n") or 0)
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
+def get_byo_key(account_id: str, provider: str) -> str:
+    """Return the BYO API key for this account+provider, or '' if none."""
+    if not account_id:
+        return ""
+    try:
+        conn = connect()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT api_key FROM workspace_llm_keys WHERE account_id=%s AND provider=%s LIMIT 1",
+                (account_id, provider)
+            )
+            row = cur.fetchone()
+            cur.close()
+            return (row or {}).get("api_key", "") or ""
+        finally:
+            conn.close()
+    except Exception:
+        return ""
+
+
+def upsert_byo_key(account_id: str, provider: str, api_key: str, created_by: str):
+    """Save or replace BYO key for account+provider."""
+    conn = connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO workspace_llm_keys (account_id, provider, api_key, created_by)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (account_id, provider) DO UPDATE SET
+                api_key    = EXCLUDED.api_key,
+                created_by = EXCLUDED.created_by,
+                created_at = now()
+        """, (account_id, provider, api_key, created_by))
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+
+
+def delete_byo_key(account_id: str, provider: str):
+    """Remove BYO key for account+provider."""
+    conn = connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM workspace_llm_keys WHERE account_id=%s AND provider=%s",
+            (account_id, provider)
+        )
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+
+
+def ensure_free_subscription(account_id: str):
+    """Provision a free-plan subscription for a newly created account if none exists."""
+    try:
+        conn = connect()
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO subscriptions (account_id, plan_id, status)
+                VALUES (%s, 'plan_free', 'active')
+                ON CONFLICT (account_id) DO NOTHING
+            """, (account_id,))
+            conn.commit()
+            cur.close()
+        finally:
+            conn.close()
+    except Exception as e:
+        import sys
+        print(f"[Intellark] ensure_free_subscription failed: {e}", file=sys.stderr)
+
 
 def record_integration_usage(account_id: str, provider: str,
                               api_calls: int = 0, backfill_items: int = 0,

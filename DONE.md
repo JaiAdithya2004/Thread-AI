@@ -1,4 +1,4 @@
-# Phase 1 — Cost, Credits & Connector Metering ✅
+﻿# Phase 1 — Cost, Credits & Connector Metering ✅
 
 Completed: 2026-08-06
 
@@ -61,3 +61,50 @@ Completed: 2026-08-06
 - Security hardening: dev-bypass removal, RLS audit, rate limiting, input validation
 - Automated test suite
 - Launch readiness: .env.example, boot validation, docker-compose, smoke test
+
+---
+
+# Phase 2 — Plan Caps, BYO-Key & Enforcement
+
+Completed: 2026-08-06
+
+## What was done
+
+### DB schema (brain/core/db_pg.py)
+- plans table: seeded with free/team/business tiers (monthly_credits, max_seats, max_connectors, max_backfill, price_usd_month)
+- subscriptions table: one active row per account, FK to plans; UNIQUE on account_id
+- workspace_llm_keys table: BYO API keys stored per account+provider; UNIQUE on (account_id, provider)
+- Helper functions: get_plan_for_account(), get_credits_used_this_month(), get_seat_count(), get_byo_key(), upsert_byo_key(), delete_byo_key(), ensure_free_subscription()
+
+### BYO-key loading (brain/core/llm.py)
+- set_billing_context() now calls _load_byo_key() eagerly
+- _effective_api_key() returns the BYO key if present; falls through to env key
+- _build_kwargs() injects BYO key into litellm call kwargs
+- BYO-key accounts are never credit-capped
+
+### Credit enforcement (brain/core/llm.py)
+- _check_credit_allowance() called at top of every chat_json() and chat_text()
+- Raises HTTP 402 with upgrade message when used >= allowance
+- Silently passes in dev/bypass mode or non-postgres backends
+
+### Seat and backfill limits (brain/engine.py)
+- _plan(), _check_seat_limit(), _check_connector_limit(), _check_backfill_limit() helpers on Brain
+- invite_member checks seat limit before issuing invite (hard 402)
+- backfill() warns non-fatally if items exceed plan limit
+
+### Free subscription provisioning (brain/wrappers/api.py)
+- signup() and sso_provision() both call ensure_free_subscription(account_id)
+
+### API endpoints (brain/wrappers/api.py)
+- GET /api/plans — list all plans (authenticated)
+- GET /api/subscription — current subscription and plan limits (admin)
+- POST /api/subscription — change plan (admin)
+- GET /api/byo-key — list saved workspace BYO providers (admin)
+- POST /api/byo-key — save BYO key
+- DELETE /api/byo-key/{provider} — remove BYO key
+
+### UI (brain/wrappers/webapp/index.html)
+- Usage and Credits card (admin-only): credit bar with color coding, tokens/cost/integration-calls stats
+- Workspace API Key card (admin-only): list/add/remove BYO keys
+- _api() convenience fetch helper added
+- _loadUsageCredits(), _loadBYOKeys(), _saveBYOKey(), _deleteBYOKey()

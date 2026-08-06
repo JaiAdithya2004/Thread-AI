@@ -44,6 +44,17 @@ def _build_kwargs(system: str, user: str, model: str = None, json_mode: bool = T
         temperature=0.1,
         **_grok_kwargs(),
     )
+    # BYO-key override: inject the workspace's own API key for this request
+    byo_provider, byo_key = _effective_api_key()
+    if byo_key:
+        if byo_provider == "openai":
+            kwargs["api_key"] = byo_key
+        elif byo_provider == "anthropic":
+            kwargs["api_key"] = byo_key
+        elif byo_provider == "grok":
+            from brain.config import GROK_BASE_URL
+            kwargs["api_key"]  = byo_key
+            kwargs["api_base"] = GROK_BASE_URL
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
     return kwargs
@@ -72,7 +83,7 @@ def _trace_end(gen, output, error=False):
         print(f"[Intellark] Langfuse end failed: {e}", file=sys.stderr)
 
 
-# ── cost metering ─────────────────────────────────────────────────────────────
+# ── cost metering & BYO-key ───────────────────────────────────────────────────
 
 # Thread-local context set by API layer so llm.py knows who to bill
 _ctx: dict = {}
@@ -82,10 +93,72 @@ def set_billing_context(account_id: str, user_id: str, team_id: str = None):
     _ctx["account_id"] = account_id
     _ctx["user_id"]    = user_id
     _ctx["team_id"]    = team_id
+    # Eagerly load BYO key so all calls in this request use it
+    _ctx.pop("byo_provider", None)
+    _ctx.pop("byo_key", None)
+    if account_id:
+        _load_byo_key(account_id)
 
 
 def clear_billing_context():
     _ctx.clear()
+
+
+def _load_byo_key(account_id: str):
+    """Read workspace BYO key from DB and stash it in _ctx for this request."""
+    try:
+        from brain.core.db import BACKEND
+        if BACKEND != "postgres":
+            return
+        from brain.core.db_pg import get_byo_key
+        for provider in ("openai", "anthropic", "grok"):
+            key = get_byo_key(account_id, provider)
+            if key:
+                _ctx["byo_provider"] = provider
+                _ctx["byo_key"]      = key
+                return
+    except Exception as e:
+        print(f"[Intellark] BYO-key load failed: {e}", file=sys.stderr)
+
+
+def _effective_api_key() -> tuple:
+    """Return (provider, api_key) to use for this request — BYO wins over env."""
+    if _ctx.get("byo_key"):
+        return _ctx["byo_provider"], _ctx["byo_key"]
+    return None, None
+
+
+def _check_credit_allowance():
+    """Raise HTTP 402 if this account has exhausted its monthly credit allowance.
+    Silently passes in dev/bypass mode (no account_id) or non-postgres backends."""
+    account_id = _ctx.get("account_id")
+    if not account_id:
+        return
+    # BYO-key accounts are never credit-capped — they pay their own provider directly
+    if _ctx.get("byo_key"):
+        return
+    try:
+        from brain.core.db import BACKEND
+        if BACKEND != "postgres":
+            return
+        from brain.core.db_pg import get_plan_for_account, get_credits_used_this_month
+        plan      = get_plan_for_account(account_id)
+        allowance = plan.get("monthly_credits", 500)
+        used      = get_credits_used_this_month(account_id)
+        if used >= allowance:
+            # Import here to avoid circular import at module load time
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=402,
+                detail=f"Monthly credit limit reached ({used}/{allowance} credits used). "
+                       "Upgrade your plan or add your own API key in Settings."
+            )
+    except Exception as e:
+        # Only re-raise HTTP 402; swallow all other errors so metering never breaks queries
+        from fastapi import HTTPException
+        if isinstance(e, HTTPException):
+            raise
+        print(f"[Intellark] credit check failed (non-fatal): {e}", file=sys.stderr)
 
 
 def _write_usage(task: str, model: str, prompt_tokens: int, completion_tokens: int, cost_usd: float):
@@ -136,7 +209,8 @@ def _extract_usage(resp, model: str, task: str):
 # ── LLM call helpers ──────────────────────────────────────────────────────────
 
 def chat_json(system: str, user: str, model: str = None, task_name: str = "unknown") -> dict:
-    if not _has_key():
+    _check_credit_allowance()
+    if not _has_key() and not _ctx.get("byo_key"):
         print("[Intellark] No API key detected — set an LLM key in .env.", file=sys.stderr)
         return {"facts": [], "terms": []}
 
@@ -161,7 +235,8 @@ def chat_json(system: str, user: str, model: str = None, task_name: str = "unkno
 
 
 def chat_text(system: str, user: str, model: str = None, task_name: str = "unknown") -> str:
-    if not _has_key():
+    _check_credit_allowance()
+    if not _has_key() and not _ctx.get("byo_key"):
         print("[Intellark] No API key detected — set an LLM key in .env.", file=sys.stderr)
         return ""
 

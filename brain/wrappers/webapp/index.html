@@ -720,6 +720,70 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
             </div>
           </div>
         </div>
+        <!-- Usage & Credits — visible to admins -->
+        <div class="settings-card admin-only" id="settingsCreditsCard">
+          <div class="settings-card-head" style="justify-content:space-between">
+            <span>Usage &amp; Credits</span>
+            <span id="creditsMonthLabel" style="font-size:12px;font-weight:400;color:var(--muted)"></span>
+          </div>
+          <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+            <!-- Credit bar -->
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px">
+                <span id="creditsUsedLabel">—</span>
+                <span id="creditsPlanLabel">—</span>
+              </div>
+              <div style="background:var(--surface-card);border-radius:6px;height:8px;overflow:hidden">
+                <div id="creditsBar" style="height:100%;background:var(--primary);border-radius:6px;width:0%;transition:width .4s ease"></div>
+              </div>
+              <div id="creditsCaption" style="font-size:11.5px;color:var(--muted-soft);margin-top:6px"></div>
+            </div>
+            <!-- Token + cost summary -->
+            <div style="display:flex;gap:16px;flex-wrap:wrap">
+              <div style="flex:1;min-width:120px;background:var(--surface-card);border-radius:8px;padding:12px 14px">
+                <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Tokens this month</div>
+                <div id="statTokens" style="font-size:18px;font-weight:600;letter-spacing:-0.5px">—</div>
+              </div>
+              <div style="flex:1;min-width:120px;background:var(--surface-card);border-radius:8px;padding:12px 14px">
+                <div style="font-size:11px;color:var(--muted);margin-bottom:4px">AI spend (USD)</div>
+                <div id="statCost" style="font-size:18px;font-weight:600;letter-spacing:-0.5px">—</div>
+              </div>
+              <div style="flex:1;min-width:120px;background:var(--surface-card);border-radius:8px;padding:12px 14px">
+                <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Integration calls</div>
+                <div id="statIntCalls" style="font-size:18px;font-weight:600;letter-spacing:-0.5px">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BYO Key — admin-only: workspace key overrides platform key -->
+        <div class="settings-card admin-only" id="settingsBYOCard">
+          <div class="settings-card-head">Workspace API Key <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:8px">optional — use your own account, no credit limits apply</span></div>
+          <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+            <div style="font-size:13px;color:var(--muted);line-height:1.6">
+              Save your own API key here and all AI calls for this workspace will use it directly — bypassing Intellark's managed credits entirely.
+            </div>
+            <div id="byoKeyList" style="display:flex;flex-direction:column;gap:8px"></div>
+            <details>
+              <summary style="font-size:13px;font-weight:500;color:var(--ink);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
+                <span>＋ Add workspace key</span>
+              </summary>
+              <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
+                <select id="byoProviderSelect" style="background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;cursor:pointer">
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="grok">xAI Grok</option>
+                </select>
+                <div style="position:relative">
+                  <input type="password" id="byoKeyInput" placeholder="Paste API key…" style="width:100%;background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box">
+                </div>
+                <div id="byoSaveStatus" style="font-size:12px;min-height:16px"></div>
+                <button onclick="_saveBYOKey()" style="background:var(--primary);color:var(--on-primary);border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;align-self:flex-start">Save workspace key</button>
+              </div>
+            </details>
+          </div>
+        </div>
+
         <div class="settings-card">
           <div class="settings-card-head">Account</div>
           <div style="padding:16px 20px;font-size:13px;color:var(--muted);line-height:2.1">
@@ -1084,6 +1148,13 @@ const api = {
     return r.json();
   }
 };
+
+// Convenience wrapper: _api(path, method='GET', body?)
+async function _api(path, method='GET', body=null){
+  if(method==='GET')    return api.get(path);
+  if(method==='DELETE') return api._delete(path);
+  return api.post(path, body);
+}
 
 // ── toast ─────────────────────────────────────────────────────────────────────
 let _tt;
@@ -2138,7 +2209,92 @@ function renderSettings(){
 
   // Pre-populate LLM provider card from saved settings
   _loadLLMSettings();
+
+  // Admin: load credits/usage + BYO keys
+  if(isAdmin){
+    _loadUsageCredits();
+    _loadBYOKeys();
+  }
 }
+
+// ── Credits / Usage UI ───────────────────────────────────────────────────────
+async function _loadUsageCredits(){
+  try {
+    const now = new Date();
+    const period = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const r = await _api(`/api/usage?period=${period}`);
+    const used = r.credits_used ?? 0;
+    const allowance = r.credits_allowance ?? 500;
+    const pct = allowance > 0 ? Math.min(100, Math.round(used/allowance*100)) : 0;
+    const bar = document.getElementById('creditsBar');
+    const caption = document.getElementById('creditsCaption');
+    if(bar){
+      bar.style.width = pct + '%';
+      if(pct >= 90) bar.style.background = 'var(--error)';
+      else if(pct >= 70) bar.style.background = '#f59e0b';
+      else bar.style.background = 'var(--primary)';
+    }
+    _setText('creditsUsedLabel', `${used.toLocaleString()} credits used`);
+    _setText('creditsPlanLabel', `${allowance.toLocaleString()} / mo (${r.plan || 'free'} plan)`);
+    _setText('creditsMonthLabel', period);
+    if(caption) caption.textContent = `${pct}% of monthly allowance · ${(allowance - used).toLocaleString()} remaining`;
+    _setText('statTokens', (r.tokens ?? 0).toLocaleString());
+    _setText('statCost', `$${(r.cost_usd ?? 0).toFixed(4)}`);
+    _setText('statIntCalls', (r.integrations?.api_calls ?? 0).toLocaleString());
+  } catch(e){ console.warn('Usage load failed', e); }
+}
+
+function _setText(id, val){
+  const el = document.getElementById(id);
+  if(el) el.textContent = val;
+}
+
+// ── BYO Key UI ───────────────────────────────────────────────────────────────
+async function _loadBYOKeys(){
+  const list = document.getElementById('byoKeyList');
+  if(!list) return;
+  try {
+    const keys = await _api('/api/byo-key');
+    if(!keys.length){
+      list.innerHTML = '<div style="font-size:13px;color:var(--muted)">No workspace key saved — using Intellark managed credits.</div>';
+      return;
+    }
+    list.innerHTML = keys.map(k => `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface-card);border-radius:8px;padding:10px 14px">
+        <div>
+          <span style="font-size:13px;font-weight:500;color:var(--ink)">${escHtml(k.provider)}</span>
+          <span style="font-size:11.5px;color:var(--muted);margin-left:8px">Added ${new Date(k.created_at).toLocaleDateString()}</span>
+        </div>
+        <button onclick="_deleteBYOKey('${escHtml(k.provider)}')" style="background:transparent;border:none;color:var(--error);font-size:12px;cursor:pointer;padding:4px 8px">Remove</button>
+      </div>`).join('');
+  } catch(e){ console.warn('BYO key load failed', e); }
+}
+
+async function _saveBYOKey(){
+  const provider = document.getElementById('byoProviderSelect')?.value;
+  const key      = document.getElementById('byoKeyInput')?.value?.trim();
+  const status   = document.getElementById('byoSaveStatus');
+  if(!key || key.length < 10){ if(status) status.textContent = 'Key appears too short.'; return; }
+  if(status) status.textContent = 'Saving…';
+  try {
+    await _api('/api/byo-key', 'POST', { provider, api_key: key });
+    if(status){ status.style.color='var(--success)'; status.textContent = 'Saved!'; }
+    if(document.getElementById('byoKeyInput')) document.getElementById('byoKeyInput').value = '';
+    _loadBYOKeys();
+    setTimeout(()=>{ if(status) status.textContent=''; }, 3000);
+  } catch(e){
+    if(status){ status.style.color='var(--error)'; status.textContent = e.message || 'Save failed'; }
+  }
+}
+
+async function _deleteBYOKey(provider){
+  if(!confirm(`Remove the ${provider} workspace key?`)) return;
+  try {
+    await _api(`/api/byo-key/${provider}`, 'DELETE');
+    _loadBYOKeys();
+  } catch(e){ alert('Remove failed: ' + e.message); }
+}
+
 document.getElementById('settingsAddDept').addEventListener('click',()=>openModal());
 
 // ── modal ─────────────────────────────────────────────────────────────────────

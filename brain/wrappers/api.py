@@ -527,6 +527,10 @@ def signup(req: SignupRequest):
             )
             conn.commit()
             cur.close()
+
+            # Provision free plan subscription for the new account
+            from brain.core.db_pg import ensure_free_subscription
+            ensure_free_subscription(account_id)
         except Exception as e:
             conn.rollback()
             raise HTTPException(500, f"DB error: {e}")
@@ -773,6 +777,9 @@ def sso_provision(identity: Identity = Depends(get_identity)):
             (str(_uuid.uuid4()), identity.user_id, account_id, role),
         )
         conn.commit()
+        # Provision free plan for the new account
+        from brain.core.db_pg import ensure_free_subscription
+        ensure_free_subscription(account_id)
         return {"ok": True, "provisioned": True, "via": "auto", "account_type": acct_type}
     except Exception as e:
         conn.rollback()
@@ -967,6 +974,15 @@ def invite_member(
         if not row:
             raise HTTPException(400, "Your account could not be found")
         account_id = row["account_id"]
+
+        # Enforce seat limit before issuing invite
+        from brain.core.db_pg import get_plan_for_account, get_seat_count
+        plan = get_plan_for_account(account_id)
+        seats = get_seat_count(account_id)
+        if seats >= plan.get("max_seats", 1):
+            raise HTTPException(402,
+                f"Seat limit reached ({seats}/{plan['max_seats']}). "
+                "Upgrade your plan to add more members.")
 
         token = secrets.token_urlsafe(32)
         expires = datetime.datetime.utcnow() + datetime.timedelta(days=7)
@@ -1189,6 +1205,13 @@ class LLMSettingsRequest(BaseModel):
     provider: str   # "openai" | "anthropic" | "grok"
     api_key: str
 
+class BYOKeyRequest(BaseModel):
+    provider: str   # "openai" | "anthropic" | "grok"
+    api_key: str
+
+class SubscriptionRequest(BaseModel):
+    plan_id: str    # "plan_free" | "plan_team" | "plan_business"
+
 _PROVIDER_ENV_MAP = {
     "openai":    "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
@@ -1279,6 +1302,163 @@ def save_llm_settings(
     os.environ[env_var] = req.api_key
 
     return {"ok": True, "provider": req.provider, "var": env_var}
+
+
+# ── plans (public read) ───────────────────────────────────────────────────────
+
+@app.get("/api/plans")
+def list_plans(_identity: Identity = Depends(get_identity)):
+    """Return all available plans. Public (any authenticated user can see pricing)."""
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        return []
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM plans ORDER BY price_usd_month")
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        return rows
+    finally:
+        conn.close()
+
+
+# ── subscription management (admin) ───────────────────────────────────────────
+
+@app.get("/api/subscription")
+def get_subscription(identity: Identity = Depends(require_admin)):
+    """Return this workspace's active subscription and plan limits."""
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        return {"plan": "free", "status": "active"}
+    from brain.core import db_pg as _pg
+    account_id = _resolve_account_id(identity.user_id)
+    if not account_id:
+        raise HTTPException(404, "Account not found")
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT s.id, s.status, s.started_at, s.renews_at,
+                   p.id AS plan_id, p.name AS plan_name,
+                   p.monthly_credits, p.max_seats, p.max_connectors,
+                   p.max_backfill, p.price_usd_month
+            FROM subscriptions s
+            JOIN plans p ON p.id = s.plan_id
+            WHERE s.account_id = %s AND s.status = 'active'
+            LIMIT 1
+        """, (account_id,))
+        row = cur.fetchone()
+        cur.close()
+        if not row:
+            return {"plan_name": "free", "status": "none"}
+        return dict(row)
+    finally:
+        conn.close()
+
+
+@app.post("/api/subscription")
+def set_subscription(
+    req: SubscriptionRequest,
+    identity: Identity = Depends(require_admin),
+):
+    """Change the workspace subscription plan. Admin only. (MVP: no payment gate.)"""
+    valid_plans = {"plan_free", "plan_team", "plan_business"}
+    if req.plan_id not in valid_plans:
+        raise HTTPException(400, f"Unknown plan '{req.plan_id}'")
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        raise HTTPException(503, "Subscriptions require Postgres backend")
+    from brain.core import db_pg as _pg
+    account_id = _resolve_account_id(identity.user_id)
+    if not account_id:
+        raise HTTPException(404, "Account not found")
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO subscriptions (account_id, plan_id, status)
+            VALUES (%s, %s, 'active')
+            ON CONFLICT (account_id) DO UPDATE SET
+                plan_id    = EXCLUDED.plan_id,
+                status     = 'active',
+                started_at = now(),
+                cancelled_at = NULL
+        """, (account_id, req.plan_id))
+        conn.commit()
+        cur.close()
+        return {"ok": True, "plan_id": req.plan_id}
+    finally:
+        conn.close()
+
+
+# ── BYO-key management (admin) ────────────────────────────────────────────────
+
+@app.get("/api/byo-key")
+def get_byo_keys(identity: Identity = Depends(require_admin)):
+    """Return which providers have BYO keys saved for this workspace."""
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        return []
+    from brain.core import db_pg as _pg
+    account_id = _resolve_account_id(identity.user_id)
+    if not account_id:
+        return []
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT provider, created_at, created_by
+            FROM workspace_llm_keys
+            WHERE account_id = %s
+        """, (account_id,))
+        rows = [{"provider": r["provider"], "created_at": str(r["created_at"]),
+                 "created_by": r["created_by"]} for r in cur.fetchall()]
+        cur.close()
+        return rows
+    finally:
+        conn.close()
+
+
+@app.post("/api/byo-key")
+def save_byo_key(
+    req: BYOKeyRequest,
+    identity: Identity = Depends(require_admin),
+):
+    """Save a workspace BYO API key. Overwrites existing key for this provider."""
+    if req.provider not in _PROVIDER_ENV_MAP:
+        raise HTTPException(400, f"Unknown provider '{req.provider}'")
+    if not req.api_key or len(req.api_key) < 10:
+        raise HTTPException(400, "API key appears too short")
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        raise HTTPException(503, "BYO keys require Postgres backend")
+    account_id = _resolve_account_id(identity.user_id)
+    if not account_id:
+        raise HTTPException(404, "Account not found")
+    from brain.core.db_pg import upsert_byo_key
+    upsert_byo_key(account_id, req.provider, req.api_key, identity.user_id)
+    return {"ok": True, "provider": req.provider}
+
+
+@app.delete("/api/byo-key/{provider}")
+def delete_byo_key(
+    provider: str,
+    identity: Identity = Depends(require_admin),
+):
+    """Remove a workspace BYO API key."""
+    if provider not in _PROVIDER_ENV_MAP:
+        raise HTTPException(400, f"Unknown provider '{provider}'")
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        raise HTTPException(503, "BYO keys require Postgres backend")
+    account_id = _resolve_account_id(identity.user_id)
+    if not account_id:
+        raise HTTPException(404, "Account not found")
+    from brain.core.db_pg import delete_byo_key as _del
+    _del(account_id, provider)
+    return {"ok": True}
 
 
 # ── workspace usage (admin) ───────────────────────────────────────────────────
