@@ -4,314 +4,178 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Intellark — Your Company's Second Brain</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --ink: #111111;
-      --body: #374151;
-      --muted: #6b7280;
-      --muted-soft: #898989;
-      --hairline: #e5e7eb;
-      --hairline-soft: #f3f4f6;
-      --canvas: #ffffff;
-      --surface-soft: #f8f9fa;
-      --surface-card: #f5f5f5;
-      --surface-dark: #101010;
-      --surface-dark-elevated: #1a1a1a;
-      --on-dark: #ffffff;
-      --on-dark-soft: #a1a1aa;
-      --accent: #3b82f6;
-      --success: #10b981;
-      --badge-violet: #8b5cf6;
-      --badge-emerald: #34d399;
-      --badge-orange: #fb923c;
-      --badge-pink: #ec4899;
+      --ink: #111111; --body: #374151; --muted: #6b7280; --muted-soft: #898989;
+      --hairline: #e5e7eb; --hairline-soft: #f3f4f6; --canvas: #ffffff;
+      --surface-soft: #f8f9fa; --surface-card: #f5f5f5;
+      --surface-dark: #101010; --on-dark: #ffffff; --on-dark-soft: #a1a1aa;
+      --success: #10b981; --violet: #8b5cf6; --emerald: #34d399;
     }
-
     html { scroll-behavior: smooth; }
-
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--canvas);
-      color: var(--body);
-      line-height: 1.5;
-      font-size: 16px;
-      -webkit-font-smoothing: antialiased;
-    }
-
+    body { font-family: 'Inter', sans-serif; background: var(--canvas); color: var(--body); line-height: 1.5; -webkit-font-smoothing: antialiased; }
     .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 
-    /* ── NAV ── */
-    nav {
-      position: sticky; top: 0; z-index: 100;
-      background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--hairline-soft);
-      height: 64px;
-    }
-    .nav-inner {
-      max-width: 1200px; margin: 0 auto; padding: 0 24px;
-      height: 64px; display: flex; align-items: center; justify-content: space-between;
-    }
-    .nav-logo {
-      display: flex; align-items: center; gap: 10px;
-      font-size: 18px; font-weight: 700; letter-spacing: -0.3px; color: var(--ink);
-      text-decoration: none;
-    }
-    .nav-logo img { height: 28px; width: auto; border-radius: 4px; }
-    .nav-links { display: flex; gap: 8px; }
-    .nav-links a {
-      font-size: 14px; font-weight: 500; color: var(--muted);
-      text-decoration: none; padding: 6px 12px; border-radius: 6px;
-      transition: color 0.15s, background 0.15s;
-    }
+    /* NAV */
+    nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--hairline-soft); height: 64px; }
+    .nav-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
+    .nav-logo { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; letter-spacing: -0.3px; color: var(--ink); text-decoration: none; }
+    .nav-logo img { height: 26px; border-radius: 3px; }
+    .nav-links { display: flex; gap: 4px; }
+    .nav-links a { font-size: 14px; font-weight: 500; color: var(--muted); text-decoration: none; padding: 6px 12px; border-radius: 6px; }
     .nav-links a:hover { color: var(--ink); background: var(--surface-soft); }
     .nav-cta { display: flex; gap: 8px; align-items: center; }
-    .btn { display: inline-flex; align-items: center; gap: 6px; font-family: inherit; font-size: 14px; font-weight: 600; line-height: 1; cursor: pointer; border-radius: 8px; padding: 10px 20px; border: none; text-decoration: none; transition: background 0.15s, color 0.15s; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; font-family: inherit; font-size: 14px; font-weight: 600; line-height: 1; cursor: pointer; border-radius: 8px; padding: 10px 20px; border: none; text-decoration: none; }
     .btn-primary { background: var(--ink); color: #fff; }
     .btn-primary:hover { background: #242424; }
     .btn-secondary { background: var(--canvas); color: var(--ink); border: 1px solid var(--hairline); }
     .btn-secondary:hover { background: var(--surface-soft); }
-    .btn-lg { padding: 12px 24px; font-size: 15px; }
     .btn-xl { padding: 14px 28px; font-size: 15px; border-radius: 10px; }
+    .btn-white { background: white; color: var(--ink); }
+    .btn-outline-white { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.2); }
+    .btn-outline-white:hover { background: rgba(255,255,255,0.08); }
 
-    /* ── HERO ── */
-    .hero {
-      padding: 96px 0 80px;
-      background: var(--canvas);
-      overflow: hidden;
-    }
-    .hero-inner {
-      max-width: 1200px; margin: 0 auto; padding: 0 24px;
-      display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;
-    }
-    .hero-badge {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
-      color: var(--badge-violet); background: #f3f0ff; border-radius: 9999px; padding: 4px 12px;
-      margin-bottom: 24px;
-    }
-    .hero-badge span { width: 6px; height: 6px; border-radius: 50%; background: var(--badge-violet); display: inline-block; }
-    .hero h1 {
-      font-size: 56px; font-weight: 700; line-height: 1.06; letter-spacing: -2px;
-      color: var(--ink); margin-bottom: 24px;
-    }
-    .hero h1 em { font-style: normal; color: var(--badge-violet); }
-    .hero-sub {
-      font-size: 18px; color: var(--muted); line-height: 1.6; margin-bottom: 36px; max-width: 480px;
-    }
+    /* HERO */
+    .hero { padding: 96px 0 80px; }
+    .hero-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+    .hero-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--violet); background: #f3f0ff; border-radius: 9999px; padding: 4px 12px; margin-bottom: 24px; }
+    .hero-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--violet); display: inline-block; }
+    .hero h1 { font-size: 56px; font-weight: 700; line-height: 1.06; letter-spacing: -2px; color: var(--ink); margin-bottom: 24px; }
+    .hero h1 em { font-style: normal; color: var(--violet); }
+    .hero-sub { font-size: 18px; color: var(--muted); line-height: 1.6; margin-bottom: 36px; max-width: 480px; }
     .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 40px; }
-    .hero-social-proof { display: flex; align-items: center; gap: 12px; }
+    .hero-proof { display: flex; align-items: center; gap: 12px; }
     .hero-avatars { display: flex; }
-    .hero-avatars span {
-      width: 32px; height: 32px; border-radius: 50%; border: 2px solid white;
-      margin-left: -8px; display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 600; color: white;
-    }
+    .hero-avatars span { width: 32px; height: 32px; border-radius: 50%; border: 2px solid white; margin-left: -8px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: white; }
     .hero-avatars span:first-child { margin-left: 0; }
     .hero-proof-text { font-size: 13px; color: var(--muted); }
     .hero-proof-text strong { color: var(--ink); }
 
-    /* Hero mockup */
-    .hero-mockup {
-      background: var(--surface-card); border-radius: 16px; padding: 20px;
-      border: 1px solid var(--hairline); box-shadow: 0 4px 32px rgba(0,0,0,0.08);
-      position: relative; overflow: hidden;
-    }
-    .mockup-topbar {
-      display: flex; align-items: center; gap: 6px; margin-bottom: 16px;
-    }
+    /* MOCKUP */
+    .hero-mockup { background: var(--surface-card); border-radius: 16px; padding: 20px; border: 1px solid var(--hairline); box-shadow: 0 4px 32px rgba(0,0,0,0.08); }
+    .mockup-topbar { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; }
     .mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
-    .mockup-dot.red { background: #ff5f57; }
-    .mockup-dot.yellow { background: #ffbd2e; }
-    .mockup-dot.green { background: #28c840; }
+    .mockup-dot.r { background: #ff5f57; } .mockup-dot.y { background: #ffbd2e; } .mockup-dot.g { background: #28c840; }
     .mockup-title { font-size: 13px; font-weight: 600; color: var(--muted); margin-left: 8px; }
-    .mockup-chat {
-      display: flex; flex-direction: column; gap: 12px;
-    }
-    .msg {
-      max-width: 90%; font-size: 13px; line-height: 1.5; padding: 10px 14px;
-      border-radius: 12px;
-    }
+    .mockup-chat { display: flex; flex-direction: column; gap: 12px; }
+    .msg { max-width: 90%; font-size: 13px; line-height: 1.5; padding: 10px 14px; border-radius: 12px; }
     .msg-user { background: var(--ink); color: white; align-self: flex-end; border-radius: 12px 12px 2px 12px; }
     .msg-ai { background: white; color: var(--body); align-self: flex-start; border: 1px solid var(--hairline); border-radius: 12px 12px 12px 2px; }
     .msg-ai-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
-    .ai-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--badge-violet); }
-    .ai-label { font-size: 10px; font-weight: 600; color: var(--badge-violet); text-transform: uppercase; letter-spacing: 0.5px; }
-    .msg-source { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-    .source-chip {
-      font-size: 11px; padding: 2px 8px; border-radius: 9999px; font-weight: 500;
-      background: var(--surface-soft); color: var(--muted); border: 1px solid var(--hairline);
-    }
-    .source-chip.gmail { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
-    .source-chip.notion { background: #f8f9fa; color: var(--ink); border-color: var(--hairline); }
-    .source-chip.slack { background: #fdf4ff; color: #7c3aed; border-color: #e9d5ff; }
-    .mockup-integrations {
-      margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--hairline);
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    }
-    .int-label { font-size: 11px; color: var(--muted-soft); font-weight: 500; }
-    .int-chip {
-      font-size: 11px; padding: 4px 10px; border-radius: 6px; font-weight: 500;
-      background: white; border: 1px solid var(--hairline); color: var(--ink);
-      display: flex; align-items: center; gap: 4px;
-    }
+    .ai-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--violet); }
+    .ai-label { font-size: 10px; font-weight: 600; color: var(--violet); text-transform: uppercase; letter-spacing: 0.5px; }
+    .msg-sources { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .src { font-size: 11px; padding: 2px 8px; border-radius: 9999px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+    .src-gmail { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .src-notion { background: #f8f9fa; color: var(--ink); border: 1px solid var(--hairline); }
+    .src-slack { background: #fdf4ff; color: #7c3aed; border: 1px solid #e9d5ff; }
+    .src-drive { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .mockup-connected { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hairline); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .conn-label { font-size: 11px; color: var(--muted-soft); font-weight: 500; }
+    .conn-chip { font-size: 11px; padding: 3px 9px; border-radius: 6px; font-weight: 500; background: white; border: 1px solid var(--hairline); color: var(--ink); display: flex; align-items: center; gap: 5px; }
+    .conn-chip svg { flex-shrink: 0; }
 
-    /* ── LOGOS STRIP ── */
-    .logos-strip {
-      padding: 40px 0; border-top: 1px solid var(--hairline-soft); border-bottom: 1px solid var(--hairline-soft);
-      background: var(--surface-soft);
-    }
-    .logos-label { text-align: center; font-size: 13px; color: var(--muted-soft); font-weight: 500; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .logos-row { display: flex; justify-content: center; align-items: center; gap: 40px; flex-wrap: wrap; }
-    .app-logo { font-size: 14px; font-weight: 600; color: var(--muted); letter-spacing: -0.2px; }
+    /* MARQUEE LOGOS */
+    .logos-strip { padding: 32px 0; background: var(--surface-soft); border-top: 1px solid var(--hairline-soft); border-bottom: 1px solid var(--hairline-soft); overflow: hidden; }
+    .logos-label { text-align: center; font-size: 12px; color: var(--muted-soft); font-weight: 500; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.6px; }
+    .marquee-wrap { overflow: hidden; mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent); }
+    .marquee-track { display: flex; gap: 48px; width: max-content; animation: marquee 28s linear infinite; }
+    .marquee-track:hover { animation-play-state: paused; }
+    @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+    .logo-item { display: flex; align-items: center; gap: 10px; white-space: nowrap; flex-shrink: 0; }
+    .logo-item svg { height: 22px; width: auto; flex-shrink: 0; }
+    .logo-item span { font-size: 15px; font-weight: 600; color: var(--muted); letter-spacing: -0.2px; }
 
-    /* ── SECTION BASE ── */
+    /* SECTIONS */
     section { padding: 96px 0; }
-    .section-label {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
-      color: var(--badge-violet); margin-bottom: 16px;
-    }
-    .section-title {
-      font-size: 40px; font-weight: 700; line-height: 1.1; letter-spacing: -1.5px;
-      color: var(--ink); margin-bottom: 16px;
-    }
+    .section-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--violet); margin-bottom: 16px; }
+    .section-title { font-size: 40px; font-weight: 700; line-height: 1.1; letter-spacing: -1.5px; color: var(--ink); margin-bottom: 16px; }
     .section-sub { font-size: 17px; color: var(--muted); line-height: 1.6; max-width: 560px; }
     .section-head { margin-bottom: 64px; }
 
-    /* ── PROBLEM ── */
+    /* PROBLEM */
     .problem { background: var(--surface-soft); }
     .problem-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-    .problem-card {
-      background: white; border-radius: 12px; padding: 32px;
-      border: 1px solid var(--hairline); position: relative; overflow: hidden;
-    }
-    .problem-card::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-      background: linear-gradient(90deg, #ef4444, #f59e0b);
-    }
-    .problem-icon { font-size: 28px; margin-bottom: 16px; }
+    .problem-card { background: white; border-radius: 12px; padding: 32px; border: 1px solid var(--hairline); position: relative; overflow: hidden; }
+    .problem-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #ef4444, #f59e0b); }
+    .prob-icon { width: 40px; height: 40px; border-radius: 10px; background: #fef2f2; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
     .problem-card h3 { font-size: 18px; font-weight: 600; color: var(--ink); margin-bottom: 10px; letter-spacing: -0.3px; }
     .problem-card p { font-size: 14px; color: var(--muted); line-height: 1.6; }
 
-    /* ── HOW IT WORKS ── */
-    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-top: 0; position: relative; }
-    .steps::before {
-      content: ''; position: absolute; top: 40px; left: calc(16.5% + 40px); right: calc(16.5% + 40px);
-      height: 1px; background: var(--hairline); z-index: 0;
-    }
+    /* HOW */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; position: relative; }
+    .steps::before { content: ''; position: absolute; top: 40px; left: calc(16.5% + 40px); right: calc(16.5% + 40px); height: 1px; background: var(--hairline); }
     .step { text-align: center; position: relative; z-index: 1; }
-    .step-num {
-      width: 48px; height: 48px; border-radius: 50%; background: var(--ink); color: white;
-      font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 20px; position: relative; z-index: 1;
-    }
+    .step-num { width: 48px; height: 48px; border-radius: 50%; background: var(--ink); color: white; font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
     .step h3 { font-size: 18px; font-weight: 600; color: var(--ink); margin-bottom: 10px; letter-spacing: -0.3px; }
     .step p { font-size: 14px; color: var(--muted); line-height: 1.6; max-width: 260px; margin: 0 auto; }
 
-    /* ── FEATURES ── */
-    .features { background: var(--canvas); }
+    /* FEATURES */
     .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-    .feat-card {
-      background: var(--surface-card); border-radius: 12px; padding: 32px;
-      transition: transform 0.15s, box-shadow 0.15s; cursor: default;
-    }
+    .feat-card { background: var(--surface-card); border-radius: 12px; padding: 32px; transition: transform 0.15s, box-shadow 0.15s; }
     .feat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
-    .feat-icon {
-      width: 44px; height: 44px; border-radius: 10px; margin-bottom: 20px;
-      display: flex; align-items: center; justify-content: center; font-size: 22px;
-    }
+    .feat-icon { width: 44px; height: 44px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; }
+    .feat-icon svg { width: 24px; height: 24px; }
     .feat-card h3 { font-size: 17px; font-weight: 600; color: var(--ink); margin-bottom: 10px; letter-spacing: -0.3px; }
     .feat-card p { font-size: 14px; color: var(--muted); line-height: 1.6; }
-    .feat-card .feat-tag { display: inline-block; font-size: 11px; font-weight: 600; margin-top: 16px; padding: 3px 10px; border-radius: 9999px; }
+    .feat-tag { display: inline-block; font-size: 11px; font-weight: 600; margin-top: 16px; padding: 3px 10px; border-radius: 9999px; }
 
-    /* ── TIME SAVINGS ── */
+    /* SAVINGS */
     .savings { background: var(--surface-soft); }
     .savings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
     .savings-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    .stat-card {
-      background: white; border-radius: 12px; padding: 28px 24px; border: 1px solid var(--hairline);
-      text-align: center;
-    }
+    .stat-card { background: white; border-radius: 12px; padding: 28px 24px; border: 1px solid var(--hairline); text-align: center; }
     .stat-num { font-size: 40px; font-weight: 700; letter-spacing: -2px; color: var(--ink); line-height: 1; margin-bottom: 8px; }
     .stat-label { font-size: 13px; color: var(--muted); line-height: 1.4; }
     .savings-list { display: flex; flex-direction: column; gap: 20px; }
     .savings-item { display: flex; gap: 16px; }
-    .savings-check {
-      width: 24px; height: 24px; border-radius: 50%; background: #d1fae5; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center; font-size: 13px; margin-top: 1px;
-    }
-    .savings-item h4 { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 4px; letter-spacing: -0.2px; }
+    .savings-check { width: 24px; height: 24px; border-radius: 50%; background: #d1fae5; flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+    .savings-item h4 { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
     .savings-item p { font-size: 14px; color: var(--muted); line-height: 1.5; }
 
-    /* ── INTEGRATIONS ── */
-    .integrations { background: var(--canvas); }
-    .int-grid {
-      display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px;
-    }
-    .int-card {
-      background: var(--surface-card); border-radius: 12px; padding: 20px 16px;
-      text-align: center; border: 1px solid transparent;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-    .int-card:hover { border-color: var(--hairline); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    .int-card .icon { font-size: 28px; margin-bottom: 8px; }
-    .int-card .name { font-size: 12px; font-weight: 500; color: var(--muted); }
-    .int-more {
-      grid-column: span 2; background: var(--ink); border-radius: 12px; padding: 20px;
-      text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-    }
+    /* INTEGRATIONS */
+    .int-scroll-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 8px; }
+    .int-scroll-wrap::-webkit-scrollbar { height: 4px; }
+    .int-scroll-wrap::-webkit-scrollbar-track { background: var(--hairline-soft); border-radius: 2px; }
+    .int-scroll-wrap::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 2px; }
+    .int-grid { display: grid; grid-template-columns: repeat(6, minmax(160px, 1fr)); gap: 12px; min-width: 1000px; }
+    .int-card { background: var(--surface-card); border-radius: 12px; padding: 20px 16px; text-align: center; border: 1px solid transparent; transition: border-color 0.15s, box-shadow 0.15s; }
+    .int-card:hover { border-color: var(--hairline); box-shadow: 0 2px 8px rgba(0,0,0,0.06); background: white; }
+    .int-card .int-logo { height: 36px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+    .int-card .int-logo svg, .int-card .int-logo img { height: 32px; width: auto; }
+    .int-card .int-name { font-size: 12px; font-weight: 500; color: var(--muted); }
+    .int-more { grid-column: span 2; background: var(--ink); border-radius: 12px; padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
     .int-more .count { font-size: 28px; font-weight: 700; color: white; letter-spacing: -1px; }
     .int-more .label { font-size: 12px; color: #a1a1aa; }
 
-    /* ── SECURITY ── */
-    .security-split {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 0;
-      border-radius: 16px; overflow: hidden; border: 1px solid var(--hairline);
-    }
-    .security-dark {
-      background: var(--surface-dark); padding: 56px 48px; color: white;
-    }
-    .security-dark .section-label { color: var(--badge-emerald); }
-    .security-dark .section-title { color: white; font-size: 32px; }
-    .security-dark .section-sub { color: var(--on-dark-soft); max-width: none; }
-    .security-light {
-      background: var(--surface-card); padding: 56px 48px;
-    }
-    .security-points { display: flex; flex-direction: column; gap: 24px; margin-top: 12px; }
-    .sec-point { display: flex; gap: 16px; }
-    .sec-icon {
-      width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center; font-size: 18px;
-    }
-    .sec-icon.dark { background: #1a1a1a; }
-    .sec-icon.light { background: white; border: 1px solid var(--hairline); }
-    .sec-point h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-    .security-dark .sec-point h4 { color: white; }
-    .security-dark .sec-point p { color: var(--on-dark-soft); font-size: 13px; line-height: 1.5; }
-    .security-light .sec-point h4 { color: var(--ink); }
-    .security-light .sec-point p { color: var(--muted); font-size: 13px; line-height: 1.5; }
+    /* SECURITY */
+    .security-split { display: grid; grid-template-columns: 1fr 1fr; border-radius: 16px; overflow: hidden; border: 1px solid var(--hairline); }
+    .sec-dark { background: var(--surface-dark); padding: 56px 48px; }
+    .sec-dark .section-label { color: var(--emerald); }
+    .sec-dark .section-title { color: white; font-size: 32px; }
+    .sec-dark .section-sub { color: var(--on-dark-soft); max-width: none; margin-bottom: 32px; }
+    .sec-light { background: var(--surface-card); padding: 56px 48px; }
+    .sec-points { display: flex; flex-direction: column; gap: 24px; }
+    .sec-pt { display: flex; gap: 16px; }
+    .sec-pt-icon { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    .sec-pt-icon.dark { background: #1a1a1a; }
+    .sec-pt-icon.light { background: white; border: 1px solid var(--hairline); }
+    .sec-pt-icon svg { width: 18px; height: 18px; }
+    .sec-pt h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .sec-dark .sec-pt h4 { color: white; }
+    .sec-dark .sec-pt p { color: var(--on-dark-soft); font-size: 13px; line-height: 1.5; }
+    .sec-light .sec-pt h4 { color: var(--ink); }
+    .sec-light .sec-pt p { color: var(--muted); font-size: 13px; line-height: 1.5; }
 
-    /* ── PRICING ── */
+    /* PRICING */
     .pricing { background: var(--surface-soft); }
     .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-    .price-card {
-      background: white; border-radius: 12px; padding: 32px;
-      border: 1px solid var(--hairline); position: relative;
-    }
-    .price-card.featured {
-      background: var(--surface-dark); border-color: transparent;
-    }
-    .price-badge {
-      position: absolute; top: -1px; right: 24px;
-      font-size: 11px; font-weight: 600; background: var(--badge-violet); color: white;
-      padding: 4px 12px; border-radius: 0 0 8px 8px; text-transform: uppercase; letter-spacing: 0.5px;
-    }
-    .price-plan { font-size: 14px; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .price-card { background: white; border-radius: 12px; padding: 32px; border: 1px solid var(--hairline); position: relative; }
+    .price-card.featured { background: var(--surface-dark); border-color: transparent; }
+    .price-badge { position: absolute; top: -1px; right: 24px; font-size: 11px; font-weight: 600; background: var(--violet); color: white; padding: 4px 12px; border-radius: 0 0 8px 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .price-plan { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
     .price-card.featured .price-plan { color: var(--on-dark-soft); }
     .price-amount { font-size: 40px; font-weight: 700; letter-spacing: -2px; color: var(--ink); line-height: 1; margin-bottom: 4px; }
     .price-card.featured .price-amount { color: white; }
@@ -322,97 +186,138 @@
     .price-features { display: flex; flex-direction: column; gap: 12px; margin-bottom: 32px; }
     .pf { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--body); }
     .price-card.featured .pf { color: var(--on-dark-soft); }
-    .pf-check { flex-shrink: 0; color: var(--success); font-size: 15px; margin-top: 0px; }
-    .price-card.featured .pf-check { color: var(--badge-emerald); }
+    .pf-check { flex-shrink: 0; color: var(--success); font-size: 15px; }
+    .price-card.featured .pf-check { color: var(--emerald); }
 
-    /* ── FAQ ── */
+    /* FAQ */
     .faq { background: var(--canvas); }
     .faq-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
-    .faq-item {
-      background: var(--surface-card); border-radius: 12px; padding: 28px;
-    }
+    .faq-item { background: var(--surface-card); border-radius: 12px; padding: 28px; }
     .faq-q { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 12px; letter-spacing: -0.2px; }
     .faq-a { font-size: 14px; color: var(--muted); line-height: 1.6; }
 
-    /* ── CTA ── */
-    .cta-band {
-      margin: 0 24px 96px; border-radius: 16px;
-      background: var(--surface-dark); padding: 80px 64px; text-align: center;
-    }
+    /* CTA */
+    .cta-band { margin: 0 24px 96px; border-radius: 16px; background: var(--surface-dark); padding: 80px 64px; text-align: center; }
     .cta-band h2 { font-size: 44px; font-weight: 700; letter-spacing: -1.5px; color: white; margin-bottom: 16px; }
     .cta-band p { font-size: 17px; color: var(--on-dark-soft); margin-bottom: 36px; }
     .cta-actions { display: flex; gap: 12px; justify-content: center; }
-    .btn-white { background: white; color: var(--ink); }
-    .btn-white:hover { background: #f5f5f5; }
-    .btn-outline-white { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.2); }
-    .btn-outline-white:hover { background: rgba(255,255,255,0.08); }
 
-    /* ── FOOTER ── */
-    footer {
-      background: var(--surface-dark); padding: 64px 0 40px;
-      border-top: 1px solid #1f1f1f;
-    }
+    /* FOOTER */
+    footer { background: var(--surface-dark); padding: 64px 0 40px; border-top: 1px solid #1f1f1f; }
     .footer-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-    .footer-top {
-      display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; margin-bottom: 56px;
-    }
-    .footer-brand { }
-    .footer-logo {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 16px; font-weight: 700; color: white; text-decoration: none; margin-bottom: 16px;
-    }
-    .footer-logo img { height: 24px; border-radius: 3px; }
+    .footer-top { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; margin-bottom: 56px; }
+    .footer-logo { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: white; text-decoration: none; margin-bottom: 16px; }
+    .footer-logo img { height: 22px; border-radius: 3px; }
     .footer-tagline { font-size: 14px; color: var(--on-dark-soft); line-height: 1.6; max-width: 260px; }
-    .footer-col h4 { font-size: 13px; font-weight: 600; color: white; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .footer-col h4 { font-size: 12px; font-weight: 600; color: white; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
     .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
     .footer-col ul li a { font-size: 14px; color: var(--on-dark-soft); text-decoration: none; }
     .footer-col ul li a:hover { color: white; }
-    .footer-bottom {
-      border-top: 1px solid #1f1f1f; padding-top: 32px;
-      display: flex; justify-content: space-between; align-items: center;
-    }
+    .footer-bottom { border-top: 1px solid #1f1f1f; padding-top: 32px; display: flex; justify-content: space-between; align-items: center; }
     .footer-copy { font-size: 13px; color: #555; }
     .footer-links { display: flex; gap: 24px; }
     .footer-links a { font-size: 13px; color: #555; text-decoration: none; }
-    .footer-links a:hover { color: var(--on-dark-soft); }
 
-    /* ── RESPONSIVE ── */
+    /* RESPONSIVE */
     @media (max-width: 1024px) {
       .hero-inner { grid-template-columns: 1fr; gap: 48px; }
       .hero h1 { font-size: 44px; }
       .features-grid { grid-template-columns: repeat(2, 1fr); }
-      .int-grid { grid-template-columns: repeat(4, 1fr); }
-      .footer-top { grid-template-columns: 1fr 1fr; gap: 32px; }
       .security-split { grid-template-columns: 1fr; }
+      .footer-top { grid-template-columns: 1fr 1fr; gap: 32px; }
     }
     @media (max-width: 768px) {
       .hero { padding: 64px 0 56px; }
       .hero h1 { font-size: 36px; letter-spacing: -1.5px; }
       .section-title { font-size: 30px; }
-      .problem-grid { grid-template-columns: 1fr; }
-      .steps { grid-template-columns: 1fr; }
+      .problem-grid, .steps, .features-grid, .savings-grid, .pricing-grid, .faq-grid { grid-template-columns: 1fr; }
       .steps::before { display: none; }
-      .features-grid { grid-template-columns: 1fr; }
-      .savings-grid { grid-template-columns: 1fr; }
-      .pricing-grid { grid-template-columns: 1fr; }
-      .faq-grid { grid-template-columns: 1fr; }
-      .int-grid { grid-template-columns: repeat(3, 1fr); }
       .nav-links { display: none; }
       .cta-band { margin: 0 16px 64px; padding: 56px 32px; }
       .cta-band h2 { font-size: 32px; }
       .cta-actions { flex-direction: column; align-items: center; }
       .footer-top { grid-template-columns: 1fr; }
-      .footer-bottom { flex-direction: column; gap: 16px; text-align: center; }
+      .footer-bottom { flex-direction: column; gap: 16px; }
     }
   </style>
 </head>
 <body>
 
+<!-- SVG DEFS (logos used inline) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- Gmail -->
+    <symbol id="logo-gmail" viewBox="0 0 24 24">
+      <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 010 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z" fill="#EA4335"/>
+    </symbol>
+    <!-- Slack -->
+    <symbol id="logo-slack" viewBox="0 0 24 24">
+      <path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.527 2.527 0 012.521 2.522v2.52H8.834zm0 1.271a2.527 2.527 0 012.521 2.521 2.527 2.527 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.527 2.527 0 01-2.522 2.521h-2.522V8.834zm-1.268 0a2.527 2.527 0 01-2.523 2.521 2.526 2.526 0 01-2.52-2.521V2.522A2.527 2.527 0 0115.165 0a2.528 2.528 0 012.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 012.523 2.522A2.528 2.528 0 0115.165 24a2.527 2.527 0 01-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 01-2.52-2.523 2.526 2.526 0 012.52-2.52h6.313A2.527 2.527 0 0124 15.165a2.528 2.528 0 01-2.522 2.523h-6.313z" fill="#E01E5A"/>
+    </symbol>
+    <!-- Notion (N wordmark simplified) -->
+    <symbol id="logo-notion" viewBox="0 0 24 24">
+      <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466l1.823 1.447zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.934zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.887.747-.933l3.222-.187z" fill="#000"/>
+    </symbol>
+    <!-- Google Drive -->
+    <symbol id="logo-gdrive" viewBox="0 0 24 24">
+      <path d="M4.433 22.396L1.019 16.498 7.852 4.7l3.414 5.898L4.433 22.396zm6.052-6.765H1.019l3.414 5.898h9.22l-3.168-5.898zM12 4.7L8.587 10.6 12 16.498l3.413-5.898L12 4.7zm1.781 11.932l-3.168 5.898h9.22l3.414-5.898h-9.466z" fill="#4285F4"/>
+    </symbol>
+    <!-- GitHub -->
+    <symbol id="logo-github" viewBox="0 0 24 24">
+      <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" fill="#181717"/>
+    </symbol>
+    <!-- Linear -->
+    <symbol id="logo-linear" viewBox="0 0 24 24">
+      <path d="M0 12.498L11.498 24l.002-5.53L5.528 12.5 0 12.498zM0 9.977l2.225 2.226 9.275.001V2.928L9.273.701 0 9.977zm13.5 13.5L24 13.5l-2.223-2.222H11.5v9.977l2 2.222zM24 10.502L13.5 0l-2 2.222v9.276h9.277L24 10.502z" fill="#5E6AD2"/>
+    </symbol>
+    <!-- Jira -->
+    <symbol id="logo-jira" viewBox="0 0 24 24">
+      <path d="M11.571 11.513H0a5.218 5.218 0 005.2 5.2h2.105v2.012A5.218 5.218 0 0012.508 24V12.518a1.005 1.005 0 00-1.005-1.005H11.571zM12.508 5.756H1.02a5.218 5.218 0 005.2 5.2h2.104v2.012A5.218 5.218 0 0013.526 18.2V6.761a1.005 1.005 0 00-.937-1.005H12.508zM13.446 0H1.957a5.218 5.218 0 005.2 5.2h2.104v2.012A5.218 5.218 0 0014.463 12.444V1.005A1.005 1.005 0 0013.446 0H13.446z" fill="#0052CC"/>
+    </symbol>
+    <!-- HubSpot -->
+    <symbol id="logo-hubspot" viewBox="0 0 24 24">
+      <path d="M18.164 7.93V5.084a1.56 1.56 0 00.898-1.407V3.64a1.56 1.56 0 00-1.557-1.557h-.037a1.56 1.56 0 00-1.557 1.557v.037a1.56 1.56 0 00.898 1.407V7.93a4.42 4.42 0 00-2.088.898L7.08 3.04a1.747 1.747 0 10-.924.924l7.556 5.27a4.432 4.432 0 00-.573 2.16 4.463 4.463 0 004.46 4.46 4.463 4.463 0 004.46-4.46 4.463 4.463 0 00-3.895-4.463zM17.62 14.85a2.46 2.46 0 110-4.92 2.46 2.46 0 010 4.92zM9.32 12.394a4.432 4.432 0 00-.573-2.16l-1.12.78a2.443 2.443 0 01.315 1.18 2.46 2.46 0 01-2.46 2.46 2.46 2.46 0 01-2.46-2.46 2.46 2.46 0 012.46-2.46c.29 0 .568.05.83.14l1.092-.762A4.463 4.463 0 005.48 8.93a4.463 4.463 0 00-4.46 4.464 4.463 4.463 0 004.46 4.46 4.463 4.463 0 004.46-4.46h-.62z" fill="#FF7A59"/>
+    </symbol>
+    <!-- Asana -->
+    <symbol id="logo-asana" viewBox="0 0 24 24">
+      <path d="M19.003 12.93a4.997 4.997 0 100 9.994 4.997 4.997 0 000-9.994zM5 12.93a4.997 4.997 0 100 9.994A4.997 4.997 0 005 12.93zm7-9.854a4.997 4.997 0 100 9.993 4.997 4.997 0 000-9.993z" fill="#F06A6A"/>
+    </symbol>
+    <!-- Microsoft Teams -->
+    <symbol id="logo-teams" viewBox="0 0 24 24">
+      <path d="M20.625 5.25h-5.5v9a3.375 3.375 0 01-3.375 3.375h-4.5A3.375 3.375 0 014 17.25V8.625H3.375A3.375 3.375 0 000 12v6.75A3.375 3.375 0 003.375 22.125h13.5A3.375 3.375 0 0020.25 18.75v-.375h.375A3.375 3.375 0 0024 15V8.625A3.375 3.375 0 0020.625 5.25zM11.25 1.875A3.375 3.375 0 108.625 5.25h2.625V1.875zM14.625 5.25H8.25A3.375 3.375 0 015.25 8.625v8.625A2.625 2.625 0 007.875 19.5h3.75a2.625 2.625 0 002.625-2.625V8.25l.375-3z" fill="#5059C9"/>
+    </symbol>
+    <!-- Google Calendar -->
+    <symbol id="logo-gcal" viewBox="0 0 24 24">
+      <path d="M18 0H6L0 6v12l6 6h12l6-6V6L18 0zm-6 19.5A7.5 7.5 0 1112 4.5a7.5 7.5 0 010 15zm1.5-7.5v-3h-3v3h-3v3h3v3h3v-3h3v-3h-3z" fill="#4285F4"/>
+    </symbol>
+    <!-- Salesforce -->
+    <symbol id="logo-salesforce" viewBox="0 0 24 24">
+      <path d="M10.06 4.79A5.44 5.44 0 0114.34 3a5.51 5.51 0 015.2 3.64A4.07 4.07 0 0121 6.51a4.13 4.13 0 01.44 8.23l-.44 0H5.25a3.75 3.75 0 01-.66-7.45 4.82 4.82 0 015.47-2.5z" fill="#00A1E0"/>
+    </symbol>
+    <!-- Confluence -->
+    <symbol id="logo-confluence" viewBox="0 0 24 24">
+      <path d="M.9 17.4c-.3.5-.2 1.1.3 1.4l4.7 2.8c.5.3 1.1.1 1.4-.4 1.2-2 2.7-3.5 5.7-3.5s4.5 1.5 5.7 3.5c.3.5.9.7 1.4.4l4.7-2.8c.5-.3.6-.9.3-1.4C22.6 13.5 19.1 12 12 12S1.4 13.5.9 17.4zm22.2-10.8c.3-.5.2-1.1-.3-1.4l-4.7-2.8c-.5-.3-1.1-.1-1.4.4C15.5 4.8 14 6.3 11 6.3S6.5 4.8 5.3 2.8c-.3-.5-.9-.7-1.4-.4L.2 5.2c-.5.3-.6.9-.3 1.4C1.4 10.5 4.9 12 12 12s10.6-1.5 11.1-5.4z" fill="#2684FF"/>
+    </symbol>
+    <!-- Dropbox -->
+    <symbol id="logo-dropbox" viewBox="0 0 24 24">
+      <path d="M6 1.5L0 5.25l6 3.75 6-3.75L6 1.5zm12 0l-6 3.75 6 3.75 6-3.75L18 1.5zM0 12.75l6 3.75 6-3.75-6-3.75L0 12.75zm18-3.75l-6 3.75 6 3.75 6-3.75-6-3.75zM6 17.625L12 21.375l6-3.75-6-3.75-6 3.75z" fill="#0061FF"/>
+    </symbol>
+    <!-- Airtable -->
+    <symbol id="logo-airtable" viewBox="0 0 24 24">
+      <path d="M11.984 0L0 4.367v.603l11.984 4.367L24 4.97V4.367L11.984 0zM0 9.266v9.471l10.67 5.168V14.43L0 9.266zm13.33 5.166v9.476L24 18.737V9.266L13.33 14.432z" fill="#FCB400"/>
+    </symbol>
+    <!-- Checkmark for savings -->
+    <symbol id="icon-check" viewBox="0 0 16 16">
+      <path d="M13.25 4.75L6.5 11.5l-3.75-3.75" stroke="#059669" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </defs>
+</svg>
+
 <!-- NAV -->
 <nav>
   <div class="nav-inner">
     <a href="#" class="nav-logo">
-      <img src="data:image/jpeg;base64,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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/9oADAMBAAIAAwAAACEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwDSACBDDSAAjCACgABAgAABCAABiAQAgTSAAAAAAAAAAAAAAADwABwAAABQACwwgCgAACgAACgAACgTwCjAAAAAAAAAAAAAAAAADwAAAAgABQACgAACgAACgABSASgChAACwSQAAAAAAAAAAAAAAADQAABAgABwADQwgCwwgQwwDCAAAChBQCwBQgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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" alt="Intellark" />
+      <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAQFBQkGCQkJCQkKCAkICgsLCgoLCwwKCwoLCgwMDAwNDQwMDAwMDw4PDAwNDw8PDw0OERERDhEQEBETERMREQ0BBAQECAYIBwgIBwgGCAYICAgHBwgICQcHBwcHCQoJCAgICAkKCQgIBggICQkJCgoJCQoICQgKCgoKCg4QDg4Od/8CAREIADADIAMB/8QAjwABAAMBAQEBAQAAAAAAAAAAAAQGBwUDAgERAAAQICAwYRCQcDBAMAAAAAAQIDAAQFBhESICExNFEQExYiMjNBUnFyc5KxssHR0hQVQlNhYoGCoSNQg5GTwvAwNbAko+HiosDxEQEAAQEGBgEEAwEBAAAAAAABESEAIDFBUWEQcYGRofAwULHB4UDR8bDA/9oADAMBAAIAAwAAAALPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWWZFnFKBO1DMNfMU+NLzQA1PLNcyMdbkjUmWjaeV9ZgaXw6SANInR8+NFZaNSz3ngDU8t1rJT8AA9/CQaNmOq5UAAALPWNSPHM9OzwiAA1yLLyI1L0ykXmjaTUzhAu3H7vFK8dQ9LdMzA+AAAAAAAAAAAAAAAAWedBnFKBPv1Bvx4cmo6wZK7XFNcyPXMjAANWzDT8wPAAGnZ9oPqZY04ZiulLANbyXWslPwACRHkGm5VquVAAAHUtvtRyZYaHqxlL6+QDXci13IgfZZpdhz45YL3xe1CODovRoRXPEAAAAAAAAAAAAAAAALPOgzilAn36g34zKXEGw5R0b8feR67kQABq2YafmB4AA07PtBz4hAAA1vJdayU/AAJEeQablWq5UAAPbxuhdalGrJb7Dl/udKs6vlABsfPlZEan3sOuxyq9dKWAXuzVnjHJ0vKJx+QtXyo+QAAAAAAAAAAAAAAAWedWfU5YJ9+zjrnCAuNOG94JZ6wAAatmHZ4R8AA06uQuiQk0QuPZa8QQa3R/yaQk0QuLZ62RJEf7NdoM0Qk0c7g2qqjXsn7RwvgANQoP59nLBruRWOuD9/BreY+nscgF74sSKQwWSwZ3YyuPTzAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/9oACAECAAE/AP8AOJ//2gAIAQMAAT8A/wA4n/9oACAEBAAE/Av8APYVdQFzQCgFC5VgIti tDaW3WrlITrNwWbujIC2YYBwgut9YRJSTXQ3c01YhKUOJwoIFnwPsMLQWyUqFhSbCM15Qks0uTbKm0KOvwlIJ2atGiXmmZhCntrF1baLr0TZgw7see==" alt="Intellark" />
       Intellark
     </a>
     <div class="nav-links">
@@ -431,15 +336,15 @@
 <!-- HERO -->
 <section class="hero">
   <div class="hero-inner">
-    <div class="hero-content">
-      <div class="hero-badge"><span></span>AI-Powered Knowledge Hub</div>
+    <div>
+      <div class="hero-badge"><span class="hero-badge-dot"></span>AI-Powered Knowledge Hub</div>
       <h1>The second brain<br/>your company<br/><em>never forgets</em></h1>
       <p class="hero-sub">Ask a question. Get answers from your emails, docs, Slack, and every tool your team uses — in seconds, not hours.</p>
       <div class="hero-actions">
         <a href="/app" class="btn btn-primary btn-xl">Start for free →</a>
         <a href="#how-it-works" class="btn btn-secondary btn-xl">See how it works</a>
       </div>
-      <div class="hero-social-proof">
+      <div class="hero-proof">
         <div class="hero-avatars">
           <span style="background:#8b5cf6">JA</span>
           <span style="background:#10b981">MK</span>
@@ -451,57 +356,79 @@
     </div>
     <div class="hero-mockup">
       <div class="mockup-topbar">
-        <div class="mockup-dot red"></div>
-        <div class="mockup-dot yellow"></div>
-        <div class="mockup-dot green"></div>
+        <div class="mockup-dot r"></div><div class="mockup-dot y"></div><div class="mockup-dot g"></div>
         <div class="mockup-title">Intellark — Company Brain</div>
       </div>
       <div class="mockup-chat">
         <div class="msg msg-user">What did the client say about the pricing changes last week?</div>
         <div class="msg msg-ai">
           <div class="msg-ai-header"><div class="ai-dot"></div><span class="ai-label">Intellark</span></div>
-          Based on your team's conversations, Sarah from Acme Corp mentioned in Tuesday's email that they're comfortable with the new pricing if it includes premium support. The thread also references a Notion doc where the final terms were drafted.
-          <div class="msg-source">
-            <span class="source-chip gmail">Gmail · 3 emails</span>
-            <span class="source-chip notion">Notion · 1 doc</span>
-            <span class="source-chip slack">#deals · 2 msgs</span>
+          Sarah from Acme Corp mentioned in Tuesday's email she's comfortable with the new pricing if it includes premium support. The thread references a Notion doc where final terms were drafted.
+          <div class="msg-sources">
+            <span class="src src-gmail"><svg width="10" height="10" viewBox="0 0 24 24"><use href="#logo-gmail"/></svg>Gmail · 3 emails</span>
+            <span class="src src-notion"><svg width="10" height="10" viewBox="0 0 24 24"><use href="#logo-notion"/></svg>Notion · 1 doc</span>
+            <span class="src src-slack"><svg width="10" height="10" viewBox="0 0 24 24"><use href="#logo-slack"/></svg>#deals · 2 msgs</span>
           </div>
         </div>
         <div class="msg msg-user">Summarize our Q3 product roadmap decisions</div>
         <div class="msg msg-ai">
           <div class="msg-ai-header"><div class="ai-dot"></div><span class="ai-label">Intellark</span></div>
-          Your Q3 roadmap from the Google Drive doc, 3 Linear tickets, and 2 Notion pages shows: (1) Ship mobile app by Aug 15, (2) Migrate to new auth system, (3) Launch team analytics dashboard...
-          <div class="msg-source">
-            <span class="source-chip gmail">Drive · 1 doc</span>
-            <span class="source-chip slack">Linear · 3 tickets</span>
+          Your Q3 roadmap shows: (1) Ship mobile app by Aug 15, (2) Migrate to new auth system, (3) Launch team analytics dashboard — sourced from Drive, Linear, and Notion.
+          <div class="msg-sources">
+            <span class="src src-drive"><svg width="10" height="10" viewBox="0 0 24 24"><use href="#logo-gdrive"/></svg>Drive · 1 doc</span>
+            <span class="src src-notion"><svg width="10" height="10" viewBox="0 0 24 24"><use href="#logo-notion"/></svg>Notion · 2 pages</span>
           </div>
         </div>
       </div>
-      <div class="mockup-integrations">
-        <span class="int-label">Connected to:</span>
-        <span class="int-chip">📧 Gmail</span>
-        <span class="int-chip">💬 Slack</span>
-        <span class="int-chip">📄 Notion</span>
-        <span class="int-chip">📂 Drive</span>
-        <span class="int-chip">+ 996 more</span>
+      <div class="mockup-connected">
+        <span class="conn-label">Connected to:</span>
+        <span class="conn-chip"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#logo-gmail"/></svg>Gmail</span>
+        <span class="conn-chip"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#logo-slack"/></svg>Slack</span>
+        <span class="conn-chip"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#logo-notion"/></svg>Notion</span>
+        <span class="conn-chip"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#logo-gdrive"/></svg>Drive</span>
+        <span class="conn-chip">+ 996 more</span>
       </div>
     </div>
   </div>
 </section>
 
-<!-- LOGOS STRIP -->
+<!-- SCROLLING LOGOS -->
 <div class="logos-strip">
-  <div class="container">
-    <p class="logos-label">Works with the tools your team already uses</p>
-    <div class="logos-row">
-      <span class="app-logo">Gmail</span>
-      <span class="app-logo">Slack</span>
-      <span class="app-logo">Notion</span>
-      <span class="app-logo">Google Drive</span>
-      <span class="app-logo">GitHub</span>
-      <span class="app-logo">Linear</span>
-      <span class="app-logo">HubSpot</span>
-      <span class="app-logo">Jira</span>
+  <p class="logos-label">Works with the tools your team already uses</p>
+  <div class="marquee-wrap">
+    <div class="marquee-track">
+      <!-- First set -->
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-gmail"/></svg><span>Gmail</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-slack"/></svg><span>Slack</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-notion"/></svg><span>Notion</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-gdrive"/></svg><span>Google Drive</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-github"/></svg><span>GitHub</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-linear"/></svg><span>Linear</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-jira"/></svg><span>Jira</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-hubspot"/></svg><span>HubSpot</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-teams"/></svg><span>Microsoft Teams</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-gcal"/></svg><span>Google Calendar</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-asana"/></svg><span>Asana</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-confluence"/></svg><span>Confluence</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-dropbox"/></svg><span>Dropbox</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-salesforce"/></svg><span>Salesforce</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-airtable"/></svg><span>Airtable</span></div>
+      <!-- Duplicate for seamless loop -->
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-gmail"/></svg><span>Gmail</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-slack"/></svg><span>Slack</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-notion"/></svg><span>Notion</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-gdrive"/></svg><span>Google Drive</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-github"/></svg><span>GitHub</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-linear"/></svg><span>Linear</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-jira"/></svg><span>Jira</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-hubspot"/></svg><span>HubSpot</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-teams"/></svg><span>Microsoft Teams</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-gcal"/></svg><span>Google Calendar</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-asana"/></svg><span>Asana</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-confluence"/></svg><span>Confluence</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-dropbox"/></svg><span>Dropbox</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-salesforce"/></svg><span>Salesforce</span></div>
+      <div class="logo-item"><svg viewBox="0 0 24 24"><use href="#logo-airtable"/></svg><span>Airtable</span></div>
     </div>
   </div>
 </div>
@@ -516,19 +443,25 @@
     </div>
     <div class="problem-grid">
       <div class="problem-card">
-        <div class="problem-icon">📬</div>
+        <div class="prob-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        </div>
         <h3>"I know someone sent that info..."</h3>
         <p>Critical decisions get buried in email chains. You waste 30 minutes searching before giving up and asking again.</p>
       </div>
       <div class="problem-card">
-        <div class="problem-icon">🔍</div>
+        <div class="prob-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        </div>
         <h3>Context switching kills focus</h3>
-        <p>Slack, Notion, Google Drive, Linear — you need to search six tools just to answer one question. Every context switch costs 23 minutes of focus.</p>
+        <p>Slack, Notion, Drive, Linear — you search six tools to answer one question. Every context switch costs 23 minutes of focus.</p>
       </div>
       <div class="problem-card">
-        <div class="problem-icon">🚪</div>
+        <div class="prob-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
         <h3>Knowledge walks out the door</h3>
-        <p>When a team member leaves, their institutional knowledge disappears with them. Onboarding new hires takes weeks of unnecessary back-and-forth.</p>
+        <p>When a team member leaves, their institutional knowledge goes with them. Onboarding new hires takes weeks of unnecessary back-and-forth.</p>
       </div>
     </div>
   </div>
@@ -546,24 +479,24 @@
       <div class="step">
         <div class="step-num">1</div>
         <h3>Connect your tools</h3>
-        <p>Link Gmail, Slack, Notion, GitHub, and 1,000+ other apps in a single click. No complex setup, no engineering required.</p>
+        <p>Link Gmail, Slack, Notion, GitHub, and 1,000+ other apps in a single click. No code, no engineering required.</p>
       </div>
       <div class="step">
         <div class="step-num">2</div>
         <h3>Intellark indexes everything</h3>
-        <p>Your data is ingested, organized, and made searchable — across all sources simultaneously. Updates happen automatically in real time.</p>
+        <p>Your data is ingested and made searchable across all sources simultaneously. Updates happen automatically in real time.</p>
       </div>
       <div class="step">
         <div class="step-num">3</div>
         <h3>Ask anything, get answers</h3>
-        <p>Type your question in plain English. Intellark searches every source at once and synthesizes a clear answer with citations you can click.</p>
+        <p>Type your question in plain English. Intellark searches every source at once and synthesizes a clear answer with citations.</p>
       </div>
     </div>
   </div>
 </section>
 
 <!-- FEATURES -->
-<section id="features" class="features">
+<section id="features">
   <div class="container">
     <div class="section-head">
       <div class="section-label">Features</div>
@@ -572,39 +505,51 @@
     </div>
     <div class="features-grid">
       <div class="feat-card">
-        <div class="feat-icon" style="background:#f3f0ff">🧠</div>
+        <div class="feat-icon" style="background:#f3f0ff">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        </div>
         <h3>Unified knowledge search</h3>
         <p>One search box that spans every tool. Ask a question and get results from Gmail, Slack, Notion, Drive, and 1,000+ other apps — simultaneously.</p>
         <span class="feat-tag" style="background:#f3f0ff;color:#7c3aed">Core Feature</span>
       </div>
       <div class="feat-card">
-        <div class="feat-icon" style="background:#ecfdf5">⚡</div>
+        <div class="feat-icon" style="background:#ecfdf5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </div>
         <h3>Real-time sync</h3>
         <p>Every new email, message, and document is indexed automatically. Your Intellark brain stays current — no manual uploads, no stale data.</p>
         <span class="feat-tag" style="background:#ecfdf5;color:#059669">Always Fresh</span>
       </div>
       <div class="feat-card">
-        <div class="feat-icon" style="background:#fff7ed">🔗</div>
+        <div class="feat-icon" style="background:#fff7ed">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+        </div>
         <h3>Source citations</h3>
-        <p>Every answer includes clickable sources showing exactly where the information came from — email, doc, or message — so you can verify instantly.</p>
+        <p>Every answer includes clickable sources showing exactly where the information came from — so you can verify instantly.</p>
         <span class="feat-tag" style="background:#fff7ed;color:#c2410c">Traceable</span>
       </div>
       <div class="feat-card">
-        <div class="feat-icon" style="background:#eff6ff">👥</div>
+        <div class="feat-icon" style="background:#eff6ff">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
         <h3>Team knowledge base</h3>
         <p>Institutional knowledge stays with the company, not the individual. Onboard new hires faster with answers they can find themselves.</p>
         <span class="feat-tag" style="background:#eff6ff;color:#1d4ed8">Collaborative</span>
       </div>
       <div class="feat-card">
-        <div class="feat-icon" style="background:#f0fdf4">📊</div>
+        <div class="feat-icon" style="background:#f0fdf4">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
         <h3>Multi-source summaries</h3>
         <p>Ask Intellark to summarize a topic across all your sources. Get a synthesized overview of what your team knows — in seconds.</p>
         <span class="feat-tag" style="background:#f0fdf4;color:#16a34a">Time Saver</span>
       </div>
       <div class="feat-card">
-        <div class="feat-icon" style="background:#fdf4ff">🔒</div>
+        <div class="feat-icon" style="background:#fdf4ff">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#7e22ce" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        </div>
         <h3>Private by design</h3>
-        <p>Your data never trains AI models. End-to-end encryption, role-based access, and strict data residency controls keep sensitive info safe.</p>
+        <p>Your data never trains AI models. End-to-end encryption, role-based access, and strict data residency keep sensitive info safe.</p>
         <span class="feat-tag" style="background:#fdf4ff;color:#7e22ce">Enterprise Ready</span>
       </div>
     </div>
@@ -618,81 +563,62 @@
       <div>
         <div class="section-label">Time Savings</div>
         <h2 class="section-title">Hours back in every<br/>team member's week</h2>
-        <p class="section-sub" style="margin-bottom:36px">The average knowledge worker spends 2.5 hours per day searching for information. Intellark cuts that down to minutes.</p>
+        <p class="section-sub" style="margin-bottom:36px">The average knowledge worker spends 2.5 hours per day searching for information. Intellark cuts that to minutes.</p>
         <div class="savings-list">
           <div class="savings-item">
-            <div class="savings-check">✓</div>
-            <div>
-              <h4>Stop repeating yourself</h4>
-              <p>Questions that used to require a meeting now have instant answers. Stop answering the same question five times a week.</p>
-            </div>
+            <div class="savings-check"><svg width="14" height="14" viewBox="0 0 16 16"><use href="#icon-check"/></svg></div>
+            <div><h4>Stop repeating yourself</h4><p>Questions that used to require a meeting now have instant answers.</p></div>
           </div>
           <div class="savings-item">
-            <div class="savings-check">✓</div>
-            <div>
-              <h4>Onboard in days, not months</h4>
-              <p>New team members find the context they need without interrupting senior staff. Onboarding time drops by 60%.</p>
-            </div>
+            <div class="savings-check"><svg width="14" height="14" viewBox="0 0 16 16"><use href="#icon-check"/></svg></div>
+            <div><h4>Onboard in days, not months</h4><p>New team members find the context they need without interrupting senior staff. Onboarding time drops by 60%.</p></div>
           </div>
           <div class="savings-item">
-            <div class="savings-check">✓</div>
-            <div>
-              <h4>Reclaim meeting time</h4>
-              <p>Status updates, context-setting, and "what did we decide?" meetings disappear when everyone has instant access to shared knowledge.</p>
-            </div>
+            <div class="savings-check"><svg width="14" height="14" viewBox="0 0 16 16"><use href="#icon-check"/></svg></div>
+            <div><h4>Reclaim meeting time</h4><p>Status updates and "what did we decide?" meetings disappear when everyone has instant access to shared knowledge.</p></div>
           </div>
         </div>
       </div>
       <div class="savings-stats">
-        <div class="stat-card">
-          <div class="stat-num">2.5h</div>
-          <div class="stat-label">avg. daily time wasted searching for info</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-num">< 10s</div>
-          <div class="stat-label">time to get an answer with Intellark</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-num">60%</div>
-          <div class="stat-label">faster onboarding for new hires</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-num">1000+</div>
-          <div class="stat-label">apps you can connect to your brain</div>
-        </div>
+        <div class="stat-card"><div class="stat-num">2.5h</div><div class="stat-label">avg. daily time wasted searching for info</div></div>
+        <div class="stat-card"><div class="stat-num">&lt;10s</div><div class="stat-label">time to get an answer with Intellark</div></div>
+        <div class="stat-card"><div class="stat-num">60%</div><div class="stat-label">faster onboarding for new hires</div></div>
+        <div class="stat-card"><div class="stat-num">1000+</div><div class="stat-label">apps you can connect to your brain</div></div>
       </div>
     </div>
   </div>
 </section>
 
 <!-- INTEGRATIONS -->
-<section id="integrations" class="integrations">
+<section id="integrations">
   <div class="container">
     <div class="section-head" style="text-align:center">
       <div class="section-label" style="justify-content:center">Integrations</div>
       <h2 class="section-title" style="text-align:center;margin:0 auto 16px">Connect everything<br/>your team already uses</h2>
-      <p class="section-sub" style="margin:0 auto 64px;text-align:center">One-click connections to 1,000+ apps. No API keys, no engineering, no drama.</p>
+      <p class="section-sub" style="margin:0 auto 48px;text-align:center">One-click connections to 1,000+ apps. No API keys, no engineering, no drama.</p>
     </div>
-    <div class="int-grid">
-      <div class="int-card"><div class="icon">📧</div><div class="name">Gmail</div></div>
-      <div class="int-card"><div class="icon">💬</div><div class="name">Slack</div></div>
-      <div class="int-card"><div class="icon">📄</div><div class="name">Notion</div></div>
-      <div class="int-card"><div class="icon">📂</div><div class="name">Google Drive</div></div>
-      <div class="int-card"><div class="icon">🐙</div><div class="name">GitHub</div></div>
-      <div class="int-card"><div class="icon">📅</div><div class="name">Calendar</div></div>
-      <div class="int-card"><div class="icon">📋</div><div class="name">Linear</div></div>
-      <div class="int-card"><div class="icon">🎯</div><div class="name">Jira</div></div>
-      <div class="int-card"><div class="icon">📊</div><div class="name">HubSpot</div></div>
-      <div class="int-card"><div class="icon">🔷</div><div class="name">Microsoft Teams</div></div>
-      <div class="int-card"><div class="icon">📝</div><div class="name">Google Docs</div></div>
-      <div class="int-card"><div class="icon">🗂️</div><div class="name">Confluence</div></div>
-      <div class="int-card"><div class="icon">✅</div><div class="name">Asana</div></div>
-      <div class="int-card"><div class="icon">📌</div><div class="name">Airtable</div></div>
-      <div class="int-card"><div class="icon">🤝</div><div class="name">Salesforce</div></div>
-      <div class="int-card"><div class="icon">📦</div><div class="name">Dropbox</div></div>
-      <div class="int-more">
-        <div class="count">1,000+</div>
-        <div class="label">more apps available</div>
+    <div class="int-scroll-wrap">
+      <div class="int-grid">
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-gmail"/></svg></div><div class="int-name">Gmail</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-slack"/></svg></div><div class="int-name">Slack</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-notion"/></svg></div><div class="int-name">Notion</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-gdrive"/></svg></div><div class="int-name">Google Drive</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-github"/></svg></div><div class="int-name">GitHub</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-gcal"/></svg></div><div class="int-name">Calendar</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-linear"/></svg></div><div class="int-name">Linear</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-jira"/></svg></div><div class="int-name">Jira</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-hubspot"/></svg></div><div class="int-name">HubSpot</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-teams"/></svg></div><div class="int-name">MS Teams</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-confluence"/></svg></div><div class="int-name">Confluence</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-asana"/></svg></div><div class="int-name">Asana</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-airtable"/></svg></div><div class="int-name">Airtable</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-salesforce"/></svg></div><div class="int-name">Salesforce</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24"><use href="#logo-dropbox"/></svg></div><div class="int-name">Dropbox</div></div>
+        <div class="int-card"><div class="int-logo"><svg viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="int-name">Google Docs</div></div>
+        <div class="int-more">
+          <div class="count">1,000+</div>
+          <div class="label">more apps available</div>
+        </div>
       </div>
     </div>
   </div>
@@ -702,58 +628,40 @@
 <section style="padding:96px 0">
   <div class="container">
     <div class="security-split">
-      <div class="security-dark">
+      <div class="sec-dark">
         <div class="section-label">Security</div>
         <h2 class="section-title">Enterprise security,<br/>built in from day one</h2>
-        <p class="section-sub" style="margin:16px 0 32px">Your company's knowledge is sensitive. Intellark is built with security as a first principle, not an afterthought.</p>
-        <div class="security-points">
-          <div class="sec-point">
-            <div class="sec-icon dark">🔐</div>
-            <div>
-              <h4>End-to-end encryption</h4>
-              <p>All data encrypted at rest and in transit. Your data is yours — we never read it.</p>
-            </div>
+        <p class="section-sub">Your company's knowledge is sensitive. Intellark is built with security as a first principle, not an afterthought.</p>
+        <div class="sec-points">
+          <div class="sec-pt">
+            <div class="sec-pt-icon dark"><svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
+            <div><h4>End-to-end encryption</h4><p>All data encrypted at rest and in transit. Your data is yours — we never read it.</p></div>
           </div>
-          <div class="sec-point">
-            <div class="sec-icon dark">🚫</div>
-            <div>
-              <h4>Zero training on your data</h4>
-              <p>Your company's information never trains AI models. Full stop.</p>
-            </div>
+          <div class="sec-pt">
+            <div class="sec-pt-icon dark"><svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></div>
+            <div><h4>Zero training on your data</h4><p>Your company's information never trains AI models. Full stop.</p></div>
           </div>
-          <div class="sec-point">
-            <div class="sec-icon dark">🌍</div>
-            <div>
-              <h4>Data residency controls</h4>
-              <p>Choose where your data lives. US, EU, or your own cloud infrastructure.</p>
-            </div>
+          <div class="sec-pt">
+            <div class="sec-pt-icon dark"><svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
+            <div><h4>Data residency controls</h4><p>Choose where your data lives. US, EU, or your own cloud infrastructure.</p></div>
           </div>
         </div>
       </div>
-      <div class="security-light">
+      <div class="sec-light">
         <h3 style="font-size:22px;font-weight:600;color:var(--ink);margin-bottom:8px;letter-spacing:-0.3px">Role-based access control</h3>
         <p style="font-size:14px;color:var(--muted);margin-bottom:32px;line-height:1.6">Teams see only what they're supposed to see. Finance data stays with finance. Engineering docs stay with engineers.</p>
-        <div class="security-points">
-          <div class="sec-point">
-            <div class="sec-icon light">👁️</div>
-            <div>
-              <h4>Granular permissions</h4>
-              <p>Control access at the workspace, team, or document level. SSO and directory sync supported.</p>
-            </div>
+        <div class="sec-points">
+          <div class="sec-pt">
+            <div class="sec-pt-icon light"><svg viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
+            <div><h4>Granular permissions</h4><p>Control access at the workspace, team, or document level. SSO and directory sync supported.</p></div>
           </div>
-          <div class="sec-point">
-            <div class="sec-icon light">📋</div>
-            <div>
-              <h4>Full audit logs</h4>
-              <p>Every search, every access, fully logged. Compliance and security teams love us.</p>
-            </div>
+          <div class="sec-pt">
+            <div class="sec-pt-icon light"><svg viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg></div>
+            <div><h4>Full audit logs</h4><p>Every search, every access, fully logged. Compliance and security teams love us.</p></div>
           </div>
-          <div class="sec-point">
-            <div class="sec-icon light">✅</div>
-            <div>
-              <h4>SOC 2 ready</h4>
-              <p>Built to meet enterprise compliance requirements from day one. Reports available on request.</p>
-            </div>
+          <div class="sec-pt">
+            <div class="sec-pt-icon light"><svg viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+            <div><h4>SOC 2 ready</h4><p>Built to meet enterprise compliance requirements from day one. Reports available on request.</p></div>
           </div>
         </div>
       </div>
@@ -787,7 +695,7 @@
       <div class="price-card featured">
         <div class="price-badge">Most Popular</div>
         <div class="price-plan">Pro</div>
-        <div class="price-amount" style="color:white">$12</div>
+        <div class="price-amount">$12</div>
         <div class="price-period">per user / month</div>
         <div class="price-desc">For teams that run on speed and shared context.</div>
         <div class="price-features">
@@ -827,35 +735,18 @@
       <h2 class="section-title" style="text-align:center;margin:0 auto 16px">Common questions</h2>
     </div>
     <div class="faq-grid">
-      <div class="faq-item">
-        <p class="faq-q">How does Intellark connect to my apps?</p>
-        <p class="faq-a">Intellark uses secure OAuth to connect to your tools — the same way you'd "Sign in with Google." No API keys to manage, no code to write. Once authorized, syncing is automatic.</p>
-      </div>
-      <div class="faq-item">
-        <p class="faq-q">Is my company's data kept private?</p>
-        <p class="faq-a">Absolutely. Your data is encrypted at rest and in transit, never shared with third parties, and never used to train AI models. Each workspace is fully isolated.</p>
-      </div>
-      <div class="faq-item">
-        <p class="faq-q">How long does setup take?</p>
-        <p class="faq-a">Most teams are up and running in under 10 minutes. Connect your first app, ask your first question — Intellark starts indexing immediately and gets smarter as it syncs more data.</p>
-      </div>
-      <div class="faq-item">
-        <p class="faq-q">Which apps are supported?</p>
-        <p class="faq-a">Intellark supports 1,000+ apps including Gmail, Slack, Notion, Google Drive, GitHub, Linear, HubSpot, Jira, Confluence, Asana, Microsoft Teams, Salesforce, and many more.</p>
-      </div>
-      <div class="faq-item">
-        <p class="faq-q">What happens to my data if I cancel?</p>
-        <p class="faq-a">Your data is yours. When you cancel, you can export everything and we permanently delete it from our servers within 30 days. No lock-in, no hostage data.</p>
-      </div>
-      <div class="faq-item">
-        <p class="faq-q">Can I control who sees what?</p>
-        <p class="faq-a">Yes. Intellark has granular role-based access control. Sensitive data can be restricted to specific teams or individuals, and admins have full visibility over access logs.</p>
-      </div>
+      <div class="faq-item"><p class="faq-q">How does Intellark connect to my apps?</p><p class="faq-a">Intellark uses secure OAuth — the same way you'd "Sign in with Google." No API keys to manage, no code to write. Once authorized, syncing is automatic.</p></div>
+      <div class="faq-item"><p class="faq-q">Is my company's data kept private?</p><p class="faq-a">Absolutely. Your data is encrypted at rest and in transit, never shared with third parties, and never used to train AI models. Each workspace is fully isolated.</p></div>
+      <div class="faq-item"><p class="faq-q">How long does setup take?</p><p class="faq-a">Most teams are up and running in under 10 minutes. Connect your first app, ask your first question — Intellark starts indexing immediately.</p></div>
+      <div class="faq-item"><p class="faq-q">Which apps are supported?</p><p class="faq-a">Intellark supports 1,000+ apps including Gmail, Slack, Notion, Google Drive, GitHub, Linear, HubSpot, Jira, Confluence, Asana, Microsoft Teams, Salesforce, and many more.</p></div>
+      <div class="faq-item"><p class="faq-q">Will my AI costs spiral out of control?</p><p class="faq-a">No — Intellark is built with token efficiency at its core. Our RAG pipeline retrieves only the top-K relevant chunks (not your entire knowledge base), trims context to fit your query, and deduplicates semantically similar passages before they ever reach the AI model. Most queries use a fraction of a full context window. You pay for precision, not volume.</p></div>
+      <div class="faq-item"><p class="faq-q">What happens to my data if I cancel?</p><p class="faq-a">Your data is yours. When you cancel, you can export everything and we permanently delete it from our servers within 30 days. No lock-in, no hostage data.</p></div>
+      <div class="faq-item"><p class="faq-q">Can I control who sees what?</p><p class="faq-a">Yes. Intellark has granular role-based access control. Sensitive data can be restricted to specific teams or individuals, and admins have full visibility over access logs.</p></div>
     </div>
   </div>
 </section>
 
-<!-- CTA BAND -->
+<!-- CTA -->
 <div class="cta-band">
   <h2>Your team is losing hours.<br/>Every. Single. Day.</h2>
   <p>Join the teams who stopped searching and started knowing. Get started in minutes — it's free.</p>
@@ -869,48 +760,26 @@
 <footer>
   <div class="footer-inner">
     <div class="footer-top">
-      <div class="footer-brand">
-        <a href="#" class="footer-logo">
-          <img src="data:image/jpeg;base64,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" alt="Intellark" />
-          Intellark
-        </a>
+      <div>
+        <a href="#" class="footer-logo">Intellark</a>
         <p class="footer-tagline">Your company's second brain. Ask anything, get answers from every tool your team uses.</p>
       </div>
       <div class="footer-col">
         <h4>Product</h4>
-        <ul>
-          <li><a href="#features">Features</a></li>
-          <li><a href="#integrations">Integrations</a></li>
-          <li><a href="#pricing">Pricing</a></li>
-          <li><a href="/app">Dashboard</a></li>
-        </ul>
+        <ul><li><a href="#features">Features</a></li><li><a href="#integrations">Integrations</a></li><li><a href="#pricing">Pricing</a></li><li><a href="/app">Dashboard</a></li></ul>
       </div>
       <div class="footer-col">
         <h4>Company</h4>
-        <ul>
-          <li><a href="#">About</a></li>
-          <li><a href="#">Blog</a></li>
-          <li><a href="mailto:hello@intellark.com">Contact</a></li>
-          <li><a href="#">Careers</a></li>
-        </ul>
+        <ul><li><a href="#">About</a></li><li><a href="#">Blog</a></li><li><a href="mailto:hello@intellark.com">Contact</a></li><li><a href="#">Careers</a></li></ul>
       </div>
       <div class="footer-col">
         <h4>Legal</h4>
-        <ul>
-          <li><a href="#">Privacy Policy</a></li>
-          <li><a href="#">Terms of Service</a></li>
-          <li><a href="#">Security</a></li>
-          <li><a href="#">DPA</a></li>
-        </ul>
+        <ul><li><a href="#">Privacy Policy</a></li><li><a href="#">Terms of Service</a></li><li><a href="#">Security</a></li><li><a href="#">DPA</a></li></ul>
       </div>
     </div>
     <div class="footer-bottom">
       <span class="footer-copy">© 2025 Intellark. All rights reserved.</span>
-      <div class="footer-links">
-        <a href="#">Privacy</a>
-        <a href="#">Terms</a>
-        <a href="mailto:hello@intellark.com">Contact</a>
-      </div>
+      <div class="footer-links"><a href="#">Privacy</a><a href="#">Terms</a><a href="mailto:hello@intellark.com">Contact</a></div>
     </div>
   </div>
 </footer>

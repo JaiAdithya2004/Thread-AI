@@ -29,7 +29,6 @@ def _auto_synth_model():
     return LLM_MODEL
 
 # Supabase Auth — set both to enable JWT verification in production.
-# Find them in: Supabase dashboard → Settings → API
 SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
 SUPABASE_JWT_SECRET: str = os.getenv("SUPABASE_JWT_SECRET", "")
 
@@ -37,16 +36,12 @@ GROK_BASE_URL = "https://api.x.ai/v1"
 EMBED_DIM = 384                      # bge-small
 DB_FILENAME = os.getenv("BRAIN_DB", "brain.db")
 
-# memory-worthiness: drop noise (promo/social/chitchat) before extraction
 WORTHY_MIN_LEN = 12
 
 # default workspace + caller identity for the single-tenant MVP.
-# In the hosted version these come from auth, not env.
 WORKSPACE_ID = os.getenv("BRAIN_WORKSPACE", "ws_local")
 CALLER = os.getenv("BRAIN_USER", "you@company.com")
-# principals the caller belongs to (used for ACL filtering)
 CALLER_PRINCIPALS = os.getenv("BRAIN_PRINCIPALS", "you@company.com,everyone").split(",")
-# which team the caller belongs to (used for team-scoped retrieval)
 TEAM_ID = os.getenv("BRAIN_TEAM", "engineering")
 
 # cheap model for classify/extract tasks
@@ -61,10 +56,11 @@ RERANK_MODEL: str = os.getenv("BRAIN_RERANK_MODEL", "BAAI/bge-reranker-base")
 
 # caching
 REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
-CACHE_TTL: int = 300  # seconds
+CACHE_TTL: int = 300
 
-# embedding
+# embedding — always local fastembed (BAAI/bge-small-en-v1.5, 384-dim, zero network cost)
 EMBED_BATCH_SIZE: int = 64
+EMBED_USE_OPENAI: bool = os.getenv("BRAIN_EMBED_OPENAI", "false").lower() in ("1", "true", "yes")
 
 # deduplication: cosine similarity threshold for entity dedup
 DEDUP_THRESHOLD: float = 0.92
@@ -82,3 +78,44 @@ LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 
 # retrieval: number of top facts to surface
 TOP_FACTS: int = 12
+
+# ── cost metering ─────────────────────────────────────────────────────────────
+# Per-1K token prices in USD: (prompt_price_per_1k, completion_price_per_1k)
+# Source: public model pricing as of 2026-Q1. Update as pricing changes.
+MODEL_PRICES: dict = {
+    # OpenAI
+    "gpt-4o":                        (0.005, 0.015),
+    "gpt-4o-mini":                   (0.00015, 0.0006),
+    "gpt-4-turbo":                   (0.01, 0.03),
+    "gpt-3.5-turbo":                 (0.0005, 0.0015),
+    # Anthropic
+    "claude-3-5-sonnet-20241022":    (0.003, 0.015),
+    "claude-3-5-haiku-20241022":     (0.001, 0.005),
+    "claude-haiku-4-5-20251001":     (0.001, 0.005),
+    "claude-opus-5":                 (0.015, 0.075),
+    # xAI Grok
+    "openai/grok-3-mini":            (0.0003, 0.0005),
+    "openai/grok-3":                 (0.003, 0.015),
+    # Google Gemini
+    "gemini/gemini-1.5-flash":       (0.000075, 0.0003),
+    "gemini/gemini-1.5-pro":         (0.00125, 0.005),
+    # fallback — unknown model
+    "default":                       (0.001, 0.002),
+}
+
+# ── credit abstraction ────────────────────────────────────────────────────────
+# 1 credit = 1K synthesis-equivalent tokens (i.e. cost of ~1 synthesis call).
+# Used to normalize across models and present a simple usage unit to workspace owners.
+# Synthesis at gpt-4o-mini rates: $0.0006/1K completion ≈ $0.001/credit.
+CREDIT_USD_COST: float = 0.001   # 1 credit costs $0.001 in managed AI spend
+
+# Plan monthly credit allowances (also enforced in Phase 2 subscriptions table).
+# These mirror the plans seeded in DB — keep in sync.
+PLAN_CREDITS: dict = {
+    "free":     500,     # ~500K synthesized tokens / month
+    "team":     5000,    # ~5M tokens / month
+    "business": 50000,   # ~50M tokens / month
+}
+
+# Platform-owner flag: set BRAIN_PLATFORM_OWNER=true in env to access /api/_platform/*
+PLATFORM_OWNER: bool = os.getenv("BRAIN_PLATFORM_OWNER", "false").lower() in ("1", "true", "yes")

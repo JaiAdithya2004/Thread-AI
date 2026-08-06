@@ -225,6 +225,30 @@ def migrate(conn):
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS usage_acct ON usage_events(account_id, ts);")
 
+    # Add customer_borne column idempotently (Phase 2 BYO-key flag)
+    cur.execute("""
+        ALTER TABLE usage_events
+            ADD COLUMN IF NOT EXISTS customer_borne BOOLEAN DEFAULT FALSE;
+    """)
+
+    # integration_usage — COGS tracker for connector API calls (never exposes vendor name to users)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS integration_usage (
+            id                  BIGSERIAL PRIMARY KEY,
+            account_id          TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            provider            TEXT NOT NULL,
+            connected_accounts  INTEGER DEFAULT 0,
+            api_calls           INTEGER DEFAULT 0,
+            backfill_items      INTEGER DEFAULT 0,
+            period              DATE NOT NULL DEFAULT CURRENT_DATE,
+            UNIQUE (account_id, provider, period)
+        );
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS intusage_acct
+            ON integration_usage(account_id, period);
+    """)
+
     # Row-Level Security — defense in depth, workspace isolation
     for table in ("episodes", "facts", "fact_edges", "ledger", "teams"):
         cur.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
@@ -472,3 +496,47 @@ def read_ledger(conn, ws, limit, team_id=None):
     rows = cur.fetchall()
     cur.close()
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Integration usage metering (COGS tracker — internal only)
+# ---------------------------------------------------------------------------
+
+def record_integration_usage(account_id: str, provider: str,
+                              api_calls: int = 0, backfill_items: int = 0,
+                              connected_accounts: int = None):
+    """Upsert today's row for (account_id, provider) and increment counters.
+    Runs in its own connection so it never interferes with caller's transaction."""
+    if not account_id:
+        return
+    try:
+        conn = connect()
+        try:
+            cur = conn.cursor()
+            if connected_accounts is not None:
+                cur.execute("""
+                    INSERT INTO integration_usage
+                        (account_id, provider, connected_accounts, api_calls, backfill_items, period)
+                    VALUES (%s, %s, %s, %s, %s, CURRENT_DATE)
+                    ON CONFLICT (account_id, provider, period) DO UPDATE SET
+                        connected_accounts = %s,
+                        api_calls          = integration_usage.api_calls + EXCLUDED.api_calls,
+                        backfill_items     = integration_usage.backfill_items + EXCLUDED.backfill_items
+                """, (account_id, provider, connected_accounts, api_calls, backfill_items,
+                      connected_accounts))
+            else:
+                cur.execute("""
+                    INSERT INTO integration_usage
+                        (account_id, provider, api_calls, backfill_items, period)
+                    VALUES (%s, %s, %s, %s, CURRENT_DATE)
+                    ON CONFLICT (account_id, provider, period) DO UPDATE SET
+                        api_calls      = integration_usage.api_calls + EXCLUDED.api_calls,
+                        backfill_items = integration_usage.backfill_items + EXCLUDED.backfill_items
+                """, (account_id, provider, api_calls, backfill_items))
+            conn.commit()
+            cur.close()
+        finally:
+            conn.close()
+    except Exception as e:
+        import sys
+        print(f"[Intellark] integration_usage write failed: {e}", file=sys.stderr)

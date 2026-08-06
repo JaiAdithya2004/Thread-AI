@@ -17,7 +17,7 @@ if LANGFUSE_ENABLED:
             host=LANGFUSE_HOST,
         )
     except Exception as _e:
-        print(f"[Company Brain] Langfuse init failed (tracing disabled): {_e}", file=sys.stderr)
+        print(f"[Intellark] Langfuse init failed (tracing disabled): {_e}", file=sys.stderr)
         _langfuse = None
 
 
@@ -56,7 +56,7 @@ def _trace_start(task_name: str, model: str, messages: list):
         trace = _langfuse.trace(name=task_name)
         return trace.generation(name=task_name, model=model, input=messages)
     except Exception as e:
-        print(f"[Company Brain] Langfuse span failed: {e}", file=sys.stderr)
+        print(f"[Intellark] Langfuse span failed: {e}", file=sys.stderr)
         return None
 
 
@@ -69,12 +69,75 @@ def _trace_end(gen, output, error=False):
         else:
             gen.end(output=output)
     except Exception as e:
-        print(f"[Company Brain] Langfuse end failed: {e}", file=sys.stderr)
+        print(f"[Intellark] Langfuse end failed: {e}", file=sys.stderr)
 
+
+# ── cost metering ─────────────────────────────────────────────────────────────
+
+# Thread-local context set by API layer so llm.py knows who to bill
+_ctx: dict = {}
+
+def set_billing_context(account_id: str, user_id: str, team_id: str = None):
+    """Call once per request (before any LLM calls) to attach billing context."""
+    _ctx["account_id"] = account_id
+    _ctx["user_id"]    = user_id
+    _ctx["team_id"]    = team_id
+
+
+def clear_billing_context():
+    _ctx.clear()
+
+
+def _write_usage(task: str, model: str, prompt_tokens: int, completion_tokens: int, cost_usd: float):
+    """Write one row to usage_events in Postgres. Silently skips on any error."""
+    account_id = _ctx.get("account_id")
+    user_id    = _ctx.get("user_id", "unknown")
+    if not account_id:
+        return  # no billing context — dev/bypass mode, skip silently
+    try:
+        from brain.core.db import BACKEND
+        if BACKEND != "postgres":
+            return
+        from brain.core import db_pg as _pg
+        conn = _pg.connect()
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO usage_events
+                    (account_id, user_id, team_id, task, model,
+                     prompt_tokens, completion_tokens, cost_usd)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (account_id, user_id, _ctx.get("team_id"), task, model,
+                  prompt_tokens, completion_tokens, cost_usd))
+            conn.commit()
+            cur.close()
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[Intellark] usage_events write failed: {e}", file=sys.stderr)
+
+
+def _extract_usage(resp, model: str, task: str):
+    """Pull token counts from a litellm response and write to usage_events."""
+    try:
+        usage = resp.usage
+        if usage is None:
+            return
+        pt = getattr(usage, "prompt_tokens", 0) or 0
+        ct = getattr(usage, "completion_tokens", 0) or 0
+        from brain.config import MODEL_PRICES
+        prices = MODEL_PRICES.get(model, MODEL_PRICES.get("default", (0.0, 0.0)))
+        cost = (pt * prices[0] + ct * prices[1]) / 1000.0
+        _write_usage(task, model, pt, ct, cost)
+    except Exception as e:
+        print(f"[Intellark] usage extraction failed: {e}", file=sys.stderr)
+
+
+# ── LLM call helpers ──────────────────────────────────────────────────────────
 
 def chat_json(system: str, user: str, model: str = None, task_name: str = "unknown") -> dict:
     if not _has_key():
-        print("[Company Brain] No API key detected — set an LLM key in .env.", file=sys.stderr)
+        print("[Intellark] No API key detected — set an LLM key in .env.", file=sys.stderr)
         return {"facts": [], "terms": []}
 
     kwargs = _build_kwargs(system, user, model=model, json_mode=True)
@@ -83,6 +146,7 @@ def chat_json(system: str, user: str, model: str = None, task_name: str = "unkno
     try:
         resp = _completion(**kwargs)
         text = resp.choices[0].message.content
+        _extract_usage(resp, kwargs["model"], task_name)
         try:
             result = json.loads(text)
         except json.JSONDecodeError:
@@ -92,13 +156,13 @@ def chat_json(system: str, user: str, model: str = None, task_name: str = "unkno
         return result
     except Exception as e:
         _trace_end(gen, e, error=True)
-        print(f"[Company Brain] LLM call failed: {e}", file=sys.stderr)
+        print(f"[Intellark] LLM call failed: {e}", file=sys.stderr)
         return {"facts": [], "terms": []}
 
 
 def chat_text(system: str, user: str, model: str = None, task_name: str = "unknown") -> str:
     if not _has_key():
-        print("[Company Brain] No API key detected — set an LLM key in .env.", file=sys.stderr)
+        print("[Intellark] No API key detected — set an LLM key in .env.", file=sys.stderr)
         return ""
 
     kwargs = _build_kwargs(system, user, model=model, json_mode=False)
@@ -107,11 +171,12 @@ def chat_text(system: str, user: str, model: str = None, task_name: str = "unkno
     try:
         resp = _completion(**kwargs)
         result = resp.choices[0].message.content or ""
+        _extract_usage(resp, kwargs["model"], task_name)
         _trace_end(gen, result)
         return result
     except Exception as e:
         _trace_end(gen, e, error=True)
-        print(f"[Company Brain] LLM call failed: {e}", file=sys.stderr)
+        print(f"[Intellark] LLM call failed: {e}", file=sys.stderr)
         return ""
 
 
@@ -122,6 +187,6 @@ def validate_llm_output(data: dict, model_class: type) -> tuple:
         return (True, instance, "")
     except Exception as e:
         error_str = str(e)
-        print(f"[Company Brain] LLM output validation failed ({model_class.__name__}): {error_str}",
+        print(f"[Intellark] LLM output validation failed ({model_class.__name__}): {error_str}",
               file=sys.stderr)
         return (False, None, error_str)

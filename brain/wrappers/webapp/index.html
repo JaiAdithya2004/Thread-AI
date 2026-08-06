@@ -3,37 +3,37 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Company Brain</title>
+<title>Intellark</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js" crossorigin="anonymous"></script>
 <style>
 :root{
-  --canvas:#faf9f5;
-  --surface-soft:#f5f0e8;
-  --surface-card:#efe9de;
-  --surface-cream-strong:#e8e0d2;
-  --surface-dark:#181715;
-  --surface-dark-elevated:#252320;
-  --surface-dark-soft:#1f1e1b;
-  --primary:#cc785c;
-  --primary-active:#a9583e;
-  --primary-disabled:#e6dfd8;
-  --ink:#141413;
-  --body-strong:#252523;
-  --body:#3d3d3a;
-  --muted:#6c6a64;
-  --muted-soft:#8e8b82;
-  --hairline:#e6dfd8;
-  --hairline-soft:#ebe6df;
+  --canvas:#ffffff;
+  --surface-soft:#f8f9fa;
+  --surface-card:#f5f5f5;
+  --surface-cream-strong:#e9ecef;
+  --surface-dark:#101010;
+  --surface-dark-elevated:#1a1a1a;
+  --surface-dark-soft:#141414;
+  --primary:#111111;
+  --primary-active:#242424;
+  --primary-disabled:#d1d5db;
+  --ink:#111111;
+  --body-strong:#1a1a1a;
+  --body:#4b5563;
+  --muted:#6b7280;
+  --muted-soft:#9ca3af;
+  --hairline:#e5e7eb;
+  --hairline-soft:#f3f4f6;
   --on-primary:#ffffff;
-  --on-dark:#faf9f5;
-  --on-dark-soft:#a09d96;
+  --on-dark:#f9fafb;
+  --on-dark-soft:#9ca3af;
   --accent-teal:#5db8a6;
   --accent-amber:#e8a55a;
-  --success:#5db872;
-  --warning:#d4a017;
-  --error:#c64545;
+  --success:#16a34a;
+  --warning:#ca8a04;
+  --error:#dc2626;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var(--body);height:100vh;display:flex;overflow:hidden;font-size:14px}
@@ -42,14 +42,14 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 .sidebar{width:236px;min-width:236px;background:var(--canvas);border-right:1px solid var(--hairline);display:flex;flex-direction:column;overflow:hidden}
 
 .brand{padding:16px 16px 15px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--hairline);flex-shrink:0}
-.brand-icon{width:30px;height:30px;background:var(--primary);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;color:var(--on-primary)}
-.brand-name{font-weight:600;font-size:15px;letter-spacing:-.3px;color:var(--ink)}
+.brand-icon{display:none}
+.brand-name{font-weight:700;font-size:16px;letter-spacing:-.5px;color:var(--ink)}
 
 .dept-block{padding:12px 12px 10px;border-bottom:1px solid var(--hairline);flex-shrink:0}
 .block-label{font-size:11px;font-weight:500;letter-spacing:.1em;color:var(--muted-soft);text-transform:uppercase;margin-bottom:8px;padding:0 2px}
 .dept-row{display:flex;gap:6px}
 .dept-select{flex:1;background:var(--surface-soft);border:1px solid var(--hairline);color:var(--ink);padding:7px 10px;border-radius:8px;font-size:13px;appearance:none;cursor:pointer;font-family:inherit;min-width:0}
-.dept-select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(204,120,92,.12)}
+.dept-select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(17,17,17,.08)}
 .dept-add-btn{background:var(--surface-soft);border:1px solid var(--hairline);color:var(--muted);width:32px;height:32px;border-radius:8px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;line-height:1}
 .dept-add-btn:hover{border-color:var(--primary);color:var(--primary)}
 .dept-badge{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:3px 10px;border-radius:9999px;font-size:11px;font-weight:500;max-width:100%}
@@ -134,7 +134,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 
 .chat-foot{padding:14px 32px 18px;border-top:1px solid var(--hairline);flex-shrink:0;background:var(--canvas)}
 .input-wrap{display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--hairline);border-radius:10px;padding:4px 4px 4px 14px;transition:border-color .15s,box-shadow .15s}
-.input-wrap:focus-within{border-color:var(--primary);box-shadow:0 0 0 3px rgba(204,120,92,.12)}
+.input-wrap:focus-within{border-color:var(--primary);box-shadow:0 0 0 3px rgba(17,17,17,.08)}
 .chat-inp{flex:1;background:transparent;border:none;color:var(--ink);font-size:14px;font-family:inherit;padding:8px 0;outline:none}
 .chat-inp::placeholder{color:var(--muted-soft)}
 .send-btn{background:var(--primary);border:none;color:var(--on-primary);width:34px;height:34px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
@@ -231,7 +231,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 .fgroup label{display:block;font-size:12.5px;font-weight:500;margin-bottom:6px;color:var(--muted)}
 .fgroup label span{font-weight:400;color:var(--muted-soft)}
 .fgroup input{width:100%;background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;transition:border-color .15s,box-shadow .15s}
-.fgroup input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(204,120,92,.12)}
+.fgroup input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(17,17,17,.08)}
 .modal-foot{padding:14px 20px;border-top:1px solid var(--hairline);display:flex;justify-content:flex-end;gap:10px;background:var(--surface-soft)}
 .btn-cancel{background:transparent;border:1px solid var(--hairline);color:var(--body);padding:8px 16px;border-radius:8px;font-size:13px;font-family:inherit;cursor:pointer;font-weight:500;transition:all .15s}
 .btn-cancel:hover{background:var(--surface-card)}
@@ -252,7 +252,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 #authScreen.hidden{display:none}
 .auth-card{width:360px;background:var(--canvas);border:1px solid var(--hairline);border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(20,20,19,.12)}
 .auth-head{padding:28px 28px 24px;text-align:center;border-bottom:1px solid var(--hairline)}
-.auth-logo{width:44px;height:44px;background:var(--primary);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+.auth-logo{width:44px;height:44px;background:#111111;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
 .auth-head h1{font-size:18px;font-weight:600;color:var(--ink);letter-spacing:-.3px;margin-bottom:4px}
 .auth-head p{font-size:13px;color:var(--muted)}
 .auth-body{padding:24px 28px;display:flex;flex-direction:column;gap:14px}
@@ -262,7 +262,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 .auth-field{display:flex;flex-direction:column;gap:5px}
 .auth-field label{font-size:12px;font-weight:500;color:var(--muted)}
 .auth-field input{background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;transition:border-color .15s,box-shadow .15s}
-.auth-field input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(204,120,92,.12)}
+.auth-field input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(17,17,17,.08)}
 .auth-submit{background:var(--primary);color:var(--on-primary);border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:500;font-family:inherit;cursor:pointer;transition:background .15s}
 .auth-submit:hover{background:var(--primary-active)}
 .auth-submit:disabled{opacity:.55;cursor:not-allowed}
@@ -275,7 +275,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 .acct-type-btn strong{font-size:13px;font-weight:600;color:var(--ink)}
 .acct-type-btn span{font-size:11px;color:var(--muted)}
 .acct-type-btn:hover{border-color:var(--primary);background:var(--surface-card)}
-.acct-type-btn.active{border-color:var(--primary);background:rgba(204,120,92,.08)}
+.acct-type-btn.active{border-color:var(--primary);background:rgba(17,17,17,.05)}
 
 /* SSO buttons */
 .sso-divider{display:flex;align-items:center;gap:10px;margin:2px 0}
@@ -303,8 +303,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
   <!-- Invite accept card (shown only when ?invite=TOKEN in URL) -->
   <div class="auth-card" id="inviteCard" style="display:none">
     <div class="auth-head">
-      <div class="auth-logo">
-        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 9v.906a2.25 2.25 0 01-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 001.183 1.981l6.478 3.488m8.839 2.51l-4.66-2.51m0 0l-1.023-.55a2.25 2.25 0 00-2.134 0l-1.022.55m0 0l-4.661 2.51m16.5 1.615a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V8.844a2.25 2.25 0 011.183-1.98l7.5-4.04a2.25 2.25 0 012.134 0l7.5 4.04a2.25 2.25 0 011.183 1.98V19.5z"/></svg>
+      <div style="margin:0 auto 14px;width:44px;height:44px;background:#111111;border-radius:12px;display:flex;align-items:center;justify-content:center">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
       </div>
       <h1>You're invited!</h1>
       <p id="inviteHeadSub">Loading invite details…</p>
@@ -338,10 +338,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
   <!-- Sign-in / Sign-up card -->
   <div class="auth-card" id="authCard">
     <div class="auth-head">
-      <div class="auth-logo">
-        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+      <div style="margin:0 auto 14px;width:44px;height:44px;background:#111111;border-radius:12px;display:flex;align-items:center;justify-content:center">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
       </div>
-      <h1>Company Brain</h1>
+      <h1>Intellark</h1>
       <p id="authHeadSub">Sign in to access your team's knowledge</p>
     </div>
     <div class="auth-body">
@@ -364,7 +364,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
       <div id="signupFields" style="display:none">
         <!-- Step 1: choose account type -->
         <div id="signupStep1">
-          <p style="font-size:12.5px;color:var(--muted);margin-bottom:14px">What brings you to Company Brain?</p>
+          <p style="font-size:12.5px;color:var(--muted);margin-bottom:14px">What brings you to Intellark?</p>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
             <button class="acct-type-btn active" id="btnIndividual" onclick="selectAcctType('individual')">
               <span style="font-size:22px">👤</span>
@@ -428,10 +428,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 <!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="brand">
-    <div class="brand-icon">
-      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-    </div>
-    <span class="brand-name">Company Brain</span>
+    <span class="brand-name">Intellark</span>
   </div>
 
   <div class="dept-block">
@@ -516,7 +513,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
   <!-- ASK -->
   <div class="tab active" id="tab-ask">
     <div id="llmBanner" class="llm-banner" style="display:none">
-      ⚠️ <strong>Demo mode</strong> — no LLM API key set. Add <code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>, or <code>GROK_API_KEY</code> to your <code>.env</code> file, then restart.
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+      <strong>No AI provider configured.</strong> Go to Settings → AI Provider to add your API key.
       <span class="close-banner" onclick="this.parentElement.style.display='none'">×</span>
     </div>
     <div class="ask-head">
@@ -690,10 +688,37 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
           </div>
           <div id="deptTable"><div style="padding:20px;color:var(--muted);font-size:13px">No departments yet. Click "+ Add Department" or load data from Connections.</div></div>
         </div>
-        <!-- admin-only: API keys -->
-        <div class="settings-card admin-only" id="settingsKeysCard">
-          <div class="settings-card-head">API Keys &amp; Credentials</div>
-          <div id="envTable"></div>
+        <!-- LLM provider config (visible to all) -->
+        <div class="settings-card" id="settingsLLMCard">
+          <div class="settings-card-head">AI Provider</div>
+          <div style="padding:20px;display:flex;flex-direction:column;gap:16px">
+            <div style="font-size:13px;color:var(--muted);line-height:1.6">
+              Choose your AI provider and paste your API key. Intellark uses it only to answer your queries — your key is stored securely and never shared.
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-size:12px;font-weight:500;color:var(--muted)">Provider</label>
+              <select id="llmProviderSelect" style="background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;cursor:pointer" onchange="_onProviderChange()">
+                <option value="openai">OpenAI (GPT-4o, GPT-4 Turbo…)</option>
+                <option value="anthropic">Anthropic (Claude 3.5, Claude 3…)</option>
+                <option value="grok">xAI Grok (Grok-2, Grok-1.5…)</option>
+              </select>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-size:12px;font-weight:500;color:var(--muted)">API Key</label>
+              <div style="position:relative">
+                <input type="password" id="llmApiKeyInput" placeholder="Paste your API key here…" style="width:100%;background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 40px 9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box" oninput="_onApiKeyChange()">
+                <button onclick="_toggleKeyVisibility()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;padding:2px" title="Show/hide key">
+                  <svg id="eyeIcon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                </button>
+              </div>
+              <div id="llmKeyHint" style="font-size:11.5px;color:var(--muted-soft)">Get your key from the provider's developer dashboard.</div>
+            </div>
+            <div id="llmSaveStatus" style="font-size:12px;min-height:16px"></div>
+            <div style="display:flex;gap:10px">
+              <button onclick="_saveLLMKey()" style="background:var(--primary);color:var(--on-primary);border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--primary-active)'" onmouseout="this.style.background='var(--primary)'">Save</button>
+              <button onclick="_testLLMKey()" id="testLLMBtn" style="background:transparent;border:1px solid var(--hairline);color:var(--muted);border-radius:8px;padding:9px 20px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--ink)'" onmouseout="this.style.borderColor='var(--hairline)';this.style.color='var(--muted)'">Test connection</button>
+            </div>
+          </div>
         </div>
         <div class="settings-card">
           <div class="settings-card-head">Account</div>
@@ -1996,6 +2021,93 @@ async function loadActivity(){
 document.getElementById('actRefresh').addEventListener('click',loadActivity);
 document.getElementById('actTeamFilter').addEventListener('change',loadActivity);
 
+// ── LLM settings ─────────────────────────────────────────────────────────────
+const _LLM_HINTS = {
+  openai:    'Get your key at platform.openai.com → API Keys',
+  anthropic: 'Get your key at console.anthropic.com → API Keys',
+  grok:      'Get your key at console.x.ai → API Keys',
+};
+
+function _onProviderChange() {
+  const provider = document.getElementById('llmProviderSelect')?.value || 'openai';
+  const hint = document.getElementById('llmKeyHint');
+  if (hint) hint.textContent = _LLM_HINTS[provider] || '';
+  document.getElementById('llmSaveStatus').textContent = '';
+}
+
+function _onApiKeyChange() {
+  document.getElementById('llmSaveStatus').textContent = '';
+}
+
+function _toggleKeyVisibility() {
+  const inp = document.getElementById('llmApiKeyInput');
+  const icon = document.getElementById('eyeIcon');
+  if (!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  icon.innerHTML = inp.type === 'password'
+    ? '<path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>'
+    : '<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>';
+}
+
+async function _loadLLMSettings() {
+  try {
+    const data = await api.get('/api/settings/llm');
+    if (data.provider) {
+      const sel = document.getElementById('llmProviderSelect');
+      if (sel) sel.value = data.provider;
+    }
+    if (data.has_key) {
+      const inp = document.getElementById('llmApiKeyInput');
+      if (inp) inp.placeholder = '••••••••••••••••  (key saved)';
+    }
+    _onProviderChange();
+  } catch(_) { _onProviderChange(); }
+}
+
+async function _saveLLMKey() {
+  const provider = document.getElementById('llmProviderSelect')?.value;
+  const key = document.getElementById('llmApiKeyInput')?.value.trim();
+  const status = document.getElementById('llmSaveStatus');
+  if (!provider) return;
+  if (!key) { status.textContent = 'Enter your API key first.'; status.style.color = 'var(--error)'; return; }
+  status.textContent = 'Saving…'; status.style.color = 'var(--muted)';
+  try {
+    await api.post('/api/settings/llm', {provider, api_key: key});
+    status.textContent = '✓ Saved. Intellark will use this key for all AI queries.';
+    status.style.color = 'var(--success)';
+    document.getElementById('llmApiKeyInput').value = '';
+    document.getElementById('llmApiKeyInput').placeholder = '••••••••••••••••  (key saved)';
+    // Refresh status banner
+    S.status = await api.get('/api/status');
+    if (!S.status.mock_mode) document.getElementById('llmBanner').style.display = 'none';
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.color = 'var(--error)';
+  }
+}
+
+async function _testLLMKey() {
+  const btn = document.getElementById('testLLMBtn');
+  const status = document.getElementById('llmSaveStatus');
+  const orig = btn.textContent;
+  btn.textContent = 'Testing…'; btn.disabled = true;
+  status.textContent = '';
+  try {
+    const res = await api.get('/api/status');
+    if (res.mock_mode) {
+      status.textContent = '✗ No API key is active. Save your key first.';
+      status.style.color = 'var(--error)';
+    } else {
+      status.textContent = `✓ Connected — ${res.llm_model || 'model active'}`;
+      status.style.color = 'var(--success)';
+    }
+  } catch(e) {
+    status.textContent = 'Connection test failed: ' + e.message;
+    status.style.color = 'var(--error)';
+  }
+  btn.textContent = orig; btn.disabled = false;
+}
+
 // ── settings ──────────────────────────────────────────────────────────────────
 function renderSettings(){
   const isAdmin = S.me?.is_admin !== false;
@@ -2017,30 +2129,15 @@ function renderSettings(){
       }).join('');
     }
 
-    const keys=S.status.keys||{};
-    const model=S.status.llm_model||'gpt-4o-mini';
+    const model=S.status.llm_model||'';
     const mock=S.status.mock_mode;
     const lmr = document.getElementById('llmModelRow');
     if(lmr) lmr.innerHTML=
-      `<strong style="color:var(--ink)">LLM</strong> — ${model} ${mock?`<span style="color:var(--error)">(demo mode – no API key)</span>`:`<span style="color:var(--success)">(live)</span>`}`;
-
-    const envRows=[
-      {key:'GROK_API_KEY', set:keys.grok, label:'Grok (xAI) — free tier available'},
-      {key:'OPENAI_API_KEY', set:keys.openai, label:'OpenAI'},
-      {key:'ANTHROPIC_API_KEY', set:keys.anthropic, label:'Anthropic (Claude)'},
-      {key:'SLACK_BOT_TOKEN', set:keys.slack, label:'Slack'},
-      {key:'GOOGLE_CREDENTIALS_JSON', set:keys.google, label:'Google (Gmail / Docs / Calendar)'},
-      {key:'NOTION_TOKEN', set:keys.notion, label:'Notion'},
-      {key:'COMPOSIO_API_KEY', set:keys.composio, label:'Composio (1,000+ app integrations)'},
-      {key:'CLERK_SECRET_KEY', set:keys.clerk, label:'Clerk (authentication)'},
-    ];
-    document.getElementById('envTable').innerHTML=envRows.map(r=>`
-      <div class="env-row">
-        <div class="env-key">${r.key}</div>
-        <div class="env-val ${r.set?'env-set':'env-missing'}">${r.set?'✓ Set':'✗ Not set'}</div>
-        <div style="font-size:12px;color:var(--muted);flex:1">${r.label}</div>
-      </div>`).join('');
+      `<strong style="color:var(--ink)">LLM</strong> — ${model||'—'} ${mock?`<span style="color:var(--error)">(demo mode – no API key)</span>`:`<span style="color:var(--success)">(live)</span>`}`;
   }
+
+  // Pre-populate LLM provider card from saved settings
+  _loadLLMSettings();
 }
 document.getElementById('settingsAddDept').addEventListener('click',()=>openModal());
 
@@ -2116,7 +2213,7 @@ function applyRoleUI(){
 
   // Settings subhead
   document.getElementById('settingsSubhead').textContent = isAdmin
-    ? 'Manage departments, API keys, and workspace configuration.'
+    ? 'Manage your AI provider, departments, and workspace.'
     : 'Your account details.';
 }
 

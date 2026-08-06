@@ -1,5 +1,5 @@
 """
-The only public surface of the brain. CLI, MCP, hooks, and (later) the hosted
+The only public surface of the brain. CLI, MCP, hooks, and the hosted
 API all go through Brain. Hosted version: pass real workspace_id + caller from
 auth instead of config defaults. Nothing else changes.
 """
@@ -12,11 +12,13 @@ USE_ASYNC_WORKER = bool(os.getenv("BRAIN_ASYNC_WORKER", ""))
 
 
 class Brain:
-    def __init__(self, workspace_id=None, team_id=None, caller=None, principals=None):
-        self.ws = workspace_id or config.WORKSPACE_ID
-        self.team_id = team_id or config.TEAM_ID
-        self.caller = caller or config.CALLER
+    def __init__(self, workspace_id=None, team_id=None, caller=None, principals=None,
+                 account_id=None):
+        self.ws         = workspace_id or config.WORKSPACE_ID
+        self.team_id    = team_id or config.TEAM_ID
+        self.caller     = caller or config.CALLER
         self.principals = principals or config.CALLER_PRINCIPALS
+        self.account_id = account_id  # set by API layer for billing; None in dev/bypass
         self.conn = db.connect()
         db.migrate(self.conn)
 
@@ -54,8 +56,15 @@ class Brain:
         """Pull full history from a connector, normalize, dedupe, classify, extract."""
         tid = team_id or self.team_id
         db.ensure_team(self.conn, self.ws, tid, tid.replace("-", " ").title())
+
+        # Set billing context for connector metering
+        from brain.core.connectors.composio import set_billing_context, clear_billing_context
+        set_billing_context(self.account_id or "")
+
         connector = REGISTRY[source]()
         n_ep = ingest.run(self.conn, self.ws, connector.backfill(), team_id=tid)
+        clear_billing_context()
+
         if USE_ASYNC_WORKER:
             enqueued = self._async_enqueue("extract_facts", ws=self.ws, team_id=tid)
             return {"source": source, "team": tid, "episodes": n_ep, "queued": enqueued}
@@ -65,8 +74,14 @@ class Brain:
     def sync(self, source: str, team_id: str = None) -> dict:
         tid = team_id or self.team_id
         db.ensure_team(self.conn, self.ws, tid, tid.replace("-", " ").title())
+
+        from brain.core.connectors.composio import set_billing_context, clear_billing_context
+        set_billing_context(self.account_id or "")
+
         connector = REGISTRY[source]()
         n_ep = ingest.run(self.conn, self.ws, connector.poll(), team_id=tid)
+        clear_billing_context()
+
         if USE_ASYNC_WORKER:
             enqueued = self._async_enqueue("extract_facts", ws=self.ws, team_id=tid)
             return {"source": source, "team": tid, "new_episodes": n_ep, "queued": enqueued}
@@ -109,11 +124,6 @@ class Brain:
 
     def harvest(self, text: str, source_kind: str = "ai-tool",
                 session_id: str = None) -> dict:
-        """
-        Extract facts from an AI tool's response text and store them.
-        Uses the stricter harvest prompt with confidence >= 0.7 filter.
-        Near-duplicate guard prevents noise accumulation.
-        """
         n = extract.extract_from_text(
             self.conn, self.ws, text,
             source_kind=source_kind,
@@ -124,3 +134,122 @@ class Brain:
 
     def ledger(self, limit=20):
         return db.read_ledger(self.conn, self.ws, limit, team_id=self.team_id)
+
+    # ---- cost & usage reporting ----
+    def usage_summary(self, period: str = None) -> dict:
+        """
+        Return cost and credit usage for this account, broken down by task and team.
+        period: 'YYYY-MM' string; defaults to current month.
+        Returns: {period, tokens, cost_usd, credits_used, credits_allowance,
+                  by_task: [{task, prompt_tokens, completion_tokens, cost_usd}],
+                  by_team: [{team_id, cost_usd}],
+                  integrations: {api_calls, backfill_items, connected_accounts}}
+        """
+        from brain.core.db import BACKEND
+        if BACKEND != "postgres" or not self.account_id:
+            return {"period": period, "tokens": 0, "cost_usd": 0.0,
+                    "credits_used": 0, "credits_allowance": None,
+                    "by_task": [], "by_team": [], "integrations": {}}
+
+        import datetime as _dt
+        from brain.core import db_pg as _pg
+        from brain.config import CREDIT_USD_COST, PLAN_CREDITS
+
+        now = _dt.date.today()
+        if period:
+            try:
+                y, m = map(int, period.split("-"))
+                period_start = _dt.date(y, m, 1)
+            except Exception:
+                period_start = now.replace(day=1)
+        else:
+            period_start = now.replace(day=1)
+            period = period_start.strftime("%Y-%m")
+
+        # End of month
+        if period_start.month == 12:
+            period_end = period_start.replace(year=period_start.year + 1, month=1, day=1)
+        else:
+            period_end = period_start.replace(month=period_start.month + 1, day=1)
+
+        conn = _pg.connect()
+        try:
+            cur = conn.cursor()
+
+            # Aggregate LLM usage
+            cur.execute("""
+                SELECT
+                    COALESCE(SUM(prompt_tokens + completion_tokens), 0) AS total_tokens,
+                    COALESCE(SUM(cost_usd), 0.0)                        AS total_cost,
+                    json_agg(json_build_object(
+                        'task', task,
+                        'prompt_tokens', pt, 'completion_tokens', ct, 'cost_usd', cu
+                    )) AS by_task
+                FROM (
+                    SELECT task,
+                           SUM(prompt_tokens)     AS pt,
+                           SUM(completion_tokens) AS ct,
+                           SUM(cost_usd)          AS cu
+                    FROM usage_events
+                    WHERE account_id = %s
+                      AND ts >= %s AND ts < %s
+                    GROUP BY task
+                ) t
+            """, (self.account_id, period_start.isoformat(), period_end.isoformat()))
+            row = cur.fetchone() or {}
+            total_tokens = int(row.get("total_tokens") or 0)
+            total_cost   = float(row.get("total_cost") or 0.0)
+            by_task      = row.get("by_task") or []
+
+            # By team
+            cur.execute("""
+                SELECT team_id, SUM(cost_usd) AS cu
+                FROM usage_events
+                WHERE account_id = %s AND ts >= %s AND ts < %s
+                GROUP BY team_id
+            """, (self.account_id, period_start.isoformat(), period_end.isoformat()))
+            by_team = [{"team_id": r["team_id"], "cost_usd": float(r["cu"] or 0)}
+                       for r in cur.fetchall()]
+
+            # Integration usage
+            cur.execute("""
+                SELECT
+                    COALESCE(SUM(api_calls), 0)         AS api_calls,
+                    COALESCE(SUM(backfill_items), 0)    AS backfill_items,
+                    COALESCE(MAX(connected_accounts), 0) AS connected_accounts
+                FROM integration_usage
+                WHERE account_id = %s AND period >= %s AND period < %s
+            """, (self.account_id, period_start.isoformat(), period_end.isoformat()))
+            int_row = cur.fetchone() or {}
+
+            # Credits: look up plan allowance
+            cur.execute("""
+                SELECT p.name FROM subscriptions s
+                JOIN plans p ON p.id = s.plan_id
+                WHERE s.account_id = %s AND s.status = 'active'
+                LIMIT 1
+            """, (self.account_id,))
+            plan_row = cur.fetchone()
+            plan_name = (plan_row or {}).get("name", "free")
+            allowance = PLAN_CREDITS.get(plan_name, PLAN_CREDITS["free"])
+            credits_used = int(total_cost / CREDIT_USD_COST) if CREDIT_USD_COST else 0
+
+            cur.close()
+        finally:
+            conn.close()
+
+        return {
+            "period":             period,
+            "tokens":             total_tokens,
+            "cost_usd":           round(total_cost, 6),
+            "credits_used":       credits_used,
+            "credits_allowance":  allowance,
+            "plan":               plan_name,
+            "by_task":            by_task or [],
+            "by_team":            by_team,
+            "integrations": {
+                "api_calls":          int(int_row.get("api_calls") or 0),
+                "backfill_items":     int(int_row.get("backfill_items") or 0),
+                "connected_accounts": int(int_row.get("connected_accounts") or 0),
+            },
+        }

@@ -1,20 +1,22 @@
 """
-Composio connector — 1,047+ app integrations via a single API key.
+Integration connector — 1,047+ app integrations.
 
-Setup:
-  1. Sign up at composio.dev
-  2. Get your API key from the dashboard → Settings → API Keys
-  3. Set COMPOSIO_API_KEY=your_key in .env
-  4. Connect apps at composio.dev/dashboard or via /api/composio/connect
-
-This connector replaces the need for individual Gmail/GDocs/Calendar/Notion
-connectors — Composio handles OAuth and normalization for all 1,047+ apps.
-
-REST API: https://backend.composio.dev/api/v3.1
-Docs:     https://docs.composio.dev
+Internal implementation detail. Never expose vendor name to users.
 """
 import os, datetime, time
 from .base import Connector
+
+# Thread-local billing context set by the API layer
+_billing_ctx: dict = {}
+
+def set_billing_context(account_id: str):
+    _billing_ctx["account_id"] = account_id
+
+def clear_billing_context():
+    _billing_ctx.clear()
+
+def _account_id() -> str:
+    return _billing_ctx.get("account_id", "")
 
 _BASE = "https://backend.composio.dev/api/v3.1"
 
@@ -351,9 +353,12 @@ class ComposioConnector(Connector):
         connected = self._connected_apps()
         if not connected:
             raise RuntimeError(
-                "No apps connected to Composio yet.\n"
-                "Visit composio.dev/dashboard and connect your apps first."
+                "No apps connected yet. Connect an integration from the Integrations tab."
             )
+
+        acct_id = _account_id()
+        total_calls = 0
+        total_items = 0
 
         for account in connected:
             app = account["app"]
@@ -362,13 +367,31 @@ class ComposioConnector(Connector):
             actions = _APP_ACTIONS.get(app, [])
             for action_slug, args in actions:
                 try:
-                    # For poll mode, add a recency filter where supported
                     if poll and "query" in args:
                         cutoff = (datetime.datetime.utcnow() - datetime.timedelta(days=3))
                         args = dict(args, query=f"after:{cutoff.strftime('%Y/%m/%d')}")
                     result = execute_action(action_slug, args)
-                    for ep in _normalize_result(app, action_slug, result):
+                    total_calls += 1
+                    eps = list(_normalize_result(app, action_slug, result))
+                    total_items += len(eps)
+                    for ep in eps:
                         yield ep
                 except Exception as e:
                     import sys
-                    print(f"[composio] {app}/{action_slug} error: {e}", file=sys.stderr)
+                    print(f"[integrations] {app}/{action_slug} error: {e}", file=sys.stderr)
+
+        # Meter this run (fire-and-forget)
+        try:
+            from brain.core.db import BACKEND
+            if BACKEND == "postgres" and acct_id:
+                from brain.core.db_pg import record_integration_usage
+                record_integration_usage(
+                    account_id=acct_id,
+                    provider="integrations",
+                    api_calls=total_calls,
+                    backfill_items=total_items if not poll else 0,
+                    connected_accounts=len(connected),
+                )
+        except Exception as e:
+            import sys
+            print(f"[integrations] metering write failed: {e}", file=sys.stderr)

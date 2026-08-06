@@ -101,14 +101,48 @@ _PUBLIC_DOMAINS = {
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+def _resolve_account_id(user_id: str) -> str:
+    """Resolve account_id from user_id via memberships table. Returns '' on any error."""
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        return ""
+    try:
+        from brain.core import db_pg as _pg
+        conn = _pg.connect()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT account_id FROM memberships WHERE user_id=%s AND status='active' LIMIT 1",
+                (user_id,)
+            )
+            row = cur.fetchone()
+            cur.close()
+            return (row or {}).get("account_id", "") or ""
+        finally:
+            conn.close()
+    except Exception:
+        return ""
+
+
 def _brain(identity: Identity, team_id: str = None) -> Brain:
-    """Build a Brain scoped to the authenticated identity."""
-    return Brain(
+    """Build a Brain scoped to the authenticated identity, with billing context."""
+    account_id = _resolve_account_id(identity.user_id)
+    b = Brain(
         workspace_id=identity.workspace_id,
         team_id=team_id or identity.team_id,
         caller=identity.user_id,
         principals=identity.principals,
+        account_id=account_id or None,
     )
+    # Set LLM billing context so every chat_json/chat_text call in this request
+    # writes a usage_events row attributed to the correct account.
+    from brain.core.llm import set_billing_context
+    set_billing_context(
+        account_id=account_id,
+        user_id=identity.user_id,
+        team_id=identity.team_id,
+    )
+    return b
 
 
 def _q(conn, sql_sqlite, sql_pg, params):
@@ -1147,6 +1181,211 @@ def sync(
         raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+# ── LLM settings (user-facing: provider + API key) ───────────────────────────
+
+class LLMSettingsRequest(BaseModel):
+    provider: str   # "openai" | "anthropic" | "grok"
+    api_key: str
+
+_PROVIDER_ENV_MAP = {
+    "openai":    "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "grok":      "GROK_API_KEY",
+}
+
+def _env_path():
+    return Path(__file__).parent.parent.parent / ".env"
+
+def _read_env_file():
+    p = _env_path()
+    if not p.exists():
+        return {}
+    lines = p.read_text(encoding="utf-8").splitlines()
+    env = {}
+    for line in lines:
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, _, v = line.partition("=")
+            env[k.strip()] = v.strip().strip('"').strip("'")
+    return env
+
+def _write_env_file(env: dict, remove_keys: set = None):
+    """Write env dict back to .env, replacing existing keys in-place.
+    Keys in remove_keys are stripped from the file entirely."""
+    remove_keys = remove_keys or set()
+    p = _env_path()
+    lines = []
+    written = set()
+    if p.exists():
+        for line in p.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and "=" in stripped:
+                k = stripped.partition("=")[0].strip()
+                if k in remove_keys:
+                    continue  # strip this key
+                if k in env:
+                    lines.append(f'{k}="{env[k]}"')
+                    written.add(k)
+                    continue
+            lines.append(line)
+    for k, v in env.items():
+        if k not in written:
+            lines.append(f'{k}="{v}"')
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+@app.get("/api/settings/llm")
+def get_llm_settings(_identity: Identity = Depends(get_identity)):
+    """Return which LLM provider + whether a key is saved."""
+    env = _read_env_file()
+    active_provider = None
+    for provider, var in _PROVIDER_ENV_MAP.items():
+        if env.get(var) or os.getenv(var):
+            active_provider = provider
+            break
+    return {
+        "provider": active_provider or "openai",
+        "has_key": active_provider is not None,
+    }
+
+
+@app.post("/api/settings/llm")
+def save_llm_settings(
+    req: LLMSettingsRequest,
+    _identity: Identity = Depends(get_identity),
+):
+    """Save LLM provider API key to .env file."""
+    if req.provider not in _PROVIDER_ENV_MAP:
+        raise HTTPException(400, f"Unknown provider '{req.provider}'. Must be: openai, anthropic, grok")
+    if not req.api_key or len(req.api_key) < 10:
+        raise HTTPException(400, "API key appears too short")
+
+    env_var = _PROVIDER_ENV_MAP[req.provider]
+
+    # Clear the other provider keys so only one is active
+    env = _read_env_file()
+    # Clear all other LLM provider keys from env dict
+    other_vars = {v for v in _PROVIDER_ENV_MAP.values() if v != env_var}
+    for var in other_vars:
+        env.pop(var, None)
+    env[env_var] = req.api_key
+    _write_env_file(env, remove_keys=other_vars)
+
+    # Also set in current process so the running server uses it immediately
+    for var in _PROVIDER_ENV_MAP.values():
+        os.environ.pop(var, None)
+    os.environ[env_var] = req.api_key
+
+    return {"ok": True, "provider": req.provider, "var": env_var}
+
+
+# ── workspace usage (admin) ───────────────────────────────────────────────────
+
+@app.get("/api/usage")
+def get_usage(period: str = None, identity: Identity = Depends(require_admin)):
+    """
+    Return AI cost and credit usage for this workspace for the given month.
+    Restricted to workspace admins. Period format: YYYY-MM (defaults to current month).
+    """
+    b = _brain(identity)
+    return b.usage_summary(period=period)
+
+
+# ── platform metrics (platform-owner only) ────────────────────────────────────
+
+@app.get("/api/_platform/metrics")
+def platform_metrics(period: str = None, _identity: Identity = Depends(get_identity)):
+    """
+    Aggregate per-workspace cost, token spend, integration api_calls, and gross margin.
+    Restricted to BRAIN_PLATFORM_OWNER=true env flag. Hard 403 for everyone else.
+    """
+    from brain import config as _cfg
+    if not _cfg.PLATFORM_OWNER:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        raise HTTPException(status_code=503, detail="Metrics require Postgres backend")
+
+    import datetime as _dt
+    from brain.core import db_pg as _pg
+
+    now = _dt.date.today()
+    if period:
+        try:
+            y, m = map(int, period.split("-"))
+            period_start = _dt.date(y, m, 1)
+        except Exception:
+            period_start = now.replace(day=1)
+    else:
+        period_start = now.replace(day=1)
+        period = period_start.strftime("%Y-%m")
+
+    if period_start.month == 12:
+        period_end = period_start.replace(year=period_start.year + 1, month=1, day=1)
+    else:
+        period_end = period_start.replace(month=period_start.month + 1, day=1)
+
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+
+        # Per-workspace LLM cost + token spend
+        cur.execute("""
+            SELECT
+                account_id,
+                SUM(prompt_tokens + completion_tokens) AS total_tokens,
+                SUM(cost_usd)                          AS total_cost
+            FROM usage_events
+            WHERE ts >= %s AND ts < %s
+            GROUP BY account_id
+            ORDER BY total_cost DESC
+        """, (period_start.isoformat(), period_end.isoformat()))
+        llm_rows = cur.fetchall()
+
+        # Per-workspace integration api_calls
+        cur.execute("""
+            SELECT
+                account_id,
+                SUM(api_calls)      AS api_calls,
+                SUM(backfill_items) AS backfill_items
+            FROM integration_usage
+            WHERE period >= %s AND period < %s
+            GROUP BY account_id
+        """, (period_start.isoformat(), period_end.isoformat()))
+        int_rows = {r["account_id"]: r for r in cur.fetchall()}
+
+        # Platform totals
+        total_cost = sum(float(r["total_cost"] or 0) for r in llm_rows)
+        total_tokens = sum(int(r["total_tokens"] or 0) for r in llm_rows)
+
+        workspaces = []
+        for r in llm_rows:
+            acct = r["account_id"]
+            cost = float(r["total_cost"] or 0)
+            tokens = int(r["total_tokens"] or 0)
+            int_data = int_rows.get(acct, {})
+            workspaces.append({
+                "account_id":    acct,
+                "tokens":        tokens,
+                "cost_usd":      round(cost, 6),
+                "api_calls":     int(int_data.get("api_calls") or 0),
+                "backfill_items": int(int_data.get("backfill_items") or 0),
+            })
+
+        cur.close()
+    finally:
+        conn.close()
+
+    return {
+        "period":        period,
+        "total_cost_usd": round(total_cost, 6),
+        "total_tokens":   total_tokens,
+        "workspace_count": len(workspaces),
+        "workspaces":    workspaces,
+    }
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
