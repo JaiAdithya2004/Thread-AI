@@ -135,9 +135,9 @@ def startup_check() -> None:
     is_prod    = env == "production"
     bypass     = os.getenv("BRAIN_DEV_BYPASS", "").lower() in ("1", "true", "yes")
 
-    ok  = "\033[32m✓\033[0m"
-    warn = "\033[33m⚠\033[0m"
-    err  = "\033[31m✗\033[0m"
+    ok  = "\033[32mOK\033[0m"
+    warn = "\033[33m--\033[0m"
+    err  = "\033[31mERR\033[0m"
 
     checks = []
     fatal  = []
@@ -152,7 +152,7 @@ def startup_check() -> None:
         else:
             checks.append(f"  {warn}  {label}  (not set)")
 
-    print("\n[intellark] ── Boot check ────────────────────────────────────")
+    print("\n[intellark] -- Boot check -----------------------------------")
     print(f"  env        : {env}")
     _check("DATABASE_URL",     os.getenv("DATABASE_URL", ""),     required_in_prod=True)
     if is_prod:
@@ -177,4 +177,4 @@ def startup_check() -> None:
         print("         Set them in your environment or .env file and restart.")
         sys.exit(1)
 
-    print("[intellark] ── Boot check passed ─────────────────────────────\n")
+    print("[intellark] -- Boot check passed -----------------------------------\n")

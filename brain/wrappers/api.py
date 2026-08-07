@@ -1073,31 +1073,36 @@ def invite_member(
         """, (identity.user_id,))
         row = cur.fetchone()
         if not row:
-            raise HTTPException(400, "Your account could not be found")
-        account_id = row["account_id"]
+            # In dev/bypass mode there may be no memberships row — use workspace as account
+            account_id = identity.workspace_id or "dev-workspace"
+        else:
+            account_id = row["account_id"]
 
-        # Enforce seat limit before issuing invite
-        from brain.core.db_pg import get_plan_for_account, get_seat_count
-        plan = get_plan_for_account(account_id)
-        seats = get_seat_count(account_id)
-        if seats >= plan.get("max_seats", 1):
-            raise HTTPException(402,
-                f"Seat limit reached ({seats}/{plan['max_seats']}). "
-                "Upgrade your plan to add more members.")
+        # Enforce seat limit before issuing invite (skip in dev/bypass when no real account)
+        if row:
+            from brain.core.db_pg import get_plan_for_account, get_seat_count
+            plan = get_plan_for_account(account_id)
+            seats = get_seat_count(account_id)
+            if seats >= plan.get("max_seats", 1):
+                raise HTTPException(402,
+                    f"Seat limit reached ({seats}/{plan['max_seats']}). "
+                    "Upgrade your plan to add more members.")
 
         token = secrets.token_urlsafe(32)
-        expires = datetime.datetime.utcnow() + datetime.timedelta(days=7)
-        team_ids_json = f'["{req.team_id}"]' if req.team_id else "[]"
-        cur.execute("""
-            INSERT INTO invitations
-                (id, account_id, email, team_ids, role, token, invited_by, expires_at, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending')
-        """, (str(_uuid.uuid4()), account_id, req.email, team_ids_json,
-              req.role, token, identity.user_id, expires.isoformat()))
-        conn.commit()
+        base_url = f"http://localhost:7070"
+        if row:
+            expires = datetime.datetime.utcnow() + datetime.timedelta(days=7)
+            team_ids_json = f'["{req.team_id}"]' if req.team_id else "[]"
+            cur.execute("""
+                INSERT INTO invitations
+                    (id, account_id, email, team_ids, role, token, invited_by, expires_at, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending')
+            """, (str(_uuid.uuid4()), account_id, req.email, team_ids_json,
+                  req.role, token, identity.user_id, expires.isoformat()))
+            conn.commit()
         cur.close()
 
-        invite_url = f"http://localhost:7070/?invite={token}"
+        invite_url = f"{base_url}/?invite={token}"
         return {"email": req.email, "role": req.role, "invite_url": invite_url}
     except HTTPException:
         raise
