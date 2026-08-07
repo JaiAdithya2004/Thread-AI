@@ -1,16 +1,16 @@
 """
 Shared pytest fixtures for Intellark test suite.
 
-All fixtures use SQLite (in-memory) so tests run without Postgres.
-LLM calls are stubbed out so tests never hit a real API.
+Tests that require a live Postgres connection are skipped automatically when
+DATABASE_URL is not set. LLM and embed calls are always stubbed.
 """
 import os, json, uuid, pytest
 
-# ── Force SQLite backend for all tests ───────────────────────────────────────
-# Use hard assignment (not setdefault) so these win over .env loaded by config.py
-os.environ["BRAIN_DB_BACKEND"]  = "sqlite"
-os.environ["BRAIN_ENV"]         = "development"
-os.environ["BRAIN_DEV_BYPASS"]  = "true"
+POSTGRES_AVAILABLE = bool(os.getenv("DATABASE_URL"))
+
+# ── Environment flags ─────────────────────────────────────────────────────────
+os.environ["BRAIN_ENV"]          = "development"
+os.environ["BRAIN_DEV_BYPASS"]   = "true"
 os.environ["BRAIN_EMBED_OPENAI"] = "false"
 
 # ── Stub LLM so no real API keys are needed ───────────────────────────────────
@@ -76,8 +76,10 @@ def ws_id():
 
 
 @pytest.fixture
-def sqlite_conn(ws_id):
-    """Fresh in-memory SQLite connection with schema migrated."""
+def pg_conn(ws_id):
+    """Postgres connection for integration tests. Skipped when DATABASE_URL is not set."""
+    if not POSTGRES_AVAILABLE:
+        pytest.skip("requires Postgres DATABASE_URL")
     from brain.core import db
     conn = db.connect()
     db.migrate(conn)
@@ -86,8 +88,8 @@ def sqlite_conn(ws_id):
 
 
 @pytest.fixture
-def brain(ws_id, sqlite_conn):
-    """A Brain instance backed by the in-memory SQLite connection."""
+def brain(ws_id, pg_conn):
+    """A Brain instance backed by a Postgres connection. Skipped when DATABASE_URL is not set."""
     from brain.engine import Brain
     b = Brain.__new__(Brain)
     b.ws         = ws_id
@@ -95,7 +97,7 @@ def brain(ws_id, sqlite_conn):
     b.caller     = "tester@example.com"
     b.principals = ["tester@example.com", "everyone"]
     b.account_id = None
-    b.conn       = sqlite_conn
+    b.conn       = pg_conn
     from brain.core import db
     db.migrate(b.conn)
     return b

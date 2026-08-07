@@ -147,16 +147,11 @@ def run(conn, ws, query, principals, caller, surface,
     fused = _rrf(vec_hits, _fts(conn, expanded))
 
     facts = []
-    _ph = "%s" if db.BACKEND == "postgres" else "?"
     for fid in fused:
-        if db.BACKEND == "postgres":
-            cur = conn.cursor()
-            cur.execute(f"SELECT * FROM facts WHERE id={_ph} AND workspace_id={_ph}", (fid, ws))
-            row = cur.fetchone()
-            cur.close()
-        else:
-            row = conn.execute(
-                "SELECT * FROM facts WHERE id=? AND workspace_id=?", (fid, ws)).fetchone()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM facts WHERE id=%s AND workspace_id=%s", (fid, ws))
+        row = cur.fetchone()
+        cur.close()
         if not row:
             continue
         row = dict(row)

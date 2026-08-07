@@ -129,7 +129,7 @@ Claude will automatically inject relevant company facts on every prompt and harv
 pytest
 ```
 
-85 tests — covers auth, metering, validation, ingest/retrieve pipeline, and privacy isolation. All run against SQLite in-memory; no Postgres or API keys needed.
+85 tests — covers auth, metering, validation, and privacy isolation. Integration tests (ingest/retrieve pipeline) require a `DATABASE_URL`; all other tests run without one.
 
 ---
 
@@ -151,9 +151,8 @@ brain/
   config.py        — env var loading, defaults, boot validation
   engine.py        — Brain class: single public API surface
   core/
-    db.py          — routes to SQLite or Postgres
-    db_sqlite.py   — SQLite + sqlite-vec backend (dev/test)
-    db_pg.py       — Postgres + pgvector backend (production)
+    db.py          — re-exports db_pg; all DB access goes here
+    db_pg.py       — Postgres + pgvector backend (Supabase or self-hosted)
     extract.py     — LLM fact extraction
     retrieve.py    — semantic search + answer synthesis
     ingest.py      — episode dedup + worthiness filter
@@ -173,7 +172,6 @@ brain/
 
 scripts/
   smoke_test.py          — Live server smoke test
-  migrate_sqlite_to_pg.py — One-time SQLite → Postgres migration
 
 tests/                   — pytest suite (85 tests)
 ```

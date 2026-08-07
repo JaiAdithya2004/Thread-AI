@@ -107,9 +107,6 @@ def clear_billing_context():
 def _load_byo_key(account_id: str):
     """Read workspace BYO key from DB and stash it in _ctx for this request."""
     try:
-        from brain.core.db import BACKEND
-        if BACKEND != "postgres":
-            return
         from brain.core.db_pg import get_byo_key
         for provider in ("openai", "anthropic", "grok"):
             key = get_byo_key(account_id, provider)
@@ -130,7 +127,7 @@ def _effective_api_key() -> tuple:
 
 def _check_credit_allowance():
     """Raise HTTP 402 if this account has exhausted its monthly credit allowance.
-    Silently passes in dev/bypass mode (no account_id) or non-postgres backends."""
+    Silently passes in dev/bypass mode (no account_id)."""
     account_id = _ctx.get("account_id")
     if not account_id:
         return
@@ -138,9 +135,6 @@ def _check_credit_allowance():
     if _ctx.get("byo_key"):
         return
     try:
-        from brain.core.db import BACKEND
-        if BACKEND != "postgres":
-            return
         from brain.core.db_pg import get_plan_for_account, get_credits_used_this_month
         plan      = get_plan_for_account(account_id)
         allowance = plan.get("monthly_credits", 500)
@@ -168,9 +162,6 @@ def _write_usage(task: str, model: str, prompt_tokens: int, completion_tokens: i
     if not account_id:
         return  # no billing context — dev/bypass mode, skip silently
     try:
-        from brain.core.db import BACKEND
-        if BACKEND != "postgres":
-            return
         from brain.core import db_pg as _pg
         conn = _pg.connect()
         try:

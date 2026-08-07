@@ -6,7 +6,7 @@ Usage:
     python -m evals.run --questions evals/questions.yaml --out evals/results.json
     python -m evals.run --reset-extracted   # mark all episodes unextracted, then exit
 
-Requires the server to NOT be running (connects to SQLite directly).
+Requires the server to NOT be running (connects to Postgres directly via DATABASE_URL).
 Optional: pip install ragas datasets langchain-openai  for RAGAS metrics.
 """
 import argparse

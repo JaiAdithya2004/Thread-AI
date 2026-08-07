@@ -1,5 +1,5 @@
 """
-Integration tests: ingest → extract → retrieve pipeline using SQLite.
+Integration tests: ingest → extract → retrieve pipeline.
 
 Key properties verified:
 - Episodes are deduplicated by content hash
@@ -8,8 +8,18 @@ Key properties verified:
 - Cross-team isolation: team A facts are not returned for team B queries
 - Shared facts are visible across teams
 - Confidence threshold gates "not sure" path
+
+These tests require a live Postgres connection (DATABASE_URL env var).
+They are skipped automatically when no database is configured.
 """
 import pytest
+
+from tests.conftest import POSTGRES_AVAILABLE
+
+pytestmark = pytest.mark.skipif(
+    not POSTGRES_AVAILABLE,
+    reason="requires Postgres DATABASE_URL",
+)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -156,15 +166,15 @@ def test_shared_facts_visible_across_teams(brain):
 
 # ── Workspace isolation ───────────────────────────────────────────────────────
 
-def test_workspace_isolation(sqlite_conn):
+def test_workspace_isolation(pg_conn):
     """Facts from workspace A must never appear in workspace B queries."""
     from brain.core import ingest, retrieve, db
 
     ws_a = "ws-isol-a"
     ws_b = "ws-isol-b"
     for ws in (ws_a, ws_b):
-        db.migrate(sqlite_conn)
-        db.ensure_team(sqlite_conn, ws, "eng", "Engineering")
+        db.migrate(pg_conn)
+        db.ensure_team(pg_conn, ws, "eng", "Engineering")
 
     ep = {
         "source": "test", "external_id": "ws-isol-ep1",
@@ -172,11 +182,11 @@ def test_workspace_isolation(sqlite_conn):
         "author": "a", "url": "", "occurred_at": "2026-01-01T00:00:00",
         "acl": "everyone", "team_id": "eng",
     }
-    ingest.run(sqlite_conn, ws_a, [ep], team_id="eng")
+    ingest.run(pg_conn, ws_a, [ep], team_id="eng")
 
     # Query against ws_b — must not return ws_a facts
     facts = retrieve.run(
-        sqlite_conn, ws_b,
+        pg_conn, ws_b,
         "confidential budget",
         principals=["user@corp.com", "everyone"],
         caller="user@corp.com",

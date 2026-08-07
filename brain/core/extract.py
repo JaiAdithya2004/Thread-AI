@@ -215,7 +215,6 @@ def _find_near_duplicate(conn, ws, subject: str, embedding: list) -> Optional[st
         for row in rows:
             fid = row[0]
             dist = row[1]
-            # sqlite-vec returns L2 distance; distance close to 0 = very similar
             if dist < (1 - DEDUP_THRESHOLD):
                 fact = conn.execute(
                     "SELECT subject, invalidated_at FROM facts WHERE id=? AND workspace_id=?",

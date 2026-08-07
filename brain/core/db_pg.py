@@ -1,8 +1,5 @@
 """
 Postgres + pgvector backend for Company Brain.
-Drop-in replacement for db.py — identical public signatures.
-
-Activated when BRAIN_DB_BACKEND=postgres (or DATABASE_URL is set).
 Uses psycopg2 (sync) so the rest of the codebase needs zero async changes.
 """
 import datetime, json, uuid

@@ -231,9 +231,6 @@ _PUBLIC_DOMAINS = {
 
 def _resolve_account_id(user_id: str) -> str:
     """Resolve account_id from user_id via memberships table. Returns '' on any error."""
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        return ""
     try:
         from brain.core import db_pg as _pg
         conn = _pg.connect()
@@ -263,10 +260,8 @@ def _brain(identity: Identity, team_id: str = None) -> Brain:
         account_id=account_id or None,
     )
     # Set brain.workspace_id session var so RLS policies apply to all queries on this connection.
-    from brain.core.db import BACKEND
-    if BACKEND == "postgres":
-        from brain.core import db_pg as _pg
-        _pg._set_ws(b.conn, b.ws)
+    from brain.core import db_pg as _pg
+    _pg._set_ws(b.conn, b.ws)
     # Set LLM billing context so every chat_json/chat_text call in this request
     # writes a usage_events row attributed to the correct account.
     from brain.core.llm import set_billing_context
@@ -278,21 +273,16 @@ def _brain(identity: Identity, team_id: str = None) -> Brain:
     return b
 
 
-def _q(conn, sql_sqlite, sql_pg, params):
-    """Run the right SQL variant based on active backend."""
-    from brain.core.db import BACKEND
-    sql = sql_pg if BACKEND == "postgres" else sql_sqlite
-    if BACKEND == "postgres":
-        cur = conn.cursor()
-        cur.execute(sql, params)
-        rows = cur.fetchall()
-        cur.close()
-        return rows
-    return conn.execute(sql, params).fetchall()
+def _q(conn, sql, params):
+    cur = conn.cursor()
+    cur.execute(sql, params)
+    rows = cur.fetchall()
+    cur.close()
+    return rows
 
 
-def _q1(conn, sql_sqlite, sql_pg, params):
-    rows = _q(conn, sql_sqlite, sql_pg, params)
+def _q1(conn, sql, params):
+    rows = _q(conn, sql, params)
     return rows[0] if rows else None
 
 
@@ -302,7 +292,6 @@ def _enrich(facts, conn):
         ep_id = f.get("episode_id")
         if ep_id:
             row = _q1(conn,
-                "SELECT source,title,url,author,occurred_at FROM episodes WHERE id=?",
                 "SELECT source,title,url,author,occurred_at FROM episodes WHERE id=%s",
                 (ep_id,))
             if row:
@@ -315,7 +304,6 @@ def _enrich(facts, conn):
 def _auto_discover_teams(b: Brain):
     """Auto-register any team_id found in facts that has no teams table row."""
     rows = _q(b.conn,
-        "SELECT DISTINCT team_id FROM facts WHERE workspace_id=? AND team_id IS NOT NULL",
         "SELECT DISTINCT team_id FROM facts WHERE workspace_id=%s AND team_id IS NOT NULL",
         (b.ws,))
     for row in rows:
@@ -380,25 +368,23 @@ def status():
 def me(identity: Identity = Depends(get_identity)):
     """Return the caller's resolved identity (debug / UI persona display)."""
     account_type = "company"  # default — company UI until we know otherwise
-    from brain.core.db import BACKEND
-    if BACKEND == "postgres":
-        try:
-            from brain.core import db_pg as _pg
-            conn = _pg.connect()
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT a.type FROM accounts a
-                JOIN memberships m ON m.account_id = a.id
-                WHERE m.user_id = %s AND m.status = 'active'
-                LIMIT 1
-            """, (identity.user_id,))
-            row = cur.fetchone()
-            cur.close()
-            conn.close()
-            if row:
-                account_type = row["type"]
-        except Exception:
-            pass  # non-fatal; default to company mode
+    try:
+        from brain.core import db_pg as _pg
+        conn = _pg.connect()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT a.type FROM accounts a
+            JOIN memberships m ON m.account_id = a.id
+            WHERE m.user_id = %s AND m.status = 'active'
+            LIMIT 1
+        """, (identity.user_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row:
+            account_type = row["type"]
+    except Exception:
+        pass  # non-fatal; default to company mode
 
     return {
         "user_id":      identity.user_id,
@@ -514,20 +500,11 @@ def get_facts(
         rows = _q(conn,
             "SELECT f.*,e.source ep_source FROM facts f "
             "LEFT JOIN episodes e ON f.episode_id=e.id "
-            "WHERE f.workspace_id=? AND f.invalidated_at IS NULL "
-            "ORDER BY f.introduced_at DESC LIMIT ?",
-            "SELECT f.*,e.source ep_source FROM facts f "
-            "LEFT JOIN episodes e ON f.episode_id=e.id "
             "WHERE f.workspace_id=%s AND f.invalidated_at IS NULL "
             "ORDER BY f.introduced_at DESC LIMIT %s",
             (ws, limit))
     else:
         rows = _q(conn,
-            "SELECT f.*,e.source ep_source FROM facts f "
-            "LEFT JOIN episodes e ON f.episode_id=e.id "
-            "WHERE f.workspace_id=? AND f.invalidated_at IS NULL "
-            "AND (f.team_id=? OR f.visibility='shared') "
-            "ORDER BY f.introduced_at DESC LIMIT ?",
             "SELECT f.*,e.source ep_source FROM facts f "
             "LEFT JOIN episodes e ON f.episode_id=e.id "
             "WHERE f.workspace_id=%s AND f.invalidated_at IS NULL "
@@ -631,7 +608,6 @@ def signup(req: SignupRequest, request: Request):
     """
     _rl_auth(request)
     import uuid as _uuid
-    from brain.core.db import BACKEND
 
     req.email = req.email.lower().strip()
     req.name  = req.name.strip()
@@ -654,47 +630,45 @@ def signup(req: SignupRequest, request: Request):
     # Actually we get it from the auth identity
     user_id = req.password  # repurposed: caller passes clerk user_id here
 
-    if BACKEND == "postgres":
-        from brain.core import db_pg as _pg
-        conn = _pg.connect()
-        try:
-            cur = conn.cursor()
-            # Idempotent — don't create duplicate account if already exists
-            cur.execute(
-                "SELECT m.account_id FROM memberships m WHERE m.user_id=%s AND m.status='active' LIMIT 1",
-                (user_id,)
-            )
-            existing = cur.fetchone()
-            if existing:
-                return {"user_id": user_id, "account_id": existing["account_id"],
-                        "account_type": req.account_type, "role": "owner", "existing": True}
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        # Idempotent — don't create duplicate account if already exists
+        cur.execute(
+            "SELECT m.account_id FROM memberships m WHERE m.user_id=%s AND m.status='active' LIMIT 1",
+            (user_id,)
+        )
+        existing = cur.fetchone()
+        if existing:
+            return {"user_id": user_id, "account_id": existing["account_id"],
+                    "account_type": req.account_type, "role": "owner", "existing": True}
 
-            account_id = str(_uuid.uuid4())
-            cur.execute(
-                "INSERT INTO accounts (id, type, name, domain) VALUES (%s,%s,%s,%s)",
-                (account_id, req.account_type, req.name, domain),
-            )
-            role = "owner" if req.account_type == "individual" else "admin"
-            cur.execute(
-                "INSERT INTO memberships (id, user_id, account_id, role, status) VALUES (%s,%s,%s,%s,'active')",
-                (str(_uuid.uuid4()), user_id, account_id, role),
-            )
-            conn.commit()
-            cur.close()
+        account_id = str(_uuid.uuid4())
+        cur.execute(
+            "INSERT INTO accounts (id, type, name, domain) VALUES (%s,%s,%s,%s)",
+            (account_id, req.account_type, req.name, domain),
+        )
+        role = "owner" if req.account_type == "individual" else "admin"
+        cur.execute(
+            "INSERT INTO memberships (id, user_id, account_id, role, status) VALUES (%s,%s,%s,%s,'active')",
+            (str(_uuid.uuid4()), user_id, account_id, role),
+        )
+        conn.commit()
+        cur.close()
 
-            # Provision free plan subscription for the new account
-            from brain.core.db_pg import ensure_free_subscription
-            ensure_free_subscription(account_id)
-        except Exception as e:
-            conn.rollback()
-            raise HTTPException(500, f"DB error: {e}")
-        finally:
-            conn.close()
-    # SQLite mode: skip local tables (in-memory only dev scenario)
+        # Provision free plan subscription for the new account
+        from brain.core.db_pg import ensure_free_subscription
+        ensure_free_subscription(account_id)
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, f"DB error: {e}")
+    finally:
+        conn.close()
 
     return {
         "user_id":      user_id,
-        "account_id":   account_id if BACKEND == "postgres" else None,
+        "account_id":   account_id,
         "account_type": req.account_type,
         "role":         role,
     }
@@ -703,9 +677,6 @@ def signup(req: SignupRequest, request: Request):
 @app.get("/api/conversations")
 def list_conversations(identity: Identity = Depends(get_identity)):
     """Return the caller's conversation list, newest first. Strictly user-scoped."""
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        return []
     from brain.core import db_pg as _pg
     conn = _pg.connect()
     try:
@@ -729,10 +700,6 @@ def create_conversation(
     identity: Identity = Depends(get_identity),
 ):
     """Create a new conversation for the caller."""
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        import uuid as _uuid
-        return {"id": str(_uuid.uuid4()), "title": req.title}
     from brain.core import db_pg as _pg
     import uuid as _uuid
     conn = _pg.connect()
@@ -765,9 +732,6 @@ def create_conversation(
 @app.get("/api/conversations/{conv_id}/messages")
 def get_messages(conv_id: str, identity: Identity = Depends(get_identity)):
     """Return messages for a conversation. User can only read their own."""
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        return []
     from brain.core import db_pg as _pg
     conn = _pg.connect()
     try:
@@ -798,9 +762,6 @@ def add_message(
     """Append a message to a conversation. User can only write to their own."""
     if req.role not in ("user", "assistant"):
         raise HTTPException(400, "role must be 'user' or 'assistant'")
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        return {"ok": True}
     from brain.core import db_pg as _pg
     import uuid as _uuid
     conn = _pg.connect()
@@ -836,9 +797,6 @@ def add_message(
 @app.delete("/api/conversations/{conv_id}")
 def delete_conversation(conv_id: str, identity: Identity = Depends(get_identity)):
     """Delete a conversation and all its messages. User can only delete their own."""
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        return {"ok": True}
     from brain.core import db_pg as _pg
     conn = _pg.connect()
     try:
@@ -869,9 +827,6 @@ def sso_provision(request: Request, identity: Identity = Depends(get_identity)):
     """
     _rl_auth(request)
     import uuid as _uuid
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        return {"ok": True, "skipped": "sqlite"}
     from brain.core import db_pg as _pg
     conn = _pg.connect()
     try:
@@ -947,9 +902,6 @@ def sso_provision(request: Request, identity: Identity = Depends(get_identity)):
 def get_invite(token: str):
     """Validate an invite token. Public — no auth required."""
     import datetime
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        raise HTTPException(400, "Invites require Postgres backend")
     from brain.core import db_pg as _pg
     conn = _pg.connect()
     try:
@@ -989,9 +941,6 @@ def accept_invite(token: str, req: InviteAcceptRequest, request: Request):
     if not token or len(token) > 128:
         raise HTTPException(400, "Invalid invite token")
     import datetime, json as _json
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        raise HTTPException(400, "Invites require Postgres backend")
     if len(req.password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
 
@@ -1074,9 +1023,6 @@ def accept_invite(token: str, req: InviteAcceptRequest, request: Request):
 @app.get("/api/members")
 def get_members(identity: Identity = Depends(require_admin)):
     """List all members in the caller's account. Admin-only."""
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        return []
     from brain.core import db_pg as _pg
     conn = _pg.connect()
     try:
@@ -1111,9 +1057,6 @@ def invite_member(
 ):
     """Create a pending invitation for a new member. Admin-only."""
     import secrets, datetime
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        raise HTTPException(400, "Invitations require Postgres backend")
 
     req.email = req.email.lower().strip()
     if req.role not in ("employee", "admin"):
@@ -1168,9 +1111,6 @@ def invite_member(
 @app.get("/api/members/invites")
 def list_invites(identity: Identity = Depends(require_admin)):
     """List pending invitations for this account. Admin-only."""
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        return []
     from brain.core import db_pg as _pg
     conn = _pg.connect()
     try:
@@ -1197,9 +1137,6 @@ def list_invites(identity: Identity = Depends(require_admin)):
 @app.delete("/api/members/invites/{invite_id}")
 def revoke_invite(invite_id: str, identity: Identity = Depends(require_admin)):
     """Revoke a pending invite. Admin-only."""
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        raise HTTPException(400, "Not supported in SQLite mode")
     from brain.core import db_pg as _pg
     conn = _pg.connect()
     try:
@@ -1232,9 +1169,6 @@ def update_member(
     """Update a member's role, status, or department. Admin-only. Cannot modify self."""
     if user_id == identity.user_id:
         raise HTTPException(400, "You cannot modify your own membership this way")
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        raise HTTPException(400, "Not supported in SQLite mode")
     from brain.core import db_pg as _pg
     conn = _pg.connect()
     try:
@@ -1290,9 +1224,6 @@ def remove_member(
     """Remove a member from the account. Admin-only. Cannot remove self."""
     if user_id == identity.user_id:
         raise HTTPException(400, "You cannot remove yourself")
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        raise HTTPException(400, "Not supported in SQLite mode")
     from brain.core import db_pg as _pg
     conn = _pg.connect()
     try:
@@ -1467,9 +1398,6 @@ def save_llm_settings(
 @app.get("/api/plans")
 def list_plans(_identity: Identity = Depends(get_identity)):
     """Return all available plans. Public (any authenticated user can see pricing)."""
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        return []
     from brain.core import db_pg as _pg
     conn = _pg.connect()
     try:
@@ -1487,9 +1415,6 @@ def list_plans(_identity: Identity = Depends(get_identity)):
 @app.get("/api/subscription")
 def get_subscription(identity: Identity = Depends(require_admin)):
     """Return this workspace's active subscription and plan limits."""
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        return {"plan": "free", "status": "active"}
     from brain.core import db_pg as _pg
     account_id = _resolve_account_id(identity.user_id)
     if not account_id:
@@ -1525,9 +1450,6 @@ def set_subscription(
     valid_plans = {"plan_free", "plan_team", "plan_business"}
     if req.plan_id not in valid_plans:
         raise HTTPException(400, f"Unknown plan '{req.plan_id}'")
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        raise HTTPException(503, "Subscriptions require Postgres backend")
     from brain.core import db_pg as _pg
     account_id = _resolve_account_id(identity.user_id)
     if not account_id:
@@ -1556,9 +1478,6 @@ def set_subscription(
 @app.get("/api/byo-key")
 def get_byo_keys(identity: Identity = Depends(require_admin)):
     """Return which providers have BYO keys saved for this workspace."""
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        return []
     from brain.core import db_pg as _pg
     account_id = _resolve_account_id(identity.user_id)
     if not account_id:
@@ -1589,9 +1508,6 @@ def save_byo_key(
         raise HTTPException(400, f"Unknown provider '{req.provider}'")
     if not req.api_key or len(req.api_key) < 10:
         raise HTTPException(400, "API key appears too short")
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        raise HTTPException(503, "BYO keys require Postgres backend")
     account_id = _resolve_account_id(identity.user_id)
     if not account_id:
         raise HTTPException(404, "Account not found")
@@ -1608,9 +1524,6 @@ def delete_byo_key(
     """Remove a workspace BYO API key."""
     if provider not in _PROVIDER_ENV_MAP:
         raise HTTPException(400, f"Unknown provider '{provider}'")
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        raise HTTPException(503, "BYO keys require Postgres backend")
     account_id = _resolve_account_id(identity.user_id)
     if not account_id:
         raise HTTPException(404, "Account not found")
@@ -1642,10 +1555,6 @@ def platform_metrics(period: str = None, _identity: Identity = Depends(get_ident
     from brain import config as _cfg
     if not _cfg.PLATFORM_OWNER:
         raise HTTPException(status_code=403, detail="Forbidden")
-
-    from brain.core.db import BACKEND
-    if BACKEND != "postgres":
-        raise HTTPException(status_code=503, detail="Metrics require Postgres backend")
 
     import datetime as _dt
     from brain.core import db_pg as _pg

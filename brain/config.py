@@ -34,7 +34,6 @@ SUPABASE_JWT_SECRET: str = os.getenv("SUPABASE_JWT_SECRET", "")
 
 GROK_BASE_URL = "https://api.x.ai/v1"
 EMBED_DIM = 384                      # bge-small
-DB_FILENAME = os.getenv("BRAIN_DB", "brain.db")
 
 WORTHY_MIN_LEN = 12
 
@@ -134,7 +133,6 @@ def startup_check() -> None:
 
     env        = os.getenv("BRAIN_ENV", "development").lower()
     is_prod    = env == "production"
-    db_backend = os.getenv("BRAIN_DB_BACKEND", "sqlite").lower()
     bypass     = os.getenv("BRAIN_DEV_BYPASS", "").lower() in ("1", "true", "yes")
 
     ok  = "\033[32m✓\033[0m"
@@ -156,9 +154,7 @@ def startup_check() -> None:
 
     print("\n[intellark] ── Boot check ────────────────────────────────────")
     print(f"  env        : {env}")
-    print(f"  db backend : {db_backend}")
-    if db_backend == "postgres":
-        _check("DATABASE_URL",     os.getenv("DATABASE_URL", ""),     required_in_prod=True)
+    _check("DATABASE_URL",     os.getenv("DATABASE_URL", ""),     required_in_prod=True)
     if is_prod:
         _check("CLERK_SECRET_KEY", os.getenv("CLERK_SECRET_KEY", ""), required_in_prod=True)
     _check("LLM key (any)",

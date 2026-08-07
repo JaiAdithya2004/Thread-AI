@@ -79,8 +79,6 @@ def test_extract_usage_skips_on_no_usage(monkeypatch):
 def test_load_byo_key_stashes_in_ctx(monkeypatch):
     from brain.core import llm
     _reset_ctx()
-    # Mock the DB call
-    monkeypatch.setattr("brain.core.db.BACKEND", "postgres")
     monkeypatch.setattr("brain.core.db_pg.get_byo_key",
                         lambda acct, prov: "sk-openai-123" if prov == "openai" else "")
     llm._load_byo_key("acct_1")
@@ -115,7 +113,6 @@ def test_credit_check_raises_402_when_exhausted(monkeypatch):
     from brain.core import llm
     _reset_ctx()
     llm._ctx["account_id"] = "acct_over"
-    monkeypatch.setattr("brain.core.db.BACKEND", "postgres")
     monkeypatch.setattr("brain.core.db_pg.get_plan_for_account",
                         lambda acct: {"monthly_credits": 100, "max_seats": 5})
     monkeypatch.setattr("brain.core.db_pg.get_credits_used_this_month",
@@ -130,7 +127,6 @@ def test_credit_check_passes_when_under_limit(monkeypatch):
     from brain.core import llm
     _reset_ctx()
     llm._ctx["account_id"] = "acct_ok"
-    monkeypatch.setattr("brain.core.db.BACKEND", "postgres")
     monkeypatch.setattr("brain.core.db_pg.get_plan_for_account",
                         lambda acct: {"monthly_credits": 500})
     monkeypatch.setattr("brain.core.db_pg.get_credits_used_this_month",
@@ -145,7 +141,6 @@ def test_credit_check_skips_with_byo_key(monkeypatch):
     llm._ctx["account_id"] = "acct_byo"
     llm._ctx["byo_key"]    = "sk-their-key"
     # Even if plan says 0 credits, should not raise
-    monkeypatch.setattr("brain.core.db.BACKEND", "postgres")
     monkeypatch.setattr("brain.core.db_pg.get_plan_for_account",
                         lambda acct: {"monthly_credits": 0})
     monkeypatch.setattr("brain.core.db_pg.get_credits_used_this_month",
@@ -162,11 +157,13 @@ def test_credit_check_skips_in_dev_mode():
     llm._check_credit_allowance()  # must not raise
 
 
-def test_credit_check_skips_on_sqlite(monkeypatch):
+def test_credit_check_skips_for_byo_key():
+    """BYO-key accounts are never credit-capped."""
     from brain.core import llm
     _reset_ctx()
-    llm._ctx["account_id"] = "acct_sqlite"
-    monkeypatch.setattr("brain.core.db.BACKEND", "sqlite")
+    llm._ctx["account_id"] = "acct_byo"
+    llm._ctx["byo_key"]    = "sk-test-key"
+    llm._ctx["byo_provider"] = "openai"
     llm._check_credit_allowance()  # must not raise
     _reset_ctx()
 

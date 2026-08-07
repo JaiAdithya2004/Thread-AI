@@ -77,22 +77,7 @@ def test_cost_uses_default_for_unknown_model():
 def test_write_usage_skips_without_account_id(monkeypatch):
     from brain.core import llm
     _reset_ctx()
-    # No account_id in ctx → should skip silently
-    called = []
-    monkeypatch.setattr("brain.core.db.BACKEND", "postgres")
-
-    # If _write_usage tries to connect it would fail; confirm it skips
-    with mock.patch("brain.core.db_pg.connect") as mock_conn:
-        llm._write_usage("task", "gpt-4o-mini", 10, 5, 0.001)
-    mock_conn.assert_not_called()
-    _reset_ctx()
-
-
-def test_write_usage_skips_on_sqlite(monkeypatch):
-    from brain.core import llm
-    _reset_ctx()
-    llm._ctx["account_id"] = "acct_1"
-    monkeypatch.setattr("brain.core.db.BACKEND", "sqlite")
+    # No account_id in ctx → should skip silently without touching the DB
     with mock.patch("brain.core.db_pg.connect") as mock_conn:
         llm._write_usage("task", "gpt-4o-mini", 10, 5, 0.001)
     mock_conn.assert_not_called()
@@ -107,7 +92,6 @@ def test_chat_json_raises_402_when_credit_exhausted(monkeypatch):
     _reset_ctx()
     llm._ctx["account_id"] = "acct_exhausted"
 
-    monkeypatch.setattr("brain.core.db.BACKEND", "postgres")
     monkeypatch.setattr("brain.core.db_pg.get_plan_for_account",
                         lambda a: {"monthly_credits": 10})
     monkeypatch.setattr("brain.core.db_pg.get_credits_used_this_month",
@@ -125,7 +109,6 @@ def test_chat_text_raises_402_when_credit_exhausted(monkeypatch):
     _reset_ctx()
     llm._ctx["account_id"] = "acct_exhausted2"
 
-    monkeypatch.setattr("brain.core.db.BACKEND", "postgres")
     monkeypatch.setattr("brain.core.db_pg.get_plan_for_account",
                         lambda a: {"monthly_credits": 5})
     monkeypatch.setattr("brain.core.db_pg.get_credits_used_this_month",
@@ -142,7 +125,6 @@ def test_chat_json_succeeds_when_under_limit(monkeypatch):
     _reset_ctx()
     llm._ctx["account_id"] = "acct_ok"
 
-    monkeypatch.setattr("brain.core.db.BACKEND", "postgres")
     monkeypatch.setattr("brain.core.db_pg.get_plan_for_account",
                         lambda a: {"monthly_credits": 500})
     monkeypatch.setattr("brain.core.db_pg.get_credits_used_this_month",
@@ -158,7 +140,6 @@ def test_chat_json_succeeds_when_under_limit(monkeypatch):
 # ── Plan helper defaults ──────────────────────────────────────────────────────
 
 def test_get_plan_for_account_returns_free_on_empty_account(monkeypatch):
-    monkeypatch.setattr("brain.core.db.BACKEND", "postgres")
     with mock.patch("brain.core.db_pg.connect") as mc:
         cur = mock.MagicMock()
         cur.fetchone.return_value = None
