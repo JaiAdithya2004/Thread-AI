@@ -314,6 +314,15 @@ def _auto_discover_teams(b: Brain):
 
 # ── public endpoints (no auth required) ──────────────────────────────────────
 
+@app.get("/logo")
+def logo():
+    from fastapi.responses import FileResponse
+    p = Path(__file__).parent.parent.parent / "Logo.jpeg"
+    if not p.exists():
+        raise HTTPException(404, "Logo not found")
+    return FileResponse(str(p), media_type="image/jpeg")
+
+
 @app.get("/", response_class=HTMLResponse)
 def landing():
     p = Path(__file__).parent / "webapp" / "landing.html"
