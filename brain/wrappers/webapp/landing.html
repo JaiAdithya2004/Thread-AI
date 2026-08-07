@@ -22,7 +22,7 @@
     nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--hairline-soft); height: 64px; }
     .nav-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
     .nav-logo { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; letter-spacing: -0.3px; color: var(--ink); text-decoration: none; }
-    .nav-logo img { height: 26px; border-radius: 3px; }
+    .nav-logo img { height: 30px; width: 30px; border-radius: 8px; object-fit: cover; }
     .nav-links { display: flex; gap: 4px; }
     .nav-links a { font-size: 14px; font-weight: 500; color: var(--muted); text-decoration: none; padding: 6px 12px; border-radius: 6px; }
     .nav-links a:hover { color: var(--ink); background: var(--surface-soft); }
@@ -207,7 +207,7 @@
     .footer-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
     .footer-top { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; margin-bottom: 56px; }
     .footer-logo { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: white; text-decoration: none; margin-bottom: 16px; }
-    .footer-logo img { height: 22px; border-radius: 3px; }
+    .footer-logo img { height: 26px; width: 26px; border-radius: 7px; object-fit: cover; }
     .footer-tagline { font-size: 14px; color: var(--on-dark-soft); line-height: 1.6; max-width: 260px; }
     .footer-col h4 { font-size: 12px; font-weight: 600; color: white; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
     .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
@@ -317,7 +317,7 @@
 <nav>
   <div class="nav-inner">
     <a href="#" class="nav-logo">
-      <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAQFBQkGCQkJCQkKCAkICgsLCgoLCwwKCwoLCgwMDAwNDQwMDAwMDw4PDAwNDw8PDw0OERERDhEQEBETERMREQ0BBAQECAYIBwgIBwgGCAYICAgHBwgICQcHBwcHCQoJCAgICAkKCQgIBggICQkJCgoJCQoICQgKCgoKCg4QDg4Od/8CAREIADADIAMB/8QAjwABAAMBAQEBAQAAAAAAAAAAAAQGBwUDAgERAAAQICAwYRCQcDBAMAAAAAAQIDAAQFBhESICExNFEQExYiMjNBUnFyc5KxssHR0hQVQlNhYoGCoSNQg5GTwvAwNbAko+HiosDxEQEAAQEGBgEEAwEBAAAAAAABESEAIDFBUWEQcYGRofAwULHB4UDR8bDA/9oADAMBAAIAAwAAAALPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWWZFnFKBO1DMNfMU+NLzQA1PLNcyMdbkjUmWjaeV9ZgaXw6SANInR8+NFZaNSz3ngDU8t1rJT8AA9/CQaNmOq5UAAALPWNSPHM9OzwiAA1yLLyI1L0ykXmjaTUzhAu3H7vFK8dQ9LdMzA+AAAAAAAAAAAAAAAAWedBnFKBPv1Bvx4cmo6wZK7XFNcyPXMjAANWzDT8wPAAGnZ9oPqZY04ZiulLANbyXWslPwACRHkGm5VquVAAAHUtvtRyZYaHqxlL6+QDXci13IgfZZpdhz45YL3xe1CODovRoRXPEAAAAAAAAAAAAAAAALPOgzilAn36g34zKXEGw5R0b8feR67kQABq2YafmB4AA07PtBz4hAAA1vJdayU/AAJEeQablWq5UAAPbxuhdalGrJb7Dl/udKs6vlABsfPlZEan3sOuxyq9dKWAXuzVnjHJ0vKJx+QtXyo+QAAAAAAAAAAAAAAAWedWfU5YJ9+zjrnCAuNOG94JZ6wAAatmHZ4R8AA06uQuiQk0QuPZa8QQa3R/yaQk0QuLZ62RJEf7NdoM0Qk0c7g2qqjXsn7RwvgANQoP59nLBruRWOuD9/BreY+nscgF74sSKQwWSwZ3YyuPTzAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/9oACAECAAE/AP8AOJ//2gAIAQMAAT8A/wA4n/9oACAEBAAE/Av8APYVdQFzQCgFC5VgIti tDaW3WrlITrNwWbujIC2YYBwgut9YRJSTXQ3c01YhKUOJwoIFnwPsMLQWyUqFhSbCM15Qks0uTbKm0KOvwlIJ2atGiXmmZhCntrF1baLr0TZgw7see==" alt="Intellark" />
+      <img src="/logo" alt="Intellark" />
       Intellark
     </a>
     <div class="nav-links">
@@ -761,7 +761,7 @@
   <div class="footer-inner">
     <div class="footer-top">
       <div>
-        <a href="#" class="footer-logo">Intellark</a>
+        <a href="#" class="footer-logo"><img src="/logo" alt="Intellark" /> Intellark</a>
         <p class="footer-tagline">Your company's second brain. Ask anything, get answers from every tool your team uses.</p>
       </div>
       <div class="footer-col">
