@@ -51,20 +51,6 @@ Or on Windows, double-click `start.bat`.
 
 Opens at **http://localhost:7070**
 
----
-
-## Running with Docker
-
-```bash
-# Start the full stack (app + Postgres)
-docker compose up
-
-# First run — apply DB migrations (automatic on start)
-```
-
-The `docker-compose.yml` includes a local Postgres with pgvector. Set your LLM key in `.env` before starting.
-
----
 
 ## Connecting apps
 
