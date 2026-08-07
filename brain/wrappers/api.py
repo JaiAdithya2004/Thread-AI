@@ -1730,6 +1730,7 @@ def platform_metrics(period: str = None, _identity: Identity = Depends(get_ident
 
 def main():
     import uvicorn
+    config.startup_check()
     uvicorn.run("brain.wrappers.api:app", host="127.0.0.1", port=7070, reload=False)
 
 

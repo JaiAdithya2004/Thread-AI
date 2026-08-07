@@ -261,3 +261,43 @@ Completed: 2026-08-06
 85 collected — 80 passed, 5 skipped, 0 failed
 ```
 Skips are correct: 4 require a real Clerk JWT (bypass mode active), 1 requires Postgres (BYO-key endpoint).
+
+---
+
+# Phase 5 — Launch Readiness
+
+Completed: 2026-08-07
+
+## What was done
+
+### `.env.example`
+- Complete template with every key documented and safe placeholder values
+- Sections: LLM provider, Database, Clerk auth, Supabase auth, Connectors, Platform owner, Observability, Advanced tuning
+- No real keys; safe to commit
+
+### Boot validation (`brain/config.py` → `startup_check()`)
+- Called once from `brain.wrappers.api.main()` at server start
+- Prints a colored summary of which keys are set / missing
+- In `BRAIN_ENV=production`: hard `sys.exit(1)` if `DATABASE_URL`, `CLERK_SECRET_KEY`, or any LLM key is missing
+- In `BRAIN_ENV=production`: hard `sys.exit(1)` if `BRAIN_DEV_BYPASS=true`
+- In development: prints warnings but allows startup
+
+### Docker support
+- `Dockerfile` — Python 3.11-slim, installs psycopg2 + fastembed system deps, runs `uvicorn brain.wrappers.api:app`
+- `docker-compose.yml` — two services: `app` (Intellark) + `db` (pgvector/pgvector:pg16), with healthcheck and named volume for data persistence
+- Local stack: `docker compose up` gives a fully working dev environment with no manual Postgres setup
+
+### Smoke test (`scripts/smoke_test.py`)
+- Standalone script with no pytest dependency (uses `requests`)
+- Usage: `python scripts/smoke_test.py [--url http://localhost:7070] [--token <bearer>]`
+- 13 checks: status endpoint structure, key format (booleans only), vendor name absence, empty-query rejection, valid search response, platform-metrics gate, security headers (X-Content-Type-Options, X-Frame-Options, CSP), web UI served, write endpoint responds
+- Colored output, exit code 0/1 for CI integration
+
+### README rewrite
+- Renamed product to Intellark throughout
+- Added Docker section with `docker compose up` instructions
+- Added "Running tests" section (`pytest`)
+- Added "Smoke test" section
+- Removed direct Composio references from setup instructions (uses "integrations" language)
+- Updated project structure to reflect all Phase 1-5 additions
+- Fixed MCP JSON to use `intellark` server name

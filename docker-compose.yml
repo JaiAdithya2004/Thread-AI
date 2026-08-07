@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  # ── Intellark API server ───────────────────────────────────────────────────
+  app:
+    build: .
+    ports:
+      - "7070:7070"
+    env_file:
+      - .env
+    environment:
+      BRAIN_DB_BACKEND: postgres
+      DATABASE_URL: postgresql://intellark:intellark@db:5432/intellark
+      BRAIN_ENV: development
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - .:/app   # live-reload in dev — remove in prod
+
+  # ── Postgres + pgvector ───────────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: intellark
+      POSTGRES_PASSWORD: intellark
+      POSTGRES_DB: intellark
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intellark -d intellark"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:

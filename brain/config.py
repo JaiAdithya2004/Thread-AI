@@ -119,3 +119,66 @@ PLAN_CREDITS: dict = {
 
 # Platform-owner flag: set BRAIN_PLATFORM_OWNER=true in env to access /api/_platform/*
 PLATFORM_OWNER: bool = os.getenv("BRAIN_PLATFORM_OWNER", "false").lower() in ("1", "true", "yes")
+
+
+# ── Boot validation ───────────────────────────────────────────────────────────
+
+def startup_check() -> None:
+    """Log configuration summary and abort if required production keys are missing.
+
+    Called once at server startup from brain.wrappers.api.main().
+    Prints a clear summary so operators know exactly what is and isn't configured.
+    In production (BRAIN_ENV=production) missing required keys cause sys.exit(1).
+    """
+    import sys
+
+    env        = os.getenv("BRAIN_ENV", "development").lower()
+    is_prod    = env == "production"
+    db_backend = os.getenv("BRAIN_DB_BACKEND", "sqlite").lower()
+    bypass     = os.getenv("BRAIN_DEV_BYPASS", "").lower() in ("1", "true", "yes")
+
+    ok  = "\033[32m✓\033[0m"
+    warn = "\033[33m⚠\033[0m"
+    err  = "\033[31m✗\033[0m"
+
+    checks = []
+    fatal  = []
+
+    def _check(label: str, value: str, required_in_prod: bool = False) -> None:
+        present = bool(value)
+        if present:
+            checks.append(f"  {ok}  {label}")
+        elif required_in_prod and is_prod:
+            checks.append(f"  {err}  {label}  ← REQUIRED in production")
+            fatal.append(label)
+        else:
+            checks.append(f"  {warn}  {label}  (not set)")
+
+    print("\n[intellark] ── Boot check ────────────────────────────────────")
+    print(f"  env        : {env}")
+    print(f"  db backend : {db_backend}")
+    if db_backend == "postgres":
+        _check("DATABASE_URL",     os.getenv("DATABASE_URL", ""),     required_in_prod=True)
+    if is_prod:
+        _check("CLERK_SECRET_KEY", os.getenv("CLERK_SECRET_KEY", ""), required_in_prod=True)
+    _check("LLM key (any)",
+           next((os.getenv(k, "") for k in
+                 ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GROK_API_KEY", "GEMINI_API_KEY")
+                 if os.getenv(k)), ""),
+           required_in_prod=True)
+    _check("SLACK_BOT_TOKEN",   os.getenv("SLACK_BOT_TOKEN", ""))
+    _check("COMPOSIO_API_KEY",  os.getenv("COMPOSIO_API_KEY", ""))
+    _check("LANGFUSE (tracing)", os.getenv("LANGFUSE_PUBLIC_KEY", ""))
+    for line in checks:
+        print(line)
+
+    if bypass and is_prod:
+        print(f"\n  {err}  FATAL: BRAIN_DEV_BYPASS=true with BRAIN_ENV=production — refusing to start.")
+        sys.exit(1)
+
+    if fatal:
+        print(f"\n  {err}  FATAL: missing required keys in production: {', '.join(fatal)}")
+        print("         Set them in your environment or .env file and restart.")
+        sys.exit(1)
+
+    print("[intellark] ── Boot check passed ─────────────────────────────\n")
