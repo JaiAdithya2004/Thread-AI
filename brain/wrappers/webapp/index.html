@@ -807,18 +807,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
           </div>
         </div>
 
-        <div class="settings-card">
-          <div class="settings-card-head">Account</div>
-          <div style="padding:16px 20px;font-size:13px;color:var(--muted);line-height:2.1">
-            <div><strong style="color:var(--ink)">Email</strong> — <span id="settingsEmail">—</span></div>
-            <div><strong style="color:var(--ink)">Role</strong> — <span id="settingsRole">—</span></div>
-            <div><strong style="color:var(--ink)">Account type</strong> — <span id="settingsAcctType">—</span></div>
-            <div class="admin-only"><strong style="color:var(--ink)">Workspace ID</strong> — <span id="settingsWsId">—</span></div>
-            <div class="admin-only"><strong style="color:var(--ink)">Storage</strong> — Postgres (Supabase)</div>
-            <div class="admin-only"><strong style="color:var(--ink)">Embeddings</strong> — bge-small-en, 384-dim</div>
-            <div class="admin-only" id="llmModelRow"><strong style="color:var(--ink)">LLM</strong> — loading…</div>
-          </div>
-        </div>
+        <span id="settingsEmail" style="display:none"></span>
+        <span id="settingsRole" style="display:none"></span>
+        <span id="settingsAcctType" style="display:none"></span>
+        <span id="settingsWsId" style="display:none"></span>
+        <span id="llmModelRow" style="display:none"></span>
       </div>
     </div>
   </div>
