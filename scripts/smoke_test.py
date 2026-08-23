@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Intellark smoke test — hits a running server and verifies key endpoints.
+Thread smoke test — hits a running server and verifies key endpoints.
 
 Usage:
     python scripts/smoke_test.py [--url http://localhost:7070] [--token <bearer>]
@@ -42,7 +42,7 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def main():
-    p = argparse.ArgumentParser(description="Intellark smoke test")
+    p = argparse.ArgumentParser(description="Thread smoke test")
     p.add_argument("--url",   default="http://localhost:7070", help="Base URL of running server")
     p.add_argument("--token", default="smoke-test-dev",        help="Bearer token for auth")
     args = p.parse_args()
@@ -52,7 +52,7 @@ def main():
     s     = requests.Session()
     s.timeout = 10
 
-    print(f"\n[smoke] Intellark smoke test → {base}\n")
+    print(f"\n[smoke] Thread smoke test → {base}\n")
 
     # ── 1. Status endpoint (unauthenticated) ──────────────────────────────────
     try:

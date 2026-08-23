@@ -1,0 +1,161 @@
+# Company Brain / Thread — Alert Rules
+# ============================================================
+# Provider-agnostic alert definitions.
+#
+# HOW TO WIRE TO PROMETHEUS ALERTMANAGER
+# ---------------------------------------
+# 1. Scrape /metrics (port 7070) in your prometheus.yml:
+#      scrape_configs:
+#        - job_name: "thread"
+#          static_configs:
+#            - targets: ["127.0.0.1:7070"]
+#
+# 2. Convert each rule below to a PrometheusRule using the metric names
+#    exposed by brain/core/metrics.py.  Example for error_rate_spike:
+#
+#      groups:
+#        - name: thread.alerts
+#          rules:
+#            - alert: ErrorRateSpike
+#              expr: >
+#                rate(brain_error_count_total[5m])
+#                / rate(brain_request_count_total[5m]) > 0.05
+#              for: 5m
+#              labels:
+#                severity: critical
+#              annotations:
+#                summary: "Error rate > 5% for 5 minutes"
+#
+# HOW TO WIRE TO GRAFANA ALERTS
+# --------------------------------
+# 1. Add Prometheus as a data source in Grafana.
+# 2. Create alert rules using the PromQL expressions in each rule below.
+# 3. Set the notification policy to route `severity: critical` → PagerDuty
+#    and `severity: warning` → Slack.
+
+alerts:
+
+  - name: error_rate_spike
+    description: >
+      5xx error rate exceeds 5% of total requests over a 5-minute window.
+      Indicates a widespread service failure — investigate immediately.
+    severity: critical
+    condition:
+      metric_numerator: brain_error_count_total
+      metric_denominator: brain_request_count_total
+      aggregation: rate
+      window: 5m
+      threshold: 0.05           # > 5 %
+    for: 5m
+    channels:
+      - pagerduty
+      - slack
+    promql: >
+      rate(brain_error_count_total[5m])
+      / rate(brain_request_count_total[5m]) > 0.05
+
+  - name: p95_latency_breach
+    description: >
+      p95 request latency exceeds 2 seconds for 5 consecutive minutes.
+      Users will experience slow responses — check DB queries, LLM latency,
+      and Redis connectivity.
+    severity: warning
+    condition:
+      metric: brain_request_latency_p95_seconds
+      threshold: 2.0            # > 2 s
+    for: 5m
+    channels:
+      - slack
+    promql: >
+      brain_request_latency_p95_seconds > 2.0
+
+  - name: queue_backlog
+    description: >
+      Redis job queue depth exceeds 1000 items for 10 minutes.
+      Workers may be stalled — check arq worker health and Redis connectivity.
+    severity: warning
+    condition:
+      metric: brain_queue_depth
+      threshold: 1000           # > 1000 jobs
+    for: 10m
+    channels:
+      - slack
+    promql: >
+      brain_queue_depth > 1000
+
+  - name: cost_threshold
+    description: >
+      Cumulative LLM cost for the day exceeds $50.
+      This is a spend guardrail — verify no runaway extraction loops or
+      abuse of the API. Check /api/_platform/metrics for workspace breakdown.
+    severity: warning
+    condition:
+      metric: brain_llm_cost_usd_total
+      # Prometheus: use increase() over a 24h window for daily spend
+      aggregation: increase
+      window: 24h
+      threshold: 50.0           # > $50 USD
+    for: 0m                     # alert immediately once threshold crossed
+    channels:
+      - slack
+    promql: >
+      increase(brain_llm_cost_usd_total[24h]) > 50.0
+
+  - name: composio_threshold
+    description: >
+      Composio API calls exceed 10 000 in a single day.
+      This may indicate a backfill loop or misconfigured connector.
+    severity: warning
+    condition:
+      metric: brain_composio_calls_total
+      aggregation: increase
+      window: 24h
+      threshold: 10000          # > 10 000 calls
+    for: 0m
+    channels:
+      - slack
+    promql: >
+      increase(brain_composio_calls_total[24h]) > 10000
+
+  - name: auth_failure_spike
+    description: >
+      401/403 error rate exceeds 10% of total requests for 5 minutes.
+      Possible indicators: credential scraping, misconfigured client,
+      or JWT secret rotation gone wrong. Investigate immediately.
+    severity: critical
+    condition:
+      # brain_error_count_total only counts 5xx; for auth failures you need
+      # to instrument 4xx separately or use a labelled counter.
+      # Until then, proxy with: count HTTP 4xx from access logs or add a
+      # separate brain_auth_error_count_total counter in TraceMiddleware.
+      note: >
+        Requires adding brain_auth_error_count_total counter in TraceMiddleware
+        that increments when status_code in (401, 403).
+      metric_numerator: brain_auth_error_count_total
+      metric_denominator: brain_request_count_total
+      aggregation: rate
+      window: 5m
+      threshold: 0.1            # > 10 %
+    for: 5m
+    channels:
+      - pagerduty
+      - slack
+    promql: >
+      rate(brain_auth_error_count_total[5m])
+      / rate(brain_request_count_total[5m]) > 0.1
+
+# ── Notification channel stubs ────────────────────────────────────────────────
+# Fill in your actual webhook URLs / PagerDuty routing keys below.
+
+channels:
+  slack:
+    type: slack
+    webhook_url: "${SLACK_ALERTS_WEBHOOK_URL}"
+    # Grafana: add as a contact point of type "Slack"
+    # Alertmanager: configure in alertmanager.yml receivers section
+
+  pagerduty:
+    type: pagerduty
+    routing_key: "${PAGERDUTY_ROUTING_KEY}"
+    # Grafana: add as a contact point of type "PagerDuty"
+    # Alertmanager: configure in alertmanager.yml receivers section

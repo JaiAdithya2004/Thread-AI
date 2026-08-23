@@ -22,6 +22,17 @@ class Brain:
         self.conn = db.connect()
         db.migrate(self.conn)
 
+    def close(self):
+        """Return the DB connection to the pool."""
+        if self.conn and not self.conn.closed:
+            self.conn.close()
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
     # ---- plan limit helpers ----
     def _plan(self) -> dict:
         """Return plan dict for this account; free defaults if no postgres / no account."""
@@ -73,7 +84,10 @@ class Brain:
 
     # ---- async worker helpers ----
     def _async_enqueue(self, job_name: str, **kwargs) -> bool:
-        """Try to enqueue via arq. Falls back to sync if Redis unavailable. Never raises."""
+        """
+        Try to enqueue via arq. Falls back to sync extraction if Redis is unavailable.
+        Never raises — caller always gets a bool indicating whether work was queued.
+        """
         try:
             import asyncio, arq
             from arq.connections import RedisSettings
@@ -87,31 +101,47 @@ class Brain:
             loop.run_until_complete(_enqueue())
             loop.close()
             return True
-        except Exception:
+        except Exception as _e:
+            import sys
+            print(f"[engine] arq unavailable ({_e}), falling back to sync", file=sys.stderr)
             if job_name == "extract_facts":
                 extract.run(self.conn, kwargs.get("ws", self.ws))
             return False
 
     # ---- ingest (batch / event) ----
     def backfill(self, source: str, team_id: str = None) -> dict:
-        """Pull full history from a connector, normalize, dedupe, classify, extract."""
+        """
+        Pull full history from a connector, normalize, dedupe, ingest, extract.
+        Connector failures are isolated — a broken connector returns 0 episodes
+        and logs the error rather than raising and killing the request.
+        Ingestion and extraction are fully idempotent (content-hash dedup +
+        upsert semantics on facts).
+        """
+        import sys
         tid = team_id or self.team_id
         db.ensure_team(self.conn, self.ws, tid, tid.replace("-", " ").title())
 
-        # Set billing context for connector metering
         from brain.core.connectors.composio import set_billing_context, clear_billing_context
         set_billing_context(self.account_id or "")
 
-        connector = REGISTRY[source]()
-        n_ep = ingest.run(self.conn, self.ws, connector.backfill(), team_id=tid)
+        try:
+            # Pass caller identity to connectors that support per-user isolation
+            connector = REGISTRY[source](user_id=self.caller) if source == "composio" else REGISTRY[source]()
+            episodes = connector.backfill()
+        except Exception as e:
+            print(f"[engine] connector '{source}' backfill failed: {e}", file=sys.stderr)
+            clear_billing_context()
+            return {"source": source, "team": tid, "episodes": 0, "facts": 0,
+                    "error": str(e)}
+
+        # ingest is idempotent — content-hash dedup prevents duplicates on re-run
+        n_ep = ingest.run(self.conn, self.ws, episodes, team_id=tid)
         clear_billing_context()
 
-        # Warn (non-fatal) if backfill exceeded plan limit
         try:
             self._check_backfill_limit(n_ep)
         except ValueError as e:
-            import sys
-            print(f"[Intellark] backfill limit warning: {e}", file=sys.stderr)
+            print(f"[engine] backfill limit warning: {e}", file=sys.stderr)
 
         if USE_ASYNC_WORKER:
             enqueued = self._async_enqueue("extract_facts", ws=self.ws, team_id=tid)
@@ -120,14 +150,24 @@ class Brain:
         return {"source": source, "team": tid, "episodes": n_ep, "facts": n_fa}
 
     def sync(self, source: str, team_id: str = None) -> dict:
+        """Incremental poll — same isolation and idempotency guarantees as backfill."""
+        import sys
         tid = team_id or self.team_id
         db.ensure_team(self.conn, self.ws, tid, tid.replace("-", " ").title())
 
         from brain.core.connectors.composio import set_billing_context, clear_billing_context
         set_billing_context(self.account_id or "")
 
-        connector = REGISTRY[source]()
-        n_ep = ingest.run(self.conn, self.ws, connector.poll(), team_id=tid)
+        try:
+            connector = REGISTRY[source](user_id=self.caller) if source == "composio" else REGISTRY[source]()
+            episodes = connector.poll()
+        except Exception as e:
+            print(f"[engine] connector '{source}' sync failed: {e}", file=sys.stderr)
+            clear_billing_context()
+            return {"source": source, "team": tid, "new_episodes": 0, "new_facts": 0,
+                    "error": str(e)}
+
+        n_ep = ingest.run(self.conn, self.ws, episodes, team_id=tid)
         clear_billing_context()
 
         if USE_ASYNC_WORKER:

@@ -87,6 +87,11 @@ class Identity:
     principals: List[str]
     role: str = "member"
     is_admin: bool = False
+    is_guest: bool = False   # guests may only read from the demo workspace
+
+
+# Workspace that guest tokens are locked to — must match seed_demo.py DEMO_WS.
+GUEST_WORKSPACE = "ws_demo"
 
 
 def _default_identity() -> Identity:
@@ -152,6 +157,12 @@ def _identity_from_clerk_payload(payload: dict) -> Identity:
     team_id = public_meta.get("team_id") or unsafe_meta.get("team_id") or config.TEAM_ID
     workspace_id = public_meta.get("workspace_id") or config.WORKSPACE_ID
 
+    is_guest = (role == "guest")
+    # Guests are always locked to the demo workspace, regardless of what the
+    # JWT says — this is the server-side enforcement, not just a UI hint.
+    if is_guest:
+        workspace_id = GUEST_WORKSPACE
+
     principals = list({user_id, "everyone"})
     if email:
         principals.append(email)
@@ -166,6 +177,53 @@ def _identity_from_clerk_payload(payload: dict) -> Identity:
         principals=principals,
         role=role,
         is_admin=(role in ("admin", "owner")),
+        is_guest=is_guest,
+    )
+
+
+_GUEST_TOKEN_SECRET: Optional[str] = os.getenv("GUEST_TOKEN_SECRET")
+
+# Prefix that identifies a guest self-signed token (never clashes with Clerk JWTs)
+_GUEST_TOKEN_PREFIX = "guest."
+
+
+def _decode_guest_token(token: str) -> Identity:
+    """Decode and verify a guest token issued by /api/guest-session."""
+    if not _GUEST_TOKEN_SECRET:
+        raise ValueError("Guest sessions are not configured on this server.")
+    import hmac, hashlib, base64, json as _json
+
+    # Format: "guest.<b64-payload>.<hex-sig>"
+    try:
+        _, b64, sig = token.split(".", 2)
+    except ValueError:
+        raise ValueError("Malformed guest token")
+
+    payload_bytes = base64.urlsafe_b64decode(b64 + "==")
+    expected = hmac.new(
+        _GUEST_TOKEN_SECRET.encode(),
+        payload_bytes,
+        hashlib.sha256,
+    ).hexdigest()
+
+    if not hmac.compare_digest(expected, sig):
+        raise ValueError("Guest token signature invalid")
+
+    payload = _json.loads(payload_bytes)
+
+    import time as _time
+    if payload.get("exp", 0) < _time.time():
+        raise ValueError("Guest session has expired — click 'Try live demo' again.")
+
+    return Identity(
+        user_id=payload["sub"],
+        email="guest@demo",
+        workspace_id=GUEST_WORKSPACE,
+        team_id=payload.get("team_id", ""),
+        principals=["everyone"],
+        role="guest",
+        is_admin=False,
+        is_guest=True,
     )
 
 
@@ -195,6 +253,17 @@ def get_identity(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Guest session token — self-signed, no Clerk involved
+    if token.startswith(_GUEST_TOKEN_PREFIX):
+        try:
+            return _decode_guest_token(token)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e),
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
     try:
         payload = _decode_clerk_jwt(token)
         return _identity_from_clerk_payload(payload)
@@ -211,5 +280,38 @@ def require_admin(identity: Identity = Depends(get_identity)) -> Identity:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin role required",
+        )
+    return identity
+
+
+def require_not_guest(identity: Identity = Depends(get_identity)) -> Identity:
+    """Block guests from any mutating or sensitive endpoint.
+
+    Guests (role='guest') are read-only viewers of the demo workspace.
+    They may NOT: write facts, change settings, touch connectors/secrets,
+    run backfills, invite/manage members, delete anything, or access any
+    workspace other than ws_demo.
+
+    This is a server-side enforcement — hiding it in the UI is not enough.
+    """
+    if identity.is_guest:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Guest accounts are read-only. This action is not permitted.",
+        )
+    return identity
+
+
+def require_non_demo_workspace(identity: Identity = Depends(get_identity)) -> Identity:
+    """Ensure the caller is NOT operating on the demo workspace.
+
+    Guests are always locked to ws_demo, so this guard also implicitly blocks
+    guests. Non-guest users who somehow land on ws_demo (e.g. a stale JWT) are
+    also rejected so demo data is never mutated by accident.
+    """
+    if identity.workspace_id == GUEST_WORKSPACE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This action is not permitted on the demo workspace.",
         )
     return identity

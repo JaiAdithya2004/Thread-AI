@@ -13,7 +13,7 @@ def _auto_model():
     if os.getenv("OPENAI_API_KEY"):
         return "gpt-4o-mini"
     if os.getenv("GEMINI_API_KEY"):
-        return "gemini/gemini-1.5-flash"
+        return "gemini/gemini-2.5-flash"
     return "gpt-4o-mini"   # mock mode fallback label
 
 LLM_MODEL = _auto_model()
@@ -33,7 +33,10 @@ SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
 SUPABASE_JWT_SECRET: str = os.getenv("SUPABASE_JWT_SECRET", "")
 
 GROK_BASE_URL = "https://api.x.ai/v1"
-EMBED_DIM = 384                      # bge-small
+EMBED_DIM = 768            # gemini-embedding-001 output_dimensionality
+EMBED_MODEL = "gemini-embedding-001"
+# NOTE: changing EMBED_MODEL requires a full re-embed + HNSW index rebuild of all facts.
+# Never mix two embedding spaces — run scripts/reembed_gemini.py then scripts/rebuild_index.py.
 
 WORTHY_MIN_LEN = 12
 
@@ -50,16 +53,15 @@ EXTRACT_MODEL: str = os.getenv("BRAIN_EXTRACT_MODEL", LLM_MODEL)
 SYNTH_MODEL: str = _auto_synth_model()
 
 # reranking
-RERANK_ENABLED: bool = os.getenv("BRAIN_RERANK", "true").lower() not in ("0", "false", "no")
+RERANK_ENABLED: bool = os.getenv("BRAIN_RERANK", "false").lower() not in ("0", "false", "no")
 RERANK_MODEL: str = os.getenv("BRAIN_RERANK_MODEL", "BAAI/bge-reranker-base")
 
 # caching
 REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
 CACHE_TTL: int = 300
 
-# embedding — always local fastembed (BAAI/bge-small-en-v1.5, 384-dim, zero network cost)
-EMBED_BATCH_SIZE: int = 64
-EMBED_USE_OPENAI: bool = os.getenv("BRAIN_EMBED_OPENAI", "false").lower() in ("1", "true", "yes")
+# embedding — Gemini gemini-embedding-001 (768-dim, MRL-truncated, L2-normalized)
+EMBED_BATCH_SIZE: int = 64  # controls Gemini batchEmbedContents batch size
 
 # deduplication: cosine similarity threshold for entity dedup
 DEDUP_THRESHOLD: float = 0.92
@@ -75,8 +77,14 @@ LANGFUSE_SECRET_KEY: str = os.getenv("LANGFUSE_SECRET_KEY", "")
 LANGFUSE_PUBLIC_KEY: str = os.getenv("LANGFUSE_PUBLIC_KEY", "")
 LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 
+# Sentry error tracking — set SENTRY_DSN to enable
+SENTRY_DSN: str = os.getenv("SENTRY_DSN", "")
+
+# Structured logging — LOG_LEVEL controls verbosity (DEBUG / INFO / WARNING / ERROR)
+LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+
 # retrieval: number of top facts to surface
-TOP_FACTS: int = 12
+TOP_FACTS: int = 8
 
 # ── cost metering ─────────────────────────────────────────────────────────────
 # Per-1K token prices in USD: (prompt_price_per_1k, completion_price_per_1k)
@@ -98,6 +106,9 @@ MODEL_PRICES: dict = {
     # Google Gemini
     "gemini/gemini-1.5-flash":       (0.000075, 0.0003),
     "gemini/gemini-1.5-pro":         (0.00125, 0.005),
+    "gemini/gemini-2.5-flash":       (0.00015, 0.0006),
+    "gemini/gemini-2.5-pro":         (0.00125, 0.005),
+    "gemini/gemini-2.5-flash-lite":  (0.000075, 0.0003),
     # fallback — unknown model
     "default":                       (0.001, 0.002),
 }
@@ -118,6 +129,68 @@ PLAN_CREDITS: dict = {
 
 # Platform-owner flag: set BRAIN_PLATFORM_OWNER=true in env to access /api/_platform/*
 PLATFORM_OWNER: bool = os.getenv("BRAIN_PLATFORM_OWNER", "false").lower() in ("1", "true", "yes")
+
+
+# ── Per-task model routing ────────────────────────────────────────────────────
+# Each task has a primary model, fallback, and temperature.
+# primary/fallback are litellm model strings — set to whichever provider keys are available.
+# The app reads TASK_ROUTES at startup; set BRAIN_TASK_ROUTES_JSON to override all.
+
+def _task_routes() -> dict:
+    """Build per-task routing based on which API keys are present."""
+    gemini  = bool(os.getenv("GEMINI_API_KEY"))
+    openai  = bool(os.getenv("OPENAI_API_KEY"))
+    anthro  = bool(os.getenv("ANTHROPIC_API_KEY"))
+    grok    = bool(os.getenv("GROK_API_KEY"))
+
+    # Primary: prefer Gemini (free); fallback: OpenAI if available, else same model
+    def _pair(gem_model, oai_model, anthro_model):
+        if gemini:
+            primary = f"gemini/{gem_model}"
+            fallback = f"openai/{oai_model}" if openai else (f"anthropic/{anthro_model}" if anthro else primary)
+        elif openai:
+            primary = f"openai/{oai_model}"
+            fallback = f"gemini/{gem_model}" if gemini else primary
+        elif anthro:
+            primary = f"anthropic/{anthro_model}"
+            fallback = primary
+        elif grok:
+            primary = "openai/grok-3-mini"
+            fallback = primary
+        else:
+            primary = "gpt-4o-mini"   # mock mode
+            fallback = primary
+        return primary, fallback
+
+    extract_p, extract_f = _pair("gemini-2.5-flash", "gpt-4o-mini", "claude-haiku-4-5-20251001")
+    synth_p,   synth_f   = _pair("gemini-2.5-flash", "gpt-4o",      "claude-3-5-sonnet-20241022")
+
+    return {
+        "extract": {
+            "primary":     extract_p,
+            "fallback":    extract_f,
+            "temperature": 0.1,    # low temp for structured extraction
+        },
+        "synthesize": {
+            "primary":     synth_p,
+            "fallback":    synth_f,
+            "temperature": 0.3,
+            "max_tokens":  400,    # answers are 1-3 sentences; cap to reduce latency
+        },
+        "classify": {
+            "primary":     extract_p,
+            "fallback":    extract_f,
+            "temperature": 0.0,
+        },
+        "chat": {
+            "primary":     synth_p,
+            "fallback":    synth_f,
+            "temperature": 0.4,
+            "max_tokens":  600,
+        },
+    }
+
+TASK_ROUTES: dict = _task_routes()
 
 
 # ── Boot validation ───────────────────────────────────────────────────────────
@@ -152,7 +225,7 @@ def startup_check() -> None:
         else:
             checks.append(f"  {warn}  {label}  (not set)")
 
-    print("\n[intellark] -- Boot check -----------------------------------")
+    print("\n[thread] -- Boot check -----------------------------------")
     print(f"  env        : {env}")
     _check("DATABASE_URL",     os.getenv("DATABASE_URL", ""),     required_in_prod=True)
     if is_prod:
@@ -177,4 +250,4 @@ def startup_check() -> None:
         print("         Set them in your environment or .env file and restart.")
         sys.exit(1)
 
-    print("[intellark] -- Boot check passed -----------------------------------\n")
+    print("[thread] -- Boot check passed -----------------------------------\n")

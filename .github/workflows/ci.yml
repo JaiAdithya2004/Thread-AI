@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install ruff
+      - run: ruff check brain/ tests/ --select=E,W,F --ignore=E501,W503
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install pyright
+      - run: pyright brain/ --pythonversion 3.11 || true  # non-blocking for now
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install -r requirements.txt
+      - run: pytest tests/test_auth.py tests/test_validation.py tests/test_llm.py tests/test_metering.py -v --tb=short
+      - run: pytest tests/test_extraction.py tests/test_retrieval.py -v --tb=short -k "not pg"
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: brain
+          POSTGRES_PASSWORD: brain_local
+          POSTGRES_DB: brain
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+    env:
+      DATABASE_URL: postgresql://brain:brain_local@localhost:5432/brain
+      REDIS_URL: redis://localhost:6379
+      BRAIN_ENV: development
+      BRAIN_DEV_BYPASS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install -r requirements.txt
+      - name: Run migrations
+        run: python -c "from brain.core import db; conn = db.connect(); db.migrate(conn); conn.close()"
+      - name: Verify RLS policies
+        run: python scripts/check_rls.py
+      - run: pytest tests/test_ingest_retrieve.py tests/test_integration.py tests/test_privacy.py -v --tb=short --cov=brain --cov-report=term-missing
+
+  isolation-suite:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: brain
+          POSTGRES_PASSWORD: brain_local
+          POSTGRES_DB: brain
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://brain:brain_local@localhost:5432/brain
+      BRAIN_ENV: development
+      BRAIN_DEV_BYPASS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install -r requirements.txt
+      - name: Run isolation suite (must be 100%)
+        run: pytest tests/test_isolation.py -v --tb=short -m isolation
+      - name: Fail build if any isolation test fails
+        if: failure()
+        run: echo "ISOLATION SUITE FAILED — security gate not met" && exit 1
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install pip-audit
+      - run: pip-audit -r requirements.txt --ignore-vuln PYSEC-2022-42974 || true

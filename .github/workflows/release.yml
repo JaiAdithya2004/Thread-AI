@@ -1,0 +1,37 @@
+name: Release to production
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t thread-brain:${{ github.ref_name }} .
+      - name: Vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: thread-brain:${{ github.ref_name }}
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+
+  deploy-staging:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Deploy to staging
+        run: echo "Deploy staging — wire up your deploy command here"
+
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy to production
+        run: echo "Deploy production — wire up your deploy command here"
+      - name: Rollback procedure
+        run: echo "Rollback: docker pull thread-brain:<previous-tag> && restart service"

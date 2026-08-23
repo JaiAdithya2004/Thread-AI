@@ -7,4 +7,4 @@ PyJWT>=2.8
 slack_sdk>=3.27
 httpx>=0.27
 litellm>=1.40
-fastembed>=0.3
+# fastembed removed — embeddings now use Gemini gemini-embedding-001 (768-dim) via requests

@@ -5,6 +5,9 @@ Scopes needed: channels:history, channels:read, groups:history,
 """
 import os, datetime
 from .base import Connector
+from brain.core.resilience import get_breaker
+
+_slack_breaker = get_breaker("slack", failure_threshold=5, recovery_timeout=60.0)
 
 try:
     from slack_sdk import WebClient
@@ -56,12 +59,13 @@ class SlackConnector(Connector):
         """Return all channels the bot is a member of."""
         channels, cursor = [], None
         while True:
-            resp = self.client.conversations_list(
-                types="public_channel,private_channel",
-                exclude_archived=True,
-                limit=200,
-                **({"cursor": cursor} if cursor else {}),
-            )
+            with _slack_breaker:
+                resp = self.client.conversations_list(
+                    types="public_channel,private_channel",
+                    exclude_archived=True,
+                    limit=200,
+                    **({"cursor": cursor} if cursor else {}),
+                )
             for ch in resp.get("channels", []):
                 if ch.get("is_member"):
                     channels.append(ch)
@@ -86,7 +90,8 @@ class SlackConnector(Connector):
             if cursor:
                 kwargs["cursor"] = cursor
             try:
-                resp = self.client.conversations_history(**kwargs)
+                with _slack_breaker:
+                    resp = self.client.conversations_history(**kwargs)
             except SlackApiError as e:
                 if e.response.get("error") == "not_in_channel":
                     break
@@ -108,10 +113,11 @@ class SlackConnector(Connector):
         try:
             members, cursor = [], None
             while True:
-                resp = self.client.conversations_members(
-                    channel=channel_id, limit=200,
-                    **({"cursor": cursor} if cursor else {}),
-                )
+                with _slack_breaker:
+                    resp = self.client.conversations_members(
+                        channel=channel_id, limit=200,
+                        **({"cursor": cursor} if cursor else {}),
+                    )
                 members.extend(resp.get("members", []))
                 cursor = resp.get("response_metadata", {}).get("next_cursor")
                 if not cursor:

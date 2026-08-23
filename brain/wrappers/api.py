@@ -12,19 +12,23 @@ exclusively from the verified token — never from query parameters or request b
 Development / single-tenant mode: if SUPABASE_JWT_SECRET is not set, auth runs in
 BYPASS mode and all requests use the config defaults.  See brain/auth.py.
 """
-import os, json, time, threading, re
+import os, json, time, threading, re, uuid as _uuid_mod
 from collections import defaultdict
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response, PlainTextResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from pathlib import Path
 
-from brain.auth import Identity, get_identity, require_admin
+from brain.auth import Identity, get_identity, require_admin, require_not_guest
 from brain.engine import Brain
 from brain.core import db as _db
 from brain import config
+from brain.core import log as _log, metrics as _metrics
+from brain.wrappers.slack_bot import slack_router
+
+_api_logger = _log.get_logger("brain.api")
 
 # ── CORS: tighten in production ───────────────────────────────────────────────
 _ALLOWED_ORIGINS = (
@@ -33,15 +37,70 @@ _ALLOWED_ORIGINS = (
     else ["*"]   # dev default; set ALLOWED_ORIGINS=https://yourdomain.com in prod
 )
 
-app = FastAPI(title="Intellark")
+app = FastAPI(title="Thread")
+app.include_router(slack_router, prefix="/slack")
+
+
+@app.on_event("startup")
+def _startup_migrate():
+    """Run DB schema migration once at server startup."""
+    try:
+        from brain.core import db_pg as _pg
+        _conn = _pg.connect()
+        _pg.migrate(_conn)
+        _conn.close()
+    except Exception as _e:
+        print(f"[thread] startup migration failed (non-fatal): {_e}")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
-    expose_headers=[],
+    allow_headers=["Authorization", "Content-Type", "X-Trace-Id"],
+    expose_headers=["X-Trace-Id"],
     max_age=600,
 )
+
+# ── Trace middleware (must be added FIRST so it wraps everything) ─────────────
+class TraceMiddleware(BaseHTTPMiddleware):
+    """
+    Per-request trace ID propagation and metrics recording.
+    - Reads X-Trace-Id header if present; otherwise generates a UUID4.
+    - Sets trace_id in contextvars so all structured log calls in the same
+      request include it automatically.
+    - Stamps X-Trace-Id on the response.
+    - Records request latency and status to the in-process metrics store.
+    """
+    async def dispatch(self, request: Request, call_next):
+        trace_id = request.headers.get("X-Trace-Id") or str(_uuid_mod.uuid4())
+        _log.set_trace_id(trace_id)
+
+        start = time.monotonic()
+        try:
+            response: Response = await call_next(request)
+        except Exception:
+            # Ensure metrics are recorded even on unhandled exceptions
+            duration = time.monotonic() - start
+            _metrics.record_request(request.method, request.url.path, 500, duration)
+            raise
+
+        duration = time.monotonic() - start
+        status = response.status_code
+        _metrics.record_request(request.method, request.url.path, status, duration)
+
+        _api_logger.info(
+            f"{request.method} {request.url.path} {status} {duration * 1000:.1f}ms",
+            extra={
+                "http_method":  request.method,
+                "http_path":    request.url.path,
+                "http_status":  status,
+                "duration_ms":  round(duration * 1000, 1),
+            },
+        )
+
+        response.headers["X-Trace-Id"] = trace_id
+        return response
+
+app.add_middleware(TraceMiddleware)
 
 # ── Security headers middleware ───────────────────────────────────────────────
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -66,35 +125,125 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
-# ── In-process rate limiter (sliding-window per IP) ───────────────────────────
-_rl_lock  = threading.Lock()
-_rl_store: dict = defaultdict(list)   # ip -> [timestamp, ...]
+# ── Global exception handlers — clean JSON errors, no stack traces to clients ─
+import traceback as _traceback
+from fastapi import Request as _Req
+from fastapi.responses import JSONResponse as _JSONResp
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-def _rate_limit(request: Request, limit: int, window: int):
-    """Raise 429 if the caller's IP has exceeded `limit` requests in `window` seconds."""
-    ip  = request.client.host if request.client else "unknown"
+
+@app.exception_handler(StarletteHTTPException)
+async def _http_exc(request: _Req, exc: StarletteHTTPException):
+    """Convert all HTTP exceptions to clean JSON. Status 4xx logged at debug, 5xx at error."""
+    if exc.status_code >= 500:
+        import sys
+        print(f"[api] 5xx {exc.status_code} {request.method} {request.url.path}: {exc.detail}",
+              file=sys.stderr)
+    return _JSONResp(
+        status_code=exc.status_code,
+        content={"error": exc.detail, "status": exc.status_code},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exc(_request: _Req, exc: RequestValidationError):
+    """Pydantic validation errors → 422 with field-level messages, no stack trace."""
+    errors = [
+        {"field": ".".join(str(l) for l in e["loc"]), "msg": e["msg"]}
+        for e in exc.errors()
+    ]
+    return _JSONResp(
+        status_code=422,
+        content={"error": "Request validation failed", "details": errors, "status": 422},
+    )
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exc(request: _Req, _exc: Exception):
+    """Catch-all: log full traceback server-side, return opaque 500 to client."""
+    import sys
+    print(
+        f"[api] unhandled exception {request.method} {request.url.path}\n"
+        + _traceback.format_exc(),
+        file=sys.stderr,
+    )
+    return _JSONResp(
+        status_code=500,
+        content={"error": "An internal error occurred. Please try again.", "status": 500},
+    )
+
+
+# ── In-process rate limiter (sliding-window per IP or per-user+workspace) ────
+_rl_lock  = threading.Lock()
+_rl_store: dict = defaultdict(list)   # key -> [timestamp, ...]
+
+
+def _rate_key(request: Request, identity: "Identity | None" = None) -> str:
+    """
+    Build the rate-limiter bucket key.
+    - For LLM-gated endpoints: key on user_id:workspace_id so users who
+      share an IP (VPN, office NAT) get independent quotas.
+    - Fallback to IP for pre-auth endpoints (signup, login) where we have
+      no identity yet.
+    """
+    ip = request.client.host if request.client else "unknown"
+    if identity is not None and identity.user_id:
+        return f"{identity.user_id}:{identity.workspace_id}"
+    return ip
+
+
+def _rate_limit(request: Request, limit: int, window: int,
+                identity: "Identity | None" = None):
+    """Raise 429 if the caller has exceeded `limit` requests in `window` seconds."""
+    key = _rate_key(request, identity)
     now = time.monotonic()
     with _rl_lock:
-        hits = _rl_store[ip]
+        hits = _rl_store[key]
         # Evict entries outside the window
         hits = [t for t in hits if now - t < window]
         if len(hits) >= limit:
-            _rl_store[ip] = hits
+            _rl_store[key] = hits
             raise HTTPException(status_code=429, detail="Too many requests — slow down.")
         hits.append(now)
-        _rl_store[ip] = hits
+        _rl_store[key] = hits
+
 
 def _rl_auth(request: Request):
-    """20 requests per 60 s — auth endpoints (signup, login)."""
-    _rate_limit(request, limit=20, window=60)
+    """20 requests per 60 s — auth endpoints (signup, login). Keyed by IP only."""
+    _rate_limit(request, limit=20, window=60, identity=None)
 
-def _rl_llm(request: Request):
-    """60 requests per 60 s — LLM endpoints (search, record, correct)."""
-    _rate_limit(request, limit=60, window=60)
 
-def _rl_write(request: Request):
-    """120 requests per 60 s — general write endpoints."""
-    _rate_limit(request, limit=120, window=60)
+def _rl_llm(request: Request, identity: "Identity | None" = None):
+    """60 requests per 60 s — LLM endpoints. Keyed by user+workspace when available."""
+    _rate_limit(request, limit=60, window=60, identity=identity)
+
+
+def _rl_write(request: Request, identity: "Identity | None" = None):
+    """120 requests per 60 s — general write endpoints. Keyed by user+workspace when available."""
+    _rate_limit(request, limit=120, window=60, identity=identity)
+
+
+# ── guest daily quota (in-process rolling 24 h window) ────────────────────────
+_GUEST_DAILY_CAP = int(os.getenv("GUEST_DAILY_CAP", "100"))
+_GUEST_SESSION_CAP = int(os.getenv("GUEST_SESSION_CAP", "20"))
+_guest_daily_hits: list = []   # list of timestamps; access under _rl_lock
+
+def _check_guest_daily_cap():
+    """Raise 429 if the global guest query quota for the rolling 24-hour window is exceeded."""
+    now = time.monotonic()
+    window = 86400  # 24 h
+    with _rl_lock:
+        # Evict old entries
+        fresh = [t for t in _guest_daily_hits if now - t < window]
+        if len(fresh) >= _GUEST_DAILY_CAP:
+            _guest_daily_hits[:] = fresh
+            raise HTTPException(
+                status_code=429,
+                detail="demo_limit_daily",
+            )
+        fresh.append(now)
+        _guest_daily_hits[:] = fresh
 
 # ── request models ────────────────────────────────────────────────────────────
 # NOTE: team_id is intentionally absent from all write-request bodies.
@@ -198,6 +347,12 @@ class InviteAcceptRequest(BaseModel):
         if len(self.password) > 1024:
             raise ValueError("password too long")
 
+class SlackMappingRequest(BaseModel):
+    channel_id: str
+    channel_name: str
+    team_id: str
+    sync_members: bool = False
+
 class ConversationRequest(BaseModel):
     title: str = "New conversation"
     team_id: str = None
@@ -229,8 +384,13 @@ _PUBLIC_DOMAINS = {
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+# Simple in-process cache for user_id → account_id (membership doesn't change often)
+_account_id_cache: dict = {}
+
 def _resolve_account_id(user_id: str) -> str:
     """Resolve account_id from user_id via memberships table. Returns '' on any error."""
+    if user_id in _account_id_cache:
+        return _account_id_cache[user_id]
     try:
         from brain.core import db_pg as _pg
         conn = _pg.connect()
@@ -242,7 +402,10 @@ def _resolve_account_id(user_id: str) -> str:
             )
             row = cur.fetchone()
             cur.close()
-            return (row or {}).get("account_id", "") or ""
+            result = (row or {}).get("account_id", "") or ""
+            if result:
+                _account_id_cache[user_id] = result
+            return result
         finally:
             conn.close()
     except Exception:
@@ -250,7 +413,14 @@ def _resolve_account_id(user_id: str) -> str:
 
 
 def _brain(identity: Identity, team_id: str = None) -> Brain:
-    """Build a Brain scoped to the authenticated identity, with billing context."""
+    """Build a Brain scoped to the authenticated identity, with billing context.
+
+    Guests are locked to the demo workspace at the auth layer, but we assert it
+    here too so that the scope is enforced even if _brain() is called directly.
+    """
+    from brain.auth import GUEST_WORKSPACE
+    if identity.is_guest and identity.workspace_id != GUEST_WORKSPACE:
+        raise HTTPException(403, "Guest accounts are locked to the demo workspace.")
     account_id = _resolve_account_id(identity.user_id)
     b = Brain(
         workspace_id=identity.workspace_id,
@@ -302,9 +472,9 @@ def _enrich(facts, conn):
 
 
 def _auto_discover_teams(b: Brain):
-    """Auto-register any team_id found in facts that has no teams table row."""
+    """Auto-register any team_id found in facts that has no teams table row yet."""
     rows = _q(b.conn,
-        "SELECT DISTINCT team_id FROM facts WHERE workspace_id=%s AND team_id IS NOT NULL",
+        "SELECT DISTINCT team_id FROM facts WHERE workspace_id=%s AND team_id IS NOT NULL LIMIT 50",
         (b.ws,))
     for row in rows:
         tid = row["team_id"]
@@ -317,10 +487,10 @@ def _auto_discover_teams(b: Brain):
 @app.get("/logo")
 def logo():
     from fastapi.responses import FileResponse
-    p = Path(__file__).parent.parent.parent / "Logo.jpeg"
+    p = Path(__file__).parent.parent.parent / "Thread Logo.png"
     if not p.exists():
         raise HTTPException(404, "Logo not found")
-    return FileResponse(str(p), media_type="image/jpeg")
+    return FileResponse(str(p), media_type="image/png")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -341,10 +511,135 @@ window.__CLERK_PUBLISHABLE_KEY__ = {json.dumps(clerk_pk)};
     return HTMLResponse(html)
 
 
+@app.get("/healthz")
+def healthz():
+    """Liveness probe — always 200 if the process is alive."""
+    return {"status": "ok"}
+
+
+@app.get("/readyz")
+def readyz():
+    """
+    Readiness probe — checks DB, Redis, and LLM config reachability.
+    Returns 200 if all checks pass, 503 if any fail.
+    Each check has a 2-second timeout.
+    No auth required (Kubernetes / load-balancer scrapes this).
+    """
+    import concurrent.futures as _cf
+
+    checks: dict = {}
+
+    def _check_db():
+        try:
+            from brain.core import db_pg as _pg
+            conn = _pg.connect()
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            cur.close()
+            conn.close()
+            return "ok"
+        except Exception as e:
+            return f"error: {e}"
+
+    def _check_redis():
+        try:
+            import redis as _redis
+            r = _redis.Redis.from_url(
+                config.REDIS_URL,
+                socket_connect_timeout=2,
+                socket_timeout=2,
+            )
+            r.ping()
+            return "ok"
+        except Exception as e:
+            return f"error: {e}"
+
+    def _check_llm():
+        # Only verify that at least one LLM API key is configured — no real call.
+        for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GROK_API_KEY", "GEMINI_API_KEY"):
+            if os.getenv(key):
+                return "ok"
+        return "error: no LLM API key configured"
+
+    with _cf.ThreadPoolExecutor(max_workers=3) as pool:
+        db_fut    = pool.submit(_check_db)
+        redis_fut = pool.submit(_check_redis)
+        llm_fut   = pool.submit(_check_llm)
+
+        try:
+            checks["db"]    = db_fut.result(timeout=2)
+        except _cf.TimeoutError:
+            checks["db"]    = "error: timeout"
+        try:
+            checks["redis"] = redis_fut.result(timeout=2)
+        except _cf.TimeoutError:
+            checks["redis"] = "error: timeout"
+        try:
+            checks["llm"]   = llm_fut.result(timeout=2)
+        except _cf.TimeoutError:
+            checks["llm"]   = "error: timeout"
+
+    all_ok = all(v == "ok" for v in checks.values())
+    status_code = 200 if all_ok else 503
+    body = {
+        "status": "ok" if all_ok else "degraded",
+        "checks": checks,
+    }
+    from fastapi.responses import JSONResponse
+    return JSONResponse(content=body, status_code=status_code)
+
+
+@app.get("/metrics")
+def metrics_endpoint():
+    """
+    Prometheus metrics scrape endpoint.
+    No auth required — Prometheus scrapes this on its polling interval.
+    Returns Prometheus text exposition format.
+    """
+    # Include queue_depth from Redis (metrics.prometheus_text() reads it internally)
+    text = _metrics.prometheus_text()
+    return PlainTextResponse(content=text, media_type="text/plain; version=0.0.4; charset=utf-8")
+
+
+@app.post("/api/guest-session")
+def guest_session(request: Request):
+    """
+    Issue a short-lived self-signed guest JWT for the demo workspace.
+    No credentials required — public endpoint.
+    Rate-limited per IP (20 req/60s) to prevent token farming.
+    """
+    from brain.auth import GUEST_WORKSPACE, _GUEST_TOKEN_SECRET, _GUEST_TOKEN_PREFIX
+    if not _GUEST_TOKEN_SECRET:
+        raise HTTPException(503, "Demo access is not enabled on this server.")
+    _rate_limit(request, limit=20, window=60, identity=None)  # IP-keyed
+
+    import hmac, hashlib, base64, json as _json, time as _time, uuid as _uuid
+
+    exp = int(_time.time()) + 4 * 3600   # 4-hour session
+    payload = _json.dumps({
+        "sub":  f"guest_{_uuid.uuid4().hex[:12]}",
+        "role": "guest",
+        "ws":   GUEST_WORKSPACE,
+        "exp":  exp,
+    }, separators=(",", ":")).encode()
+
+    sig = hmac.new(
+        _GUEST_TOKEN_SECRET.encode(),
+        payload,
+        hashlib.sha256,
+    ).hexdigest()
+
+    b64 = base64.urlsafe_b64encode(payload).rstrip(b"=").decode()
+    token = f"{_GUEST_TOKEN_PREFIX}{b64}.{sig}"
+    return {"token": token, "expires_in": 4 * 3600,
+            "session_cap": _GUEST_SESSION_CAP, "daily_cap": _GUEST_DAILY_CAP}
+
+
 @app.get("/api/status")
-def status():
-    """Returns LLM mode, auth mode, and which integrations have credentials set."""
+def status(_identity: Identity = Depends(require_not_guest)):
+    """Returns LLM mode, auth mode, key presence, and circuit-breaker health."""
     from dotenv import dotenv_values
+    from brain.core.resilience import breaker_states
     env_file = Path(__file__).parent.parent.parent / ".env"
     live = dotenv_values(env_file) if env_file.exists() else {}
 
@@ -366,8 +661,9 @@ def status():
             "google":       _get("GOOGLE_CREDENTIALS_JSON"),
             "notion":       _get("NOTION_TOKEN"),
             "clerk":        _get("CLERK_SECRET_KEY"),
-            "integrations": _get("COMPOSIO_API_KEY"),  # vendor name hidden
+            "integrations": _get("COMPOSIO_API_KEY"),
         },
+        "circuit_breakers": breaker_states(),
     }
 
 
@@ -402,6 +698,7 @@ def me(identity: Identity = Depends(get_identity)):
         "team_id":      identity.team_id,
         "role":         identity.role,
         "is_admin":     identity.is_admin,
+        "is_guest":     identity.is_guest,
         "principals":   identity.principals,
         "account_type": account_type,
     }
@@ -428,7 +725,9 @@ def search(
     request: Request,
     identity: Identity = Depends(get_identity),
 ):
-    _rl_llm(request)
+    _rl_llm(request, identity)
+    if identity.is_guest:
+        _check_guest_daily_cap()
     if not req.query or not req.query.strip():
         raise HTTPException(400, "query must not be empty")
     if len(req.query) > 2000:
@@ -458,9 +757,9 @@ def history(
 def record(
     req: RecordRequest,
     request: Request,
-    identity: Identity = Depends(get_identity),
+    identity: Identity = Depends(require_not_guest),
 ):
-    _rl_write(request)
+    _rl_write(request, identity)
     if not req.text or not req.text.strip():
         raise HTTPException(400, "text must not be empty")
     if len(req.text) > 50_000:
@@ -473,9 +772,9 @@ def record(
 def correct(
     req: CorrectRequest,
     request: Request,
-    identity: Identity = Depends(get_identity),
+    identity: Identity = Depends(require_not_guest),
 ):
-    _rl_write(request)
+    _rl_write(request, identity)
     if not req.fact_id or not req.correction or not req.correction.strip():
         raise HTTPException(400, "fact_id and correction are required")
     if len(req.correction) > 10_000:
@@ -486,20 +785,26 @@ def correct(
 @app.get("/api/ledger")
 def ledger(
     limit: int = 50,
+    offset: int = 0,
     identity: Identity = Depends(get_identity),
 ):
     # Admins see full ledger; regular members see only their team's
+    limit = min(limit, 200)
+    offset = max(offset, 0)
     b = _brain(identity)
     team_scope = None if identity.is_admin else identity.team_id
-    return _db.read_ledger(b.conn, b.ws, limit, team_id=team_scope)
+    return _db.read_ledger(b.conn, b.ws, limit, team_id=team_scope, offset=offset)
 
 
 @app.get("/api/facts")
 def get_facts(
     cross_team: bool = False,
-    limit: int = 40,
+    limit: int = 50,
+    offset: int = 0,
     identity: Identity = Depends(get_identity),
 ):
+    limit = min(limit, 200)
+    offset = max(offset, 0)
     b = _brain(identity)
     conn, ws = b.conn, b.ws
     tid = identity.team_id
@@ -510,16 +815,16 @@ def get_facts(
             "SELECT f.*,e.source ep_source FROM facts f "
             "LEFT JOIN episodes e ON f.episode_id=e.id "
             "WHERE f.workspace_id=%s AND f.invalidated_at IS NULL "
-            "ORDER BY f.introduced_at DESC LIMIT %s",
-            (ws, limit))
+            "ORDER BY f.introduced_at DESC LIMIT %s OFFSET %s",
+            (ws, limit, offset))
     else:
         rows = _q(conn,
             "SELECT f.*,e.source ep_source FROM facts f "
             "LEFT JOIN episodes e ON f.episode_id=e.id "
             "WHERE f.workspace_id=%s AND f.invalidated_at IS NULL "
             "AND (f.team_id=%s OR f.visibility='shared') "
-            "ORDER BY f.introduced_at DESC LIMIT %s",
-            (ws, tid, limit))
+            "ORDER BY f.introduced_at DESC LIMIT %s OFFSET %s",
+            (ws, tid, limit, offset))
     return [dict(r) for r in rows]
 
 
@@ -574,11 +879,23 @@ def composio_apps(limit: int = 50, cursor: str = None,
 
 
 @app.get("/api/composio/connected")
-def composio_connected(_identity: Identity = Depends(require_admin)):
-    """List apps connected for this workspace. Admin only."""
+def composio_connected(
+    limit: int = 50,
+    offset: int = 0,
+    identity: Identity = Depends(get_identity),
+):
+    """List apps the calling user has connected. Admins also see all workspace connections."""
+    limit = min(limit, 200)
+    offset = max(offset, 0)
     try:
         from brain.core.connectors.composio import list_connected_apps
-        return list_connected_apps()
+        if identity.is_admin:
+            # Admins see all workspace connections
+            apps = list_connected_apps()
+        else:
+            # Regular users see only their own connections
+            apps = list_connected_apps(user_id=identity.user_id)
+        return apps[offset: offset + limit]
     except RuntimeError as e:
         raise HTTPException(400, str(e))
 
@@ -597,12 +914,15 @@ def composio_disconnect(account_id: str,
 @app.post("/api/composio/connect")
 def composio_connect(
     req: ComposioConnectRequest,
-    _identity: Identity = Depends(get_identity),
+    identity: Identity = Depends(require_not_guest),
 ):
-    """Initiate OAuth for a Composio app. Returns a URL the user must open."""
+    """Initiate OAuth for a Composio app. Uses the caller's user_id as entity_id
+    so each user's connection is isolated — teammates cannot see each other's data."""
     try:
         from brain.core.connectors.composio import get_connect_url
-        url = get_connect_url(req.app, redirect_url=req.redirect_url or None)
+        # entity_id = caller's user_id → each user gets their own OAuth connection
+        redirect = req.redirect_url or os.getenv("APP_BASE_URL", "http://localhost:7070")
+        url = get_connect_url(req.app, user_id=identity.user_id, redirect_url=redirect)
         return {"app": req.app, "connect_url": url}
     except RuntimeError as e:
         raise HTTPException(400, str(e))
@@ -804,7 +1124,7 @@ def add_message(
 
 
 @app.delete("/api/conversations/{conv_id}")
-def delete_conversation(conv_id: str, identity: Identity = Depends(get_identity)):
+def delete_conversation(conv_id: str, identity: Identity = Depends(require_not_guest)):
     """Delete a conversation and all its messages. User can only delete their own."""
     from brain.core import db_pg as _pg
     conn = _pg.connect()
@@ -829,7 +1149,7 @@ def delete_conversation(conv_id: str, identity: Identity = Depends(get_identity)
 
 
 @app.post("/api/auth/sso-provision")
-def sso_provision(request: Request, identity: Identity = Depends(get_identity)):
+def sso_provision(request: Request, identity: Identity = Depends(require_not_guest)):
     """
     Called after every SSO login. Creates account + membership rows for first-time
     SSO users. Idempotent — safe to call on every login.
@@ -958,22 +1278,28 @@ def accept_invite(token: str, req: InviteAcceptRequest, request: Request):
     conn = _pg.connect()
     try:
         cur = conn.cursor()
+        # Single atomic query: token match + status='pending' + expiry check in one shot.
+        # This prevents TOCTOU races and ensures the token cannot be replayed after
+        # status changes to 'accepted' between a SELECT and a later UPDATE.
         cur.execute("""
             SELECT i.id, i.email, i.role, i.team_ids, i.account_id, i.expires_at, i.status
             FROM invitations i
-            WHERE i.token = %s
+            WHERE i.token = %s AND i.status = 'pending' AND i.expires_at > now()
         """, (token,))
         row = cur.fetchone()
         if not row:
-            raise HTTPException(404, "Invalid invite token")
-        row = dict(row)
-        if row["status"] != "pending":
-            raise HTTPException(410, "This invite has already been used or revoked")
-        expires = row["expires_at"]
-        if isinstance(expires, str):
-            expires = datetime.datetime.fromisoformat(expires.replace("Z",""))
-        if expires.replace(tzinfo=None) < datetime.datetime.utcnow():
+            # Distinguish between not-found, already-used, and expired for better DX,
+            # but do NOT expose which case applies (security: don't enumerate tokens).
+            cur.execute(
+                "SELECT status, expires_at FROM invitations WHERE token = %s", (token,)
+            )
+            existing = cur.fetchone()
+            if not existing:
+                raise HTTPException(404, "Invalid invite token")
+            if existing["status"] != "pending":
+                raise HTTPException(410, "This invite has already been used or revoked")
             raise HTTPException(410, "Invite has expired")
+        row = dict(row)
 
         email      = row["email"]
         role       = row["role"]
@@ -1030,8 +1356,14 @@ def accept_invite(token: str, req: InviteAcceptRequest, request: Request):
 
 
 @app.get("/api/members")
-def get_members(identity: Identity = Depends(require_admin)):
+def get_members(
+    limit: int = 50,
+    offset: int = 0,
+    identity: Identity = Depends(require_admin),
+):
     """List all members in the caller's account. Admin-only."""
+    limit = min(limit, 200)
+    offset = max(offset, 0)
     from brain.core import db_pg as _pg
     conn = _pg.connect()
     try:
@@ -1051,7 +1383,8 @@ def get_members(identity: Identity = Depends(require_admin)):
             FROM memberships m
             WHERE m.account_id = %s
             ORDER BY m.created_at
-        """, (account_id,))
+            LIMIT %s OFFSET %s
+        """, (account_id, limit, offset))
         members = [dict(r) for r in cur.fetchall()]
         cur.close()
         return members
@@ -1098,7 +1431,7 @@ def invite_member(
                     "Upgrade your plan to add more members.")
 
         token = secrets.token_urlsafe(32)
-        base_url = f"http://localhost:7070"
+        base_url = os.getenv("APP_BASE_URL", "http://localhost:7070").rstrip("/")
         if row:
             expires = datetime.datetime.utcnow() + datetime.timedelta(days=7)
             team_ids_json = f'["{req.team_id}"]' if req.team_id else "[]"
@@ -1289,122 +1622,36 @@ def backfill(
 @app.post("/api/sync")
 def sync(
     req: SyncRequest,
-    identity: Identity = Depends(get_identity),
+    identity: Identity = Depends(require_not_guest),
 ):
-    """Pull recent items (poll window) from a connector — lighter than backfill."""
-    try:
-        return _brain(identity).sync(req.source, team_id=identity.team_id)
-    except KeyError:
+    """Pull recent items from a connector. Runs in a background thread so the
+    HTTP request returns immediately — embedding + LLM extraction can take minutes."""
+    import threading as _threading
+    from brain.core import db_pg as _pg
+
+    captured_identity = identity
+
+    def _run():
+        try:
+            b = _brain(captured_identity)
+            b.sync(req.source, team_id=captured_identity.team_id)
+        except Exception as exc:
+            import sys
+            print(f"[sync] background error: {exc}", file=sys.stderr)
+
+    # Ingest episodes synchronously (fast — just writes raw text to DB)
+    # then kick extraction off in a daemon thread so HTTP returns quickly
+    from brain.engine import REGISTRY
+    if req.source not in REGISTRY:
         raise HTTPException(400, f"Unknown source '{req.source}'")
-    except RuntimeError as e:
-        raise HTTPException(400, str(e))
-    except Exception as e:
-        raise HTTPException(500, str(e))
 
+    t = _threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {"source": req.source, "status": "syncing", "message": "Sync started — facts will appear within 1-2 minutes."}
 
-# ── LLM settings (user-facing: provider + API key) ───────────────────────────
-
-class LLMSettingsRequest(BaseModel):
-    provider: str   # "openai" | "anthropic" | "grok"
-    api_key: str
-
-class BYOKeyRequest(BaseModel):
-    provider: str   # "openai" | "anthropic" | "grok"
-    api_key: str
 
 class SubscriptionRequest(BaseModel):
     plan_id: str    # "plan_free" | "plan_team" | "plan_business"
-
-_PROVIDER_ENV_MAP = {
-    "openai":    "OPENAI_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
-    "grok":      "GROK_API_KEY",
-}
-
-def _env_path():
-    return Path(__file__).parent.parent.parent / ".env"
-
-def _read_env_file():
-    p = _env_path()
-    if not p.exists():
-        return {}
-    lines = p.read_text(encoding="utf-8").splitlines()
-    env = {}
-    for line in lines:
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, _, v = line.partition("=")
-            env[k.strip()] = v.strip().strip('"').strip("'")
-    return env
-
-def _write_env_file(env: dict, remove_keys: set = None):
-    """Write env dict back to .env, replacing existing keys in-place.
-    Keys in remove_keys are stripped from the file entirely."""
-    remove_keys = remove_keys or set()
-    p = _env_path()
-    lines = []
-    written = set()
-    if p.exists():
-        for line in p.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if stripped and not stripped.startswith("#") and "=" in stripped:
-                k = stripped.partition("=")[0].strip()
-                if k in remove_keys:
-                    continue  # strip this key
-                if k in env:
-                    lines.append(f'{k}="{env[k]}"')
-                    written.add(k)
-                    continue
-            lines.append(line)
-    for k, v in env.items():
-        if k not in written:
-            lines.append(f'{k}="{v}"')
-    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-@app.get("/api/settings/llm")
-def get_llm_settings(_identity: Identity = Depends(get_identity)):
-    """Return which LLM provider + whether a key is saved."""
-    env = _read_env_file()
-    active_provider = None
-    for provider, var in _PROVIDER_ENV_MAP.items():
-        if env.get(var) or os.getenv(var):
-            active_provider = provider
-            break
-    return {
-        "provider": active_provider or "openai",
-        "has_key": active_provider is not None,
-    }
-
-
-@app.post("/api/settings/llm")
-def save_llm_settings(
-    req: LLMSettingsRequest,
-    _identity: Identity = Depends(require_admin),
-):
-    """Save LLM provider API key to .env file."""
-    if req.provider not in _PROVIDER_ENV_MAP:
-        raise HTTPException(400, f"Unknown provider '{req.provider}'. Must be: openai, anthropic, grok")
-    if not req.api_key or len(req.api_key) < 10:
-        raise HTTPException(400, "API key appears too short")
-
-    env_var = _PROVIDER_ENV_MAP[req.provider]
-
-    # Clear the other provider keys so only one is active
-    env = _read_env_file()
-    # Clear all other LLM provider keys from env dict
-    other_vars = {v for v in _PROVIDER_ENV_MAP.values() if v != env_var}
-    for var in other_vars:
-        env.pop(var, None)
-    env[env_var] = req.api_key
-    _write_env_file(env, remove_keys=other_vars)
-
-    # Also set in current process so the running server uses it immediately
-    for var in _PROVIDER_ENV_MAP.values():
-        os.environ.pop(var, None)
-    os.environ[env_var] = req.api_key
-
-    return {"ok": True, "provider": req.provider, "var": env_var}
 
 
 # ── plans (public read) ───────────────────────────────────────────────────────
@@ -1487,65 +1734,6 @@ def set_subscription(
         conn.close()
 
 
-# ── BYO-key management (admin) ────────────────────────────────────────────────
-
-@app.get("/api/byo-key")
-def get_byo_keys(identity: Identity = Depends(require_admin)):
-    """Return which providers have BYO keys saved for this workspace."""
-    from brain.core import db_pg as _pg
-    account_id = _resolve_account_id(identity.user_id)
-    if not account_id:
-        return []
-    conn = _pg.connect()
-    try:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT provider, created_at, created_by
-            FROM workspace_llm_keys
-            WHERE account_id = %s
-        """, (account_id,))
-        rows = [{"provider": r["provider"], "created_at": str(r["created_at"]),
-                 "created_by": r["created_by"]} for r in cur.fetchall()]
-        cur.close()
-        return rows
-    finally:
-        conn.close()
-
-
-@app.post("/api/byo-key")
-def save_byo_key(
-    req: BYOKeyRequest,
-    identity: Identity = Depends(require_admin),
-):
-    """Save a workspace BYO API key. Overwrites existing key for this provider."""
-    if req.provider not in _PROVIDER_ENV_MAP:
-        raise HTTPException(400, f"Unknown provider '{req.provider}'")
-    if not req.api_key or len(req.api_key) < 10:
-        raise HTTPException(400, "API key appears too short")
-    account_id = _resolve_account_id(identity.user_id)
-    if not account_id:
-        raise HTTPException(404, "Account not found")
-    from brain.core.db_pg import upsert_byo_key
-    upsert_byo_key(account_id, req.provider, req.api_key, identity.user_id)
-    return {"ok": True, "provider": req.provider}
-
-
-@app.delete("/api/byo-key/{provider}")
-def delete_byo_key(
-    provider: str,
-    identity: Identity = Depends(require_admin),
-):
-    """Remove a workspace BYO API key."""
-    if provider not in _PROVIDER_ENV_MAP:
-        raise HTTPException(400, f"Unknown provider '{provider}'")
-    account_id = _resolve_account_id(identity.user_id)
-    if not account_id:
-        raise HTTPException(404, "Account not found")
-    from brain.core.db_pg import delete_byo_key as _del
-    _del(account_id, provider)
-    return {"ok": True}
-
-
 # ── workspace usage (admin) ───────────────────────────────────────────────────
 
 @app.get("/api/usage")
@@ -1556,6 +1744,380 @@ def get_usage(period: str = None, identity: Identity = Depends(require_admin)):
     """
     b = _brain(identity)
     return b.usage_summary(period=period)
+
+
+# ── dead-letter queue (admin) ────────────────────────────────────────────────
+
+@app.get("/api/admin/dead-letter")
+def list_dead_letter(
+    status: str = "failed",
+    limit: int = 50,
+    offset: int = 0,
+    _identity: Identity = Depends(require_admin),
+):
+    """
+    List dead-letter jobs for this workspace's worker.
+    status: 'failed' | 'replayed' | 'discarded'
+    Admin-only.
+    """
+    limit = min(limit, 200)
+    offset = max(offset, 0)
+    from brain.core import db_pg as _pg
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        return []
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, job_name, kwargs, error, attempts, failed_at, replayed_at, status
+            FROM dead_letter_jobs
+            WHERE status = %s
+            ORDER BY failed_at DESC
+            LIMIT %s OFFSET %s
+        """, (status, limit, offset))
+        rows = cur.fetchall()
+        cur.close()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+@app.post("/api/admin/dead-letter/{job_id}/replay")
+def replay_dead_letter(
+    job_id: int,
+    _identity: Identity = Depends(require_admin),
+):
+    """Re-enqueue a dead-letter job. Marks it 'replayed'. Admin-only."""
+    from brain.core import db_pg as _pg
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        raise HTTPException(503, "Postgres backend required")
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT job_name, kwargs FROM dead_letter_jobs WHERE id = %s AND status = 'failed'",
+            (job_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(404, "Dead-letter job not found or already replayed")
+
+        job_name = row["job_name"]
+        kwargs   = row["kwargs"] if isinstance(row["kwargs"], dict) else json.loads(row["kwargs"])
+
+        # Re-enqueue via arq
+        import asyncio, arq as _arq
+        from arq.connections import RedisSettings as _RS
+        from brain import config as _cfg
+
+        async def _enqueue():
+            pool = await _arq.create_pool(_RS.from_dsn(_cfg.REDIS_URL))
+            await pool.enqueue_job(job_name, **kwargs)
+            await pool.aclose()
+
+        asyncio.get_event_loop().run_until_complete(_enqueue())
+
+        cur.execute(
+            "UPDATE dead_letter_jobs SET status='replayed', replayed_at=now() WHERE id=%s",
+            (job_id,),
+        )
+        conn.commit()
+        cur.close()
+        return {"replayed": True, "job_name": job_name, "kwargs": kwargs}
+    finally:
+        conn.close()
+
+
+@app.delete("/api/admin/dead-letter/{job_id}")
+def discard_dead_letter(
+    job_id: int,
+    _identity: Identity = Depends(require_admin),
+):
+    """Mark a dead-letter job as discarded (will not be retried). Admin-only."""
+    from brain.core import db_pg as _pg
+    from brain.core.db import BACKEND
+    if BACKEND != "postgres":
+        raise HTTPException(503, "Postgres backend required")
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE dead_letter_jobs SET status='discarded' WHERE id=%s AND status='failed'",
+            (job_id,),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Dead-letter job not found or not in 'failed' state")
+        conn.commit()
+        cur.close()
+        return {"discarded": True}
+    finally:
+        conn.close()
+
+
+# ── Slack workspace management (admin) ────────────────────────────────────────
+
+@app.get("/api/slack/status")
+def slack_status(identity: Identity = Depends(require_admin)):
+    """Check if Slack is connected for this workspace."""
+    from brain.core import db_pg as _pg
+    account_id = _resolve_account_id(identity.user_id)
+    if not account_id:
+        raise HTTPException(404, "Account not found")
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT slack_team_id, slack_team_name, bot_user_id, installed_by, created_at
+            FROM slack_workspace_integrations
+            WHERE account_id = %s
+            LIMIT 1
+            """,
+            (account_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        if not row:
+            return {"connected": False}
+        return {"connected": True, **{k: str(v) for k, v in dict(row).items()}}
+    finally:
+        conn.close()
+
+
+@app.delete("/api/slack/disconnect")
+def slack_disconnect(identity: Identity = Depends(require_admin)):
+    """Disconnect Slack from this workspace."""
+    from brain.core import db_pg as _pg
+    account_id = _resolve_account_id(identity.user_id)
+    if not account_id:
+        raise HTTPException(404, "Account not found")
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM slack_workspace_integrations WHERE account_id = %s",
+            (account_id,),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Slack is not connected")
+        conn.commit()
+        cur.close()
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/api/slack/channels")
+def slack_list_channels(identity: Identity = Depends(require_admin)):
+    """List channels the bot is in (live from Slack API)."""
+    from brain.core import db_pg as _pg
+    account_id = _resolve_account_id(identity.user_id)
+    if not account_id:
+        raise HTTPException(404, "Account not found")
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT bot_token FROM slack_workspace_integrations WHERE account_id = %s LIMIT 1",
+            (account_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+    finally:
+        conn.close()
+
+    if not row:
+        raise HTTPException(404, "Slack is not connected")
+
+    bot_token = row["bot_token"]
+    try:
+        import requests as _req
+        channels = []
+        cursor = None
+        while True:
+            params = {"types": "public_channel,private_channel", "exclude_archived": True, "limit": 200}
+            if cursor:
+                params["cursor"] = cursor
+            resp = _req.get(
+                "https://slack.com/api/conversations.list",
+                headers={"Authorization": f"Bearer {bot_token}"},
+                params=params,
+                timeout=15,
+            )
+            data = resp.json()
+            if not data.get("ok"):
+                raise HTTPException(502, f"Slack API error: {data.get('error')}")
+            for ch in data.get("channels", []):
+                if ch.get("is_member"):
+                    channels.append({
+                        "id":         ch["id"],
+                        "name":       ch.get("name", ""),
+                        "is_private": ch.get("is_private", False),
+                        "num_members": ch.get("num_members", 0),
+                    })
+            cursor = data.get("response_metadata", {}).get("next_cursor")
+            if not cursor:
+                break
+        return channels
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, str(e))
+
+
+@app.get("/api/slack/mappings")
+def slack_get_mappings(identity: Identity = Depends(require_admin)):
+    """List channel→department mappings for this workspace."""
+    from brain.core import db_pg as _pg
+    account_id = _resolve_account_id(identity.user_id)
+    if not account_id:
+        raise HTTPException(404, "Account not found")
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, channel_id, channel_name, team_id, sync_members, slack_team_id, created_at
+            FROM slack_channel_mappings
+            WHERE account_id = %s
+            ORDER BY channel_name
+            """,
+            (account_id,),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        return rows
+    finally:
+        conn.close()
+
+
+@app.post("/api/slack/mappings")
+def slack_create_mapping(
+    req: SlackMappingRequest,
+    identity: Identity = Depends(require_admin),
+):
+    """Create or update a channel→department mapping."""
+    from brain.core import db_pg as _pg
+    import uuid as _uuid
+    account_id = _resolve_account_id(identity.user_id)
+    if not account_id:
+        raise HTTPException(404, "Account not found")
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        # Get slack_team_id for this account's integration
+        cur.execute(
+            "SELECT slack_team_id FROM slack_workspace_integrations WHERE account_id = %s LIMIT 1",
+            (account_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(400, "Slack is not connected — connect Slack before mapping channels")
+        slack_team_id = row["slack_team_id"]
+        cur.execute(
+            """
+            INSERT INTO slack_channel_mappings
+                (id, account_id, slack_team_id, channel_id, channel_name, team_id, sync_members)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (account_id, channel_id) DO UPDATE SET
+                channel_name = EXCLUDED.channel_name,
+                team_id      = EXCLUDED.team_id,
+                sync_members = EXCLUDED.sync_members
+            """,
+            (str(_uuid.uuid4()), account_id, slack_team_id,
+             req.channel_id, req.channel_name, req.team_id, req.sync_members),
+        )
+        conn.commit()
+        cur.close()
+        return {"ok": True, "channel_id": req.channel_id, "team_id": req.team_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@app.delete("/api/slack/mappings/{channel_id}")
+def slack_delete_mapping(
+    channel_id: str,
+    identity: Identity = Depends(require_admin),
+):
+    """Remove a channel→department mapping."""
+    from brain.core import db_pg as _pg
+    account_id = _resolve_account_id(identity.user_id)
+    if not account_id:
+        raise HTTPException(404, "Account not found")
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM slack_channel_mappings WHERE account_id = %s AND channel_id = %s",
+            (account_id, channel_id),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Mapping not found")
+        conn.commit()
+        cur.close()
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@app.post("/api/slack/mappings/{channel_id}/sync")
+def slack_sync_channel_members(
+    channel_id: str,
+    identity: Identity = Depends(require_admin),
+):
+    """Manually trigger member sync for a mapped channel (only if sync_members=True)."""
+    from brain.core import db_pg as _pg
+    from brain.wrappers.slack_bot import sync_channel_members
+    account_id = _resolve_account_id(identity.user_id)
+    if not account_id:
+        raise HTTPException(404, "Account not found")
+    conn = _pg.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT m.team_id, m.sync_members, i.bot_token
+            FROM slack_channel_mappings m
+            JOIN slack_workspace_integrations i ON i.account_id = m.account_id
+            WHERE m.account_id = %s AND m.channel_id = %s
+            LIMIT 1
+            """,
+            (account_id, channel_id),
+        )
+        row = cur.fetchone()
+        cur.close()
+    finally:
+        conn.close()
+
+    if not row:
+        raise HTTPException(404, "Channel mapping not found")
+    if not row["sync_members"]:
+        raise HTTPException(400, "sync_members is not enabled for this channel mapping")
+
+    result = sync_channel_members(
+        account_id=account_id,
+        channel_id=channel_id,
+        team_id=row["team_id"],
+        bot_token=row["bot_token"],
+    )
+    return {"ok": True, **result}
 
 
 # ── platform metrics (platform-owner only) ────────────────────────────────────
@@ -1649,11 +2211,157 @@ def platform_metrics(period: str = None, _identity: Identity = Depends(get_ident
     }
 
 
+# ── account data export (GDPR portability) ───────────────────────────────────
+
+@app.get("/api/account/export")
+def export_account_data(identity: Identity = Depends(require_admin)):
+    """
+    Export all workspace data as a JSON file download (GDPR data portability).
+
+    Returns facts, episodes (without embeddings), ledger entries, and teams
+    for the caller's workspace. Streams the response so large datasets do not
+    buffer entirely in memory before sending.
+
+    Never includes: other workspaces' data, API keys, secrets, embeddings,
+    or any data that is not directly owned by this workspace.
+
+    Admin-only — requires the caller to have admin or owner role.
+    """
+    import datetime as _dt
+    from brain.core import db_pg as _pg
+
+    ws = identity.workspace_id
+    conn = _pg.connect()
+
+    def _row_to_dict(row) -> dict:
+        """Convert a RealDictRow to a plain dict, serialising non-JSON types."""
+        out = {}
+        for k, v in dict(row).items():
+            if isinstance(v, (_dt.datetime, _dt.date)):
+                out[k] = v.isoformat()
+            else:
+                out[k] = v
+        return out
+
+    def _generate():
+        """Generator that yields JSON chunks for StreamingResponse."""
+        try:
+            _pg._set_ws(conn, ws)
+            cur = conn.cursor()
+            exported_at = _dt.datetime.utcnow().isoformat() + "Z"
+
+            yield '{"exported_at":' + json.dumps(exported_at) + ','
+            yield '"workspace_id":' + json.dumps(ws) + ','
+
+            # ── teams ─────────────────────────────────────────────────────────
+            cur.execute(
+                "SELECT id, name, description, created_at "
+                "FROM teams WHERE workspace_id = %s ORDER BY name",
+                (ws,)
+            )
+            yield '"teams":['
+            first = True
+            for row in cur.fetchall():
+                if not first:
+                    yield ","
+                yield json.dumps(_row_to_dict(row))
+                first = False
+            yield "],"
+
+            # ── episodes (body included, no embeddings to exclude here) ───────
+            cur.execute(
+                "SELECT id, source, external_id, title, body, author, url, "
+                "       occurred_at, content_hash, acl, team_id, extracted "
+                "FROM episodes WHERE workspace_id = %s ORDER BY occurred_at",
+                (ws,)
+            )
+            yield '"episodes":['
+            first = True
+            for row in cur.fetchall():
+                if not first:
+                    yield ","
+                yield json.dumps(_row_to_dict(row))
+                first = False
+            yield "],"
+
+            # ── facts (embedding column excluded — too large, not portable) ───
+            cur.execute(
+                "SELECT id, subject, predicate, object, summary, episode_id, "
+                "       acl, confidence, introduced_at, invalidated_at, "
+                "       source_kind, team_id, visibility "
+                "FROM facts WHERE workspace_id = %s ORDER BY introduced_at",
+                (ws,)
+            )
+            yield '"facts":['
+            first = True
+            for row in cur.fetchall():
+                if not first:
+                    yield ","
+                yield json.dumps(_row_to_dict(row))
+                first = False
+            yield "],"
+
+            # ── fact_edges ────────────────────────────────────────────────────
+            cur.execute(
+                "SELECT id, src_fact, dst_fact, type "
+                "FROM fact_edges WHERE workspace_id = %s ORDER BY id",
+                (ws,)
+            )
+            yield '"fact_edges":['
+            first = True
+            for row in cur.fetchall():
+                if not first:
+                    yield ","
+                yield json.dumps(_row_to_dict(row))
+                first = False
+            yield "],"
+
+            # ── ledger (query/context text included for portability) ───────────
+            cur.execute(
+                "SELECT id, user_id, ts, query, surface, fact_ids, team_id "
+                "FROM ledger WHERE workspace_id = %s ORDER BY id",
+                (ws,)
+            )
+            yield '"ledger":['
+            first = True
+            for row in cur.fetchall():
+                if not first:
+                    yield ","
+                yield json.dumps(_row_to_dict(row))
+                first = False
+            yield "]}"
+
+            cur.close()
+        finally:
+            conn.close()
+
+    filename = f"export-{ws}.json"
+    return StreamingResponse(
+        _generate(),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Export-Workspace": ws,
+        },
+    )
+
+
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def main():
     import uvicorn
     config.startup_check()
+    from brain.core.sentry import init_sentry
+    init_sentry()
+    # Run DB migration once at startup so the first request isn't penalised
+    try:
+        from brain.core import db_pg as _pg
+        _conn = _pg.connect()
+        _pg.migrate(_conn)
+        _conn.close()
+        print("[thread] DB migration OK")
+    except Exception as _e:
+        print(f"[thread] DB migration failed (non-fatal): {_e}")
     uvicorn.run("brain.wrappers.api:app", host="127.0.0.1", port=7070, reload=False)
 
 

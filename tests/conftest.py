@@ -1,5 +1,5 @@
 """
-Shared pytest fixtures for Intellark test suite.
+Shared pytest fixtures for Thread test suite.
 
 Tests that require a live Postgres connection are skipped automatically when
 DATABASE_URL is not set. LLM and embed calls are always stubbed.
@@ -9,9 +9,8 @@ import os, json, uuid, pytest
 POSTGRES_AVAILABLE = bool(os.getenv("DATABASE_URL"))
 
 # ── Environment flags ─────────────────────────────────────────────────────────
-os.environ["BRAIN_ENV"]          = "development"
-os.environ["BRAIN_DEV_BYPASS"]   = "true"
-os.environ["BRAIN_EMBED_OPENAI"] = "false"
+os.environ["BRAIN_ENV"]        = "development"
+os.environ["BRAIN_DEV_BYPASS"] = "true"
 
 # ── Stub LLM so no real API keys are needed ───────────────────────────────────
 import unittest.mock as mock
@@ -54,17 +53,17 @@ def stub_llm(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def stub_embed(monkeypatch):
-    """Patch all embed functions to return fixed 384-dim vectors — prevents fastembed download."""
+    """Patch all embed functions to return fixed 768-dim vectors — prevents Gemini API calls."""
     import brain.core.embed as _embed
+    from brain.config import EMBED_DIM
 
-    # Stub the cached model so it's never invoked
-    fake_model = mock.MagicMock()
-    fake_model.embed = lambda texts: ([0.0] * 384 for _ in texts)
-    monkeypatch.setattr(_embed, "_m", lambda: fake_model)
+    # Stub the internal Gemini call so no network is needed
+    monkeypatch.setattr(_embed, "_call_gemini",
+                        lambda batch, task_type: [[0.0] * EMBED_DIM for _ in batch])
 
     # Stub the public API functions directly
-    monkeypatch.setattr(_embed, "embed",       lambda text: [0.0] * 384)
-    monkeypatch.setattr(_embed, "embed_batch", lambda texts: [[0.0] * 384 for _ in texts])
+    monkeypatch.setattr(_embed, "embed",       lambda text: [0.0] * EMBED_DIM)
+    monkeypatch.setattr(_embed, "embed_batch", lambda texts: [[0.0] * EMBED_DIM for _ in texts])
 
     yield
 

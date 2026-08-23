@@ -56,7 +56,8 @@ def run(conn, ws, episodes, team_id="shared"):
             continue
 
         ep_id = str(uuid.uuid4())
-        acl = ",".join(ep.get("acl", ["everyone"]))
+        _acl = ep.get("acl", ["everyone"])
+        acl = _acl if isinstance(_acl, str) else ",".join(_acl)
         params = (
             ep_id, ws, ep["source"], ep.get("external_id", ep_id),
             ep.get("title", ""), body, ep.get("author", ""),

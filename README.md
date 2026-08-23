@@ -1,4 +1,4 @@
-# Intellark
+# Thread
 
 AI memory layer for your company. Connects to Slack and 1,000+ apps, extracts facts, and answers questions with sources — over a web UI, MCP, or CLI.
 
@@ -77,35 +77,71 @@ Slack connects directly with `SLACK_BOT_TOKEN`.
 
 ---
 
-## Using with Claude Code (MCP)
+## Connecting your AI agent (Claude Code / Cursor)
 
-Add to `~/.claude/settings.json`:
+This is the primary experience. Once wired up:
+- **Every prompt** automatically gets relevant company facts injected as context (logged to the ledger with `surface="hook-inject"`).
+- **Every response** is harvested for new facts — stored with `source_kind="agent"`, deduped, ledger-logged.
+- **MCP tools** let the agent explicitly search, record, correct, and trace decision history.
+
+### Step 1 — MCP server
+
+Add to `~/.claude/settings.json` (Cursor: `.cursor/mcp.json`):
+
 ```json
 {
   "mcpServers": {
-    "intellark": {
+    "thread": {
       "command": "python",
       "args": ["-m", "brain.wrappers.mcp_server"],
-      "cwd": "/path/to/intellark"
+      "cwd": "/absolute/path/to/thread",
+      "env": {
+        "DATABASE_URL": "postgresql://...",
+        "BRAIN_TEAM": "engineering"
+      }
     }
-  },
+  }
+}
+```
+
+### Step 2 — Lifecycle hooks (auto-inject + harvest)
+
+Add to the same `~/.claude/settings.json`:
+
+```json
+{
   "hooks": {
     "UserPromptSubmit": [{
       "matcher": "*",
       "hooks": [{"type": "command", "command": "python",
-        "args": ["/path/to/intellark/brain/wrappers/hooks/claude_code_hook.py"],
+        "args": ["/absolute/path/to/thread/brain/wrappers/hooks/claude_code_hook.py"],
         "timeout": 15}]
     }],
     "Stop": [{
       "hooks": [{"type": "command", "command": "python",
-        "args": ["/path/to/intellark/brain/wrappers/hooks/claude_code_hook.py"],
+        "args": ["/absolute/path/to/thread/brain/wrappers/hooks/claude_code_hook.py"],
         "timeout": 30}]
     }]
   }
 }
 ```
 
-Claude will automatically inject relevant company facts on every prompt and harvest new facts from responses.
+### MCP tools available to your agent
+
+| Tool | What it does |
+|---|---|
+| `search_company_facts` | Semantic + FTS search — use before answering company questions |
+| `get_decision_history` | Ordered timeline of decisions about any topic |
+| `record_fact` | Store a human-authored fact (decision, commitment, ownership) |
+| `correct_fact` | Supersede a wrong fact with the correct version |
+| `harvest_from_response` | Explicit harvest trigger for a specific response |
+| `list_teams` | List all registered teams |
+
+### How to verify it's working
+
+1. Ask Claude Code: *"What database are we using?"* — it should call `search_company_facts`.
+2. State a decision: *"We decided to use Postgres for billing."* — after the session ends, check the ledger: the fact should appear with `source_kind="agent"`.
+3. Run `/status` in the web UI to see the ledger with `surface="hook-inject"` entries.
 
 ---
 

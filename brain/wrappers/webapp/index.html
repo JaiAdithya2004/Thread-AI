@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Intellark</title>
+<title>Thread</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js" crossorigin="anonymous"></script>
@@ -41,7 +41,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 /* ── SIDEBAR ─────────────────────────────────────────────── */
 .sidebar{width:236px;min-width:236px;background:var(--canvas);border-right:1px solid var(--hairline);display:flex;flex-direction:column;overflow:hidden}
 
-.brand{padding:16px 16px 15px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--hairline);flex-shrink:0}
+.brand{padding:14px 16px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--hairline);flex-shrink:0}
 .brand-icon{width:26px;height:26px;border-radius:7px;object-fit:cover;flex-shrink:0}
 .brand-name{font-weight:700;font-size:16px;letter-spacing:-.5px;color:var(--ink)}
 
@@ -99,11 +99,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 .tab{display:none;flex:1;flex-direction:column;overflow:hidden}
 .tab.active{display:flex}
 
-/* LLM warning banner */
-.llm-banner{background:#fef3e8;border-bottom:1px solid #f0d4a8;padding:10px 32px;font-size:12.5px;color:#92400e;display:flex;align-items:center;gap:10px;flex-shrink:0}
-.llm-banner a{color:var(--primary);text-decoration:underline;cursor:pointer}
-.llm-banner .close-banner{margin-left:auto;cursor:pointer;opacity:.5;font-size:16px;line-height:1}
-.llm-banner .close-banner:hover{opacity:1}
 
 /* ask */
 .ask-head{padding:24px 32px 20px;border-bottom:1px solid var(--hairline);flex-shrink:0}
@@ -304,7 +299,20 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 .user-role{font-size:11px;color:var(--muted)}
 .user-signout{font-size:11px;color:var(--muted-soft);text-decoration:underline;background:none;border:none;cursor:pointer;font-family:inherit;padding:0}
 .user-signout:hover{color:var(--error)}
-</style>
+.brand-wordmark{font-family:'Inter',sans-serif;font-size:22px;font-weight:300;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink);line-height:1;}
+.auth-brand-wordmark{font-family:'Inter',sans-serif;font-size:26px;font-weight:300;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink);line-height:1;display:block;margin:0 auto 16px;}
+/* ── GUEST DEMO BUTTON ────────────────────────────────────────── */
+.auth-demo-divider{display:flex;align-items:center;gap:10px;margin:16px 0 0;color:var(--muted);font-size:12px}
+.auth-demo-divider::before,.auth-demo-divider::after{content:'';flex:1;height:1px;background:var(--hairline)}
+.btn-try-demo{width:100%;padding:10px 0;margin-top:10px;border-radius:10px;border:1.5px dashed var(--hairline);background:transparent;color:var(--muted);font-size:13px;font-family:inherit;font-weight:500;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:7px}
+.btn-try-demo:hover{border-color:var(--primary);color:var(--primary);background:var(--surface-soft)}
+/* ── GUEST BANNER ─────────────────────────────────────────────── */
+.guest-banner{background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);color:#fff;padding:10px 14px;font-size:12px;border-radius:10px;margin:10px 10px 0;display:none;flex-direction:column;gap:6px}
+.guest-banner.visible{display:flex}
+.guest-banner-title{font-weight:600;font-size:12.5px}
+.guest-banner-bar{background:rgba(255,255,255,.25);border-radius:99px;height:4px;overflow:hidden}
+.guest-banner-fill{height:100%;background:#fff;border-radius:99px;transition:width .3s}
+.guest-banner-count{font-size:11px;opacity:.85}</style>
 </head>
 <body>
 
@@ -313,7 +321,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
   <!-- Invite accept card (shown only when ?invite=TOKEN in URL) -->
   <div class="auth-card" id="inviteCard" style="display:none">
     <div class="auth-head">
-      <div style="width:44px;height:44px;background:#111;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:20px;font-weight:700;color:#fff;letter-spacing:-1px">I</div>
+          <span class="auth-brand-wordmark">Thread</span>
       <h1>You're invited!</h1>
       <p id="inviteHeadSub">Loading invite details…</p>
     </div>
@@ -346,8 +354,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
   <!-- Sign-in / Sign-up card -->
   <div class="auth-card" id="authCard">
     <div class="auth-head">
-      <div style="width:44px;height:44px;background:#111;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:20px;font-weight:700;color:#fff;letter-spacing:-1px">I</div>
-      <h1>Intellark</h1>
+      
+      <span class="auth-brand-wordmark">Thread</span>
       <p id="authHeadSub">Sign in to access your team's knowledge</p>
     </div>
     <div class="auth-body">
@@ -370,7 +378,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
       <div id="signupFields" style="display:none">
         <!-- Step 1: choose account type -->
         <div id="signupStep1">
-          <p style="font-size:12.5px;color:var(--muted);margin-bottom:14px">What brings you to Intellark?</p>
+          <p style="font-size:12.5px;color:var(--muted);margin-bottom:14px">What brings you to Thread?</p>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
             <button class="acct-type-btn active" id="btnIndividual" onclick="selectAcctType('individual')">
               <span style="font-size:22px">👤</span>
@@ -424,8 +432,17 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
           </button>
         </div>
       </div>
-      <div class="auth-bypass" id="authBypassRow" style="display:block">
+      <!-- Only shown in dev/bypass mode — hidden by default, conditionally shown by initAuth() -->
+      <div class="auth-bypass" id="authBypassRow" style="display:none">
         <a onclick="bypassAuth()">Continue as developer (bypass login)</a>
+      </div>
+      <!-- Try live demo — always shown (hidden server-side when GUEST_TOKEN_SECRET unset) -->
+      <div id="guestDemoRow">
+        <div class="auth-demo-divider">or</div>
+        <button class="btn-try-demo" id="guestDemoBtn" onclick="doGuestDemo()">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
+          Try live demo (read-only)
+        </button>
       </div>
     </div>
   </div>
@@ -434,7 +451,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 <!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="brand">
-    <span class="brand-name">Intellark</span>
+        <span class="brand-wordmark">Thread</span>
   </div>
 
   <div class="dept-block">
@@ -507,9 +524,13 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
     </div>
   </div>
 
-  <div class="sources-block">
-    <div class="block-label">Connected</div>
-    <div id="sourceList"></div>
+  <div id="sourceList" style="display:none"></div>
+
+  <!-- Guest banner — visible only for guest sessions -->
+  <div class="guest-banner" id="guestBanner">
+    <div class="guest-banner-title">Live demo · read-only</div>
+    <div class="guest-banner-bar"><div class="guest-banner-fill" id="guestBannerFill" style="width:0%"></div></div>
+    <div class="guest-banner-count" id="guestBannerCount">0 / 20 queries used</div>
   </div>
 
   <div class="user-pill" id="userPill" style="display:none">
@@ -527,14 +548,9 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 
   <!-- ASK -->
   <div class="tab active" id="tab-ask">
-    <div id="llmBanner" class="llm-banner" style="display:none">
-      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
-      <strong>No AI provider configured.</strong> Go to Settings → AI Provider to add your API key.
-      <span class="close-banner" onclick="this.parentElement.style.display='none'">×</span>
-    </div>
     <div class="ask-head">
       <h1>Ask your company</h1>
-      <p class="ask-sub" id="askSub">answers come from your team's Slack, email, and docs, with sources</p>
+      <p class="ask-sub" id="askSub">Search across your team's knowledge — every answer shows its source</p>
     </div>
     <div class="chat-area" id="chatArea">
       <div class="empty-state" id="emptyState">
@@ -585,7 +601,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
           <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted);pointer-events:none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/></svg>
           <input id="appSearch" placeholder="Search 1,000+ apps…" oninput="_filterApps()" style="width:100%;padding:8px 12px 8px 34px;background:var(--surface-soft);border:1px solid var(--hairline);color:var(--ink);border-radius:8px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box">
         </div>
-        <button class="btn-sm btn-sync" onclick="_runComposioSync(this)" style="white-space:nowrap">↻ Sync all connected</button>
+        <button class="btn-sm btn-sync admin-only" onclick="_syncAllConnected(this)" style="white-space:nowrap">↻ Sync all connected</button>
       </div>
 
       <!-- Category filter chips -->
@@ -603,9 +619,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
         <div id="allAppsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px"></div>
         <div id="appsLoading" style="text-align:center;padding:40px;color:var(--muted);font-size:13px">Loading apps…</div>
         <div id="appsEmpty" style="display:none;text-align:center;padding:40px;color:var(--muted);font-size:13px">No apps match your search</div>
-        <div id="appsLoadMore" style="display:none;text-align:center;padding:16px 0">
-          <button class="btn-sm" style="background:var(--surface-soft);color:var(--muted)" onclick="_loadMoreApps()">Load more apps</button>
-        </div>
       </div>
 
     </div>
@@ -703,42 +716,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
           </div>
           <div id="deptTable"><div style="padding:20px;color:var(--muted);font-size:13px">No departments yet. Click "+ Add Department" or load data from Connections.</div></div>
         </div>
-        <!-- LLM provider config (visible to all) -->
-        <div class="settings-card" id="settingsLLMCard">
-          <div class="settings-card-head">AI Provider</div>
-          <div style="padding:20px;display:flex;flex-direction:column;gap:16px">
-            <div style="font-size:13px;color:var(--muted);line-height:1.6">
-              Choose your AI provider and paste your API key. Intellark uses it only to answer your queries — your key is stored securely and never shared.
-            </div>
-            <div style="display:flex;flex-direction:column;gap:6px">
-              <label style="font-size:12px;font-weight:500;color:var(--muted)">Provider</label>
-              <select id="llmProviderSelect" style="background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;cursor:pointer" onchange="_onProviderChange()">
-                <option value="openai">OpenAI (GPT-4o, GPT-4 Turbo…)</option>
-                <option value="anthropic">Anthropic (Claude 3.5, Claude 3…)</option>
-                <option value="grok">xAI Grok (Grok-3, Grok-2…)</option>
-                <option value="gemini">Google Gemini (Gemini 1.5 Pro, Flash…)</option>
-                <option value="azure">Azure OpenAI</option>
-                <option value="cohere">Cohere (Command R+…)</option>
-                <option value="mistral">Mistral AI (Mistral Large…)</option>
-              </select>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:6px">
-              <label style="font-size:12px;font-weight:500;color:var(--muted)">API Key</label>
-              <div style="position:relative">
-                <input type="password" id="llmApiKeyInput" placeholder="Paste your API key here…" style="width:100%;background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 40px 9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box" oninput="_onApiKeyChange()">
-                <button onclick="_toggleKeyVisibility()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;padding:2px" title="Show/hide key">
-                  <svg id="eyeIcon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                </button>
-              </div>
-              <div id="llmKeyHint" style="font-size:11.5px;color:var(--muted-soft)">Get your key from the provider's developer dashboard.</div>
-            </div>
-            <div id="llmSaveStatus" style="font-size:12px;min-height:16px"></div>
-            <div style="display:flex;gap:10px">
-              <button onclick="_saveLLMKey()" style="background:var(--primary);color:var(--on-primary);border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--primary-active)'" onmouseout="this.style.background='var(--primary)'">Save</button>
-              <button onclick="_testLLMKey()" id="testLLMBtn" style="background:transparent;border:1px solid var(--hairline);color:var(--muted);border-radius:8px;padding:9px 20px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--ink)'" onmouseout="this.style.borderColor='var(--hairline)';this.style.color='var(--muted)'">Test connection</button>
-            </div>
-          </div>
-        </div>
         <!-- Usage & Credits — visible to admins -->
         <div class="settings-card admin-only" id="settingsCreditsCard">
           <div class="settings-card-head" style="justify-content:space-between">
@@ -775,43 +752,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
           </div>
         </div>
 
-        <!-- BYO Key — admin-only: workspace key overrides platform key -->
-        <div class="settings-card admin-only" id="settingsBYOCard">
-          <div class="settings-card-head">Workspace API Key <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:8px">optional — use your own account, no credit limits apply</span></div>
-          <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
-            <div style="font-size:13px;color:var(--muted);line-height:1.6">
-              Save your own API key here and all AI calls for this workspace will use it directly — bypassing Intellark's managed credits entirely.
-            </div>
-            <div id="byoKeyList" style="display:flex;flex-direction:column;gap:8px"></div>
-            <details>
-              <summary style="font-size:13px;font-weight:500;color:var(--ink);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
-                <span>＋ Add workspace key</span>
-              </summary>
-              <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
-                <select id="byoProviderSelect" style="background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;cursor:pointer">
-                  <option value="openai">OpenAI</option>
-                  <option value="anthropic">Anthropic</option>
-                  <option value="grok">xAI Grok</option>
-                  <option value="gemini">Google Gemini</option>
-                  <option value="azure">Azure OpenAI</option>
-                  <option value="cohere">Cohere</option>
-                  <option value="mistral">Mistral AI</option>
-                </select>
-                <div style="position:relative">
-                  <input type="password" id="byoKeyInput" placeholder="Paste API key…" style="width:100%;background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box">
-                </div>
-                <div id="byoSaveStatus" style="font-size:12px;min-height:16px"></div>
-                <button onclick="_saveBYOKey()" style="background:var(--primary);color:var(--on-primary);border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;align-self:flex-start">Save workspace key</button>
-              </div>
-            </details>
-          </div>
-        </div>
 
         <span id="settingsEmail" style="display:none"></span>
         <span id="settingsRole" style="display:none"></span>
         <span id="settingsAcctType" style="display:none"></span>
         <span id="settingsWsId" style="display:none"></span>
-        <span id="llmModelRow" style="display:none"></span>
       </div>
     </div>
   </div>
@@ -876,7 +821,7 @@ const CONN_LOGOS = {
   gdoc:    `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>`,
   calendar:`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg>`,
   notion:  `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>`,
-  composio:`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>`,
+  integrations:`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>`,
   default: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>`,
 };
 const SRC_ICONS = {
@@ -900,6 +845,16 @@ let _clerk    = null;
 let _authToken = null;   // Bearer token sent with every API request
 
 async function initAuth() {
+  // Restore a guest token from the same tab session (survives F5, not tab close)
+  const savedGuestToken = sessionStorage.getItem('_guestToken');
+  if (savedGuestToken) {
+    _authToken = savedGuestToken;
+    _guestQueriesUsed = parseInt(sessionStorage.getItem('_guestQueriesUsed') || '0', 10);
+    showApp({ email: 'Guest', user_metadata: { role: 'guest' } });
+    await loadApp();
+    return true;
+  }
+
   const st = await fetch('/api/status').then(r=>r.json()).catch(()=>({auth_mode:'bypass'}));
 
   if (st.auth_mode === 'bypass') {
@@ -963,6 +918,56 @@ async function _refreshToken() {
 function bypassAuth() {
   _authToken = 'dev-bypass';
   showApp({ email: 'local@dev', user_metadata: { role: 'admin' } });
+}
+
+// ── Guest demo session ────────────────────────────────────────────────────────
+let _guestQueriesUsed = 0;
+let _guestSessionCap  = 20;
+
+async function doGuestDemo() {
+  const btn = document.getElementById('guestDemoBtn');
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const r = await fetch('/api/guest-session', { method: 'POST' });
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      if (r.status === 503) {
+        document.getElementById('authErr').textContent = 'Demo is not enabled on this server.';
+      } else {
+        document.getElementById('authErr').textContent = body.detail || 'Could not start demo session.';
+      }
+      return;
+    }
+    const data = await r.json();
+    _authToken = data.token;
+    _guestQueriesUsed = parseInt(sessionStorage.getItem('_guestQueriesUsed') || '0', 10);
+    _guestSessionCap  = data.session_cap || 20;
+    sessionStorage.setItem('_guestToken', _authToken);
+
+    showApp({ email: 'Guest', user_metadata: { role: 'guest' } });
+    await loadApp();
+    // Switch to Ask tab
+    document.querySelector('[data-tab="ask"]')?.click();
+  } catch(e) {
+    document.getElementById('authErr').textContent = 'Network error — please try again.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Try live demo (read-only)';
+  }
+}
+
+function _updateGuestBanner() {
+  const banner = document.getElementById('guestBanner');
+  if (!banner) return;
+  banner.classList.toggle('visible', !!(S.me?.is_guest));
+  if (!S.me?.is_guest) return;
+  const used = _guestQueriesUsed;
+  const cap  = _guestSessionCap;
+  const pct  = Math.min(100, (used / cap) * 100);
+  document.getElementById('guestBannerFill').style.width = pct + '%';
+  document.getElementById('guestBannerCount').textContent =
+    `${used} / ${cap} queries used this session`;
 }
 
 async function doSSO(provider) {
@@ -1125,6 +1130,12 @@ async function signOut() {
 function showAuthScreen() {
   document.getElementById('authScreen').classList.remove('hidden');
   document.getElementById('authErr').textContent = '';
+  // Clear any stale guest session so next page load doesn't re-try an expired token
+  sessionStorage.removeItem('_guestToken');
+  sessionStorage.removeItem('_guestQueriesUsed');
+  _authToken = null;
+  _guestQueriesUsed = 0;
+  document.getElementById('guestBanner')?.classList.remove('visible');
 }
 
 function showApp(user) {
@@ -1187,8 +1198,11 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
-    if(btn.dataset.tab==='activity') loadActivity();
-    if(btn.dataset.tab==='settings') renderSettings();
+    // Stop activity poll when leaving that tab
+    if(btn.dataset.tab!=='activity') _stopActivityPoll();
+    if(btn.dataset.tab==='activity')    _startActivityPoll();
+    if(btn.dataset.tab==='settings')    renderSettings();
+    if(btn.dataset.tab==='connections') loadIntegrationsHub();
     if(btn.dataset.tab==='members')  { _populateInviteTeamSelect(); loadMembersTable(); loadPendingInvites(); }
   });
 });
@@ -1279,7 +1293,7 @@ function updateDeptBadge(teamId){
   if(!teamId){
     wrap.style.display='none';
     hint.style.display='none';
-    document.getElementById('askSub').textContent="answers come from your team's Slack, email, and docs, with sources";
+    document.getElementById('askSub').textContent="Search across your team's knowledge — every answer shows its source";
     return;
   }
   const team=S.teams.find(t=>t.id===teamId);
@@ -1290,7 +1304,7 @@ function updateDeptBadge(teamId){
   document.getElementById('deptBadgeName').textContent=team.name;
   document.getElementById('deptBadgeInner').style.cssText=`background:${color}22;color:${color}`;
   hint.style.display='none';
-  document.getElementById('askSub').textContent=`answers come from ${team.name}'s Slack, email, and docs, with sources`;
+  document.getElementById('askSub').textContent=`Searching ${team.name}'s knowledge — every answer shows its source`;
 }
 
 document.getElementById('deptSelect').addEventListener('change', e=>{
@@ -1299,95 +1313,168 @@ document.getElementById('deptSelect').addEventListener('change', e=>{
 });
 
 // ── sources sidebar ───────────────────────────────────────────────────────────
+async function loadConnectedSources(){
+  // Connected sources come from the static catalog (_HUB.connected) — no live API call needed
+  S.activeSources = Object.values(_HUB.connected).map(a => a.name || a.app || a.slug || 'App');
+  renderSources();
+}
+
 function renderSources(){
   const el=document.getElementById('sourceList'); el.innerHTML='';
-  // Sources are driven by connected apps, updated after each sync
   (S.activeSources||[]).forEach(src=>{
     const d=document.createElement('div'); d.className='source-item';
     d.innerHTML=`<span class="sdot on"></span>${escHtml(src)}`;
     el.appendChild(d);
   });
   if(!(S.activeSources||[]).length){
-    el.innerHTML='<div class="source-item" style="color:var(--muted);font-size:12px">No data synced yet</div>';
+    el.innerHTML='<div class="source-item" style="color:var(--muted);font-size:12px">No integrations connected</div>';
   }
 }
 
 // ── connections tab ───────────────────────────────────────────────────────────
 function renderConnections(){
-  // No-op: connections are now rendered entirely by loadComposioHub()
+  // No-op: connections are rendered by loadIntegrationsHub()
 }
 
 function showSetupHelp(src){
   toast('Add credentials to .env and restart the server.','warn');
 }
 
-// ── integrations marketplace ──────────────────────────────────────────────────
-const _HUB = {
-  allApps: [],       // full catalog from API
-  connected: {},     // slug → true for connected apps
-  activeCat: 'all',  // current category filter
-  cursor: null,      // pagination
-  loading: false,
-  loaded: false,     // true after first successful load — skip API on tab revisit
+// ── integrations catalog (static — no external API dependency) ─────────────────
+//
+// Three apps are truly connected and feed the brain.
+// All others show a Connect button that gracefully explains they are coming soon
+// in this demo. Zero vendor names visible to end-users.
+
+const _DEMO_CONNECTED = {
+  gmail:          { slug:'gmail',          name:'Gmail',           cat:'Email',         connected:true },
+  googlecalendar: { slug:'googlecalendar', name:'Google Calendar', cat:'Calendar',      connected:true },
+  github:         { slug:'github',         name:'GitHub',          cat:'Dev Tools',     connected:true },
 };
 
-// Canonical category groups (maps API categories → display label)
-const _CAT_MAP = {
-  'all':                    'All',
-  'team collaboration':     'Collaboration',
-  'team chat':              'Collaboration',
-  'crm':                    'CRM',
-  'project management':     'Project Mgmt',
-  'task management':        'Project Mgmt',
-  'developer tools':        'Dev Tools',
-  'databases':              'Dev Tools',
-  'email':                  'Email',
-  'email newsletters':      'Email',
-  'marketing automation':   'Marketing',
-  'social media marketing': 'Marketing',
-  'social media accounts':  'Social',
-  'analytics':              'Analytics',
-  'documents':              'Documents',
-  'spreadsheets':           'Documents',
-  'file management & storage': 'Storage',
-  'calendar':               'Calendar',
-  'scheduling & booking':   'Calendar',
-  'artificial intelligence':'AI',
-  'ai agents':              'AI',
-  'ai web scraping':        'AI',
-  'video & audio':          'Media',
-  'images & design':        'Media',
-  'ecommerce':              'E-Commerce',
-  'productivity':           'Productivity',
-  'notes':                  'Documents',
+// Curated catalog — representative set across all categories
+const _CATALOG = [
+  // ── Email ──────────────────────────────────────────────────────────────────
+  { slug:'gmail',          name:'Gmail',           cat:'Email',         logo:'https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg' },
+  { slug:'outlook',        name:'Outlook',         cat:'Email',         logo:'https://upload.wikimedia.org/wikipedia/commons/d/df/Microsoft_Office_Outlook_%282018%E2%80%93present%29.svg' },
+  // ── Calendar ───────────────────────────────────────────────────────────────
+  { slug:'googlecalendar', name:'Google Calendar', cat:'Calendar',      logo:'https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg' },
+  { slug:'calendly',       name:'Calendly',        cat:'Calendar',      logo:'https://asset.brandfetch.io/idFtm1Chmn/idlM5_yCh6.svg' },
+  // ── Dev Tools ──────────────────────────────────────────────────────────────
+  { slug:'github',         name:'GitHub',          cat:'Dev Tools',     logo:'https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg' },
+  { slug:'gitlab',         name:'GitLab',          cat:'Dev Tools',     logo:'https://upload.wikimedia.org/wikipedia/commons/e/e1/GitLab_logo.svg' },
+  { slug:'jira',           name:'Jira',            cat:'Project Mgmt',  logo:'https://upload.wikimedia.org/wikipedia/commons/8/8a/Jira_Logo.svg' },
+  { slug:'linear',         name:'Linear',          cat:'Project Mgmt',  logo:'https://asset.brandfetch.io/idTfPOxh5k/idLCiGF5lZ.svg' },
+  { slug:'bitbucket',      name:'Bitbucket',       cat:'Dev Tools',     logo:'https://upload.wikimedia.org/wikipedia/commons/0/0e/Bitbucket-blue-logomark-only.svg' },
+  { slug:'pagerduty',      name:'PagerDuty',       cat:'Dev Tools',     logo:'https://asset.brandfetch.io/idv26IVwOs/idlzgDCrqP.svg' },
+  { slug:'datadog',        name:'Datadog',         cat:'Analytics',     logo:'https://asset.brandfetch.io/idrg51w3aJ/idKBrb5cO_.svg' },
+  { slug:'sentry',         name:'Sentry',          cat:'Dev Tools',     logo:'https://asset.brandfetch.io/idmSdVi_K7/idZWKHLFf_.svg' },
+  { slug:'vercel',         name:'Vercel',          cat:'Dev Tools',     logo:'https://asset.brandfetch.io/idPg6KKqhY/idRp-HBpUS.svg' },
+  { slug:'heroku',         name:'Heroku',          cat:'Dev Tools',     logo:'https://asset.brandfetch.io/idM4PJXgAs/idm1TQjSmb.png' },
+  // ── Collaboration ──────────────────────────────────────────────────────────
+  { slug:'slack',          name:'Slack',           cat:'Collaboration', logo:'https://upload.wikimedia.org/wikipedia/commons/b/b9/Slack_Technologies_Logo.svg' },
+  { slug:'discord',        name:'Discord',         cat:'Collaboration', logo:'https://assets-global.website-files.com/6257adef93867e50d84d30e2/636e0a6a49cf127bf92de1e2_icon_clyde_blurple_RGB.svg' },
+  { slug:'teams',          name:'Microsoft Teams', cat:'Collaboration', logo:'https://upload.wikimedia.org/wikipedia/commons/c/c9/Microsoft_Office_Teams_%282018%E2%80%93present%29.svg' },
+  { slug:'zoom',           name:'Zoom',            cat:'Collaboration', logo:'https://asset.brandfetch.io/idxvs8yKD5/idFBl_jf0B.svg' },
+  // ── Documents ──────────────────────────────────────────────────────────────
+  { slug:'notion',         name:'Notion',          cat:'Documents',     logo:'https://upload.wikimedia.org/wikipedia/commons/4/45/Notion_app_logo.png' },
+  { slug:'confluence',     name:'Confluence',      cat:'Documents',     logo:'https://asset.brandfetch.io/idaV3HcHzJ/idWoaSDO6v.svg' },
+  { slug:'googledocs',     name:'Google Docs',     cat:'Documents',     logo:'https://upload.wikimedia.org/wikipedia/commons/0/01/Google_Docs_logo_%282014-2020%29.svg' },
+  { slug:'googlesheets',   name:'Google Sheets',   cat:'Documents',     logo:'https://upload.wikimedia.org/wikipedia/commons/a/ae/Google_Sheets_2020_Logo.svg' },
+  { slug:'googledrive',    name:'Google Drive',    cat:'Storage',       logo:'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg' },
+  { slug:'dropbox',        name:'Dropbox',         cat:'Storage',       logo:'https://asset.brandfetch.io/idFSqhMb7k/id_eNmFdXz.svg' },
+  { slug:'onedrive',       name:'OneDrive',        cat:'Storage',       logo:'https://upload.wikimedia.org/wikipedia/commons/3/3c/Microsoft_Office_OneDrive_%282019%E2%80%93present%29.svg' },
+  { slug:'box',            name:'Box',             cat:'Storage',       logo:'https://asset.brandfetch.io/idDVH4Rjcm/idGZ3f8dBP.svg' },
+  // ── CRM ────────────────────────────────────────────────────────────────────
+  { slug:'salesforce',     name:'Salesforce',      cat:'CRM',           logo:'https://upload.wikimedia.org/wikipedia/commons/f/f9/Salesforce.com_logo.svg' },
+  { slug:'hubspot',        name:'HubSpot',         cat:'CRM',           logo:'https://asset.brandfetch.io/idVfYVxFv1/id1-JTpTiM.svg' },
+  { slug:'pipedrive',      name:'Pipedrive',       cat:'CRM',           logo:'https://asset.brandfetch.io/id-3eLbMHO/idFuBHFCJa.svg' },
+  { slug:'intercom',       name:'Intercom',        cat:'CRM',           logo:'https://asset.brandfetch.io/idOt-DkZcD/idqFD2f1gy.svg' },
+  { slug:'zendesk',        name:'Zendesk',         cat:'CRM',           logo:'https://asset.brandfetch.io/idKzLbhfGe/iduDQQEfh7.svg' },
+  { slug:'freshdesk',      name:'Freshdesk',       cat:'CRM',           logo:'https://asset.brandfetch.io/idRGJZc_of/idY4Fb8yl1.svg' },
+  // ── Project Mgmt ───────────────────────────────────────────────────────────
+  { slug:'asana',          name:'Asana',           cat:'Project Mgmt',  logo:'https://upload.wikimedia.org/wikipedia/commons/3/3b/Asana_logo.svg' },
+  { slug:'trello',         name:'Trello',          cat:'Project Mgmt',  logo:'https://upload.wikimedia.org/wikipedia/commons/7/7a/Trello-logo-blue.svg' },
+  { slug:'monday',         name:'Monday.com',      cat:'Project Mgmt',  logo:'https://asset.brandfetch.io/idXMmKQhgA/idZ8VKTqzO.png' },
+  { slug:'clickup',        name:'ClickUp',         cat:'Project Mgmt',  logo:'https://asset.brandfetch.io/idWZaMrgjd/idlNLNHJFB.svg' },
+  { slug:'basecamp',       name:'Basecamp',        cat:'Project Mgmt',  logo:'https://asset.brandfetch.io/idqxPm0Cqz/idj8oq9VHQ.svg' },
+  // ── Marketing ──────────────────────────────────────────────────────────────
+  { slug:'mailchimp',      name:'Mailchimp',       cat:'Marketing',     logo:'https://asset.brandfetch.io/idRErWjUTe/id7_hMfcwn.svg' },
+  { slug:'sendgrid',       name:'SendGrid',        cat:'Marketing',     logo:'https://asset.brandfetch.io/idQQqKU9RQ/idIBKcxb59.svg' },
+  { slug:'activecampaign', name:'ActiveCampaign',  cat:'Marketing',     logo:'https://asset.brandfetch.io/idFRN3Yd5r/idPH4v0Jnb.svg' },
+  { slug:'klaviyo',        name:'Klaviyo',         cat:'Marketing',     logo:'https://asset.brandfetch.io/id-p_Qef9H/idxWLk4E-g.png' },
+  // ── Analytics ──────────────────────────────────────────────────────────────
+  { slug:'googleanalytics',name:'Google Analytics',cat:'Analytics',     logo:'https://upload.wikimedia.org/wikipedia/commons/8/89/Logo_Google_Analytics.svg' },
+  { slug:'mixpanel',       name:'Mixpanel',        cat:'Analytics',     logo:'https://asset.brandfetch.io/idlGfn6m2H/idyN5v4HZg.png' },
+  { slug:'amplitude',      name:'Amplitude',       cat:'Analytics',     logo:'https://asset.brandfetch.io/id-c1_sK2F/idY6sdD3vD.svg' },
+  { slug:'segment',        name:'Segment',         cat:'Analytics',     logo:'https://asset.brandfetch.io/idwNJ_g3-m/idSJ3q_hCF.svg' },
+  { slug:'posthog',        name:'PostHog',         cat:'Analytics',     logo:'https://asset.brandfetch.io/idzXV1dwNu/id2CuNDxkZ.svg' },
+  // ── Social ─────────────────────────────────────────────────────────────────
+  { slug:'twitter',        name:'X (Twitter)',     cat:'Social',        logo:'https://upload.wikimedia.org/wikipedia/commons/5/5a/X_icon_2.svg' },
+  { slug:'linkedin',       name:'LinkedIn',        cat:'Social',        logo:'https://upload.wikimedia.org/wikipedia/commons/c/ca/LinkedIn_logo_initials.png' },
+  { slug:'instagram',      name:'Instagram',       cat:'Social',        logo:'https://upload.wikimedia.org/wikipedia/commons/a/a5/Instagram_icon.png' },
+  // ── AI ─────────────────────────────────────────────────────────────────────
+  { slug:'openai',         name:'OpenAI',          cat:'AI',            logo:'https://upload.wikimedia.org/wikipedia/commons/4/4d/OpenAI_Logo.svg' },
+  { slug:'anthropic',      name:'Anthropic',       cat:'AI',            logo:'https://asset.brandfetch.io/idvPChY8VE/idwwksMhHF.png' },
+  { slug:'perplexity',     name:'Perplexity',      cat:'AI',            logo:'https://asset.brandfetch.io/idMVHcuKfl/idnkQtbsMN.jpeg' },
+  // ── Finance & HR ───────────────────────────────────────────────────────────
+  { slug:'stripe',         name:'Stripe',          cat:'E-Commerce',    logo:'https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg' },
+  { slug:'quickbooks',     name:'QuickBooks',      cat:'E-Commerce',    logo:'https://asset.brandfetch.io/idLxQMgqGA/id7gvVrJiH.svg' },
+  { slug:'gusto',          name:'Gusto',           cat:'Productivity',  logo:'https://asset.brandfetch.io/idXOXoYiMm/idl87N9Q4H.svg' },
+  { slug:'rippling',       name:'Rippling',        cat:'Productivity',  logo:'https://asset.brandfetch.io/idkIbdqYRG/idW0UYnVFh.svg' },
+  // ── Productivity ───────────────────────────────────────────────────────────
+  { slug:'airtable',       name:'Airtable',        cat:'Documents',     logo:'https://asset.brandfetch.io/idLMuBLH1O/idxNqWrRlz.png' },
+  { slug:'zapier',         name:'Zapier',          cat:'Productivity',  logo:'https://asset.brandfetch.io/idLEyCbKP2/idc0iN1MBF.svg' },
+  { slug:'make',           name:'Make',            cat:'Productivity',  logo:'https://asset.brandfetch.io/idHIPolidb/idN2lcz16t.svg' },
+  { slug:'retool',         name:'Retool',          cat:'Dev Tools',     logo:'https://asset.brandfetch.io/idFY3NiRdC/id1gv4wy5r.svg' },
+  { slug:'webflow',        name:'Webflow',         cat:'Dev Tools',     logo:'https://asset.brandfetch.io/idnCaZSN4O/idE4JjrLon.svg' },
+  { slug:'figma',          name:'Figma',           cat:'Media',         logo:'https://asset.brandfetch.io/idZHcZ_i_4/idberMHhpM.svg' },
+  { slug:'loom',           name:'Loom',            cat:'Media',         logo:'https://asset.brandfetch.io/idJtv8v9Fa/idilDH64yc.svg' },
+  { slug:'miro',           name:'Miro',            cat:'Collaboration', logo:'https://asset.brandfetch.io/idHMbWNKnI/idJ2Gv0nzy.svg' },
+  // ── E-Commerce ─────────────────────────────────────────────────────────────
+  { slug:'shopify',        name:'Shopify',         cat:'E-Commerce',    logo:'https://asset.brandfetch.io/idYPuHxZZS/idZHTtBgKL.svg' },
+  { slug:'woocommerce',    name:'WooCommerce',     cat:'E-Commerce',    logo:'https://asset.brandfetch.io/idxGzfHJMX/idrYF4gJDA.svg' },
+  // ── Additional popular ─────────────────────────────────────────────────────
+  { slug:'typeform',       name:'Typeform',        cat:'Productivity',  logo:'https://asset.brandfetch.io/idGpNf0w_K/id-5_P-IKC.svg' },
+  { slug:'surveymonkey',   name:'SurveyMonkey',    cat:'Productivity',  logo:'https://asset.brandfetch.io/idxCbV2mXg/idYlEOiAz_.svg' },
+  { slug:'docusign',       name:'DocuSign',        cat:'Documents',     logo:'https://asset.brandfetch.io/idVzM2MiYK/idmBiHbJbp.svg' },
+  { slug:'twilio',         name:'Twilio',          cat:'Dev Tools',     logo:'https://asset.brandfetch.io/id3GK3PJGM/id3M7EuaRB.png' },
+  { slug:'plaid',          name:'Plaid',           cat:'E-Commerce',    logo:'https://asset.brandfetch.io/idU2R5RNgL/ido9f-3UF9.svg' },
+  { slug:'greenhouse',     name:'Greenhouse',      cat:'Productivity',  logo:'https://asset.brandfetch.io/idm4kWfAJO/idPkw6CvqJ.png' },
+  { slug:'lever',          name:'Lever',           cat:'Productivity',  logo:'https://asset.brandfetch.io/idfT0MbC5E/idXSK0xYeD.png' },
+  { slug:'bamboohr',       name:'BambooHR',        cat:'Productivity',  logo:'https://asset.brandfetch.io/idqLhSNMh8/idaEzXFJLy.png' },
+  { slug:'workday',        name:'Workday',         cat:'Productivity',  logo:'https://asset.brandfetch.io/idoU7JqmMX/idpNnSZ6Qb.svg' },
+  { slug:'okta',           name:'Okta',            cat:'Dev Tools',     logo:'https://asset.brandfetch.io/idl1VH5Ts1/idpVHmFCTz.svg' },
+  { slug:'auth0',          name:'Auth0',           cat:'Dev Tools',     logo:'https://asset.brandfetch.io/idRx3kFbFp/idDifj_4jt.svg' },
+  { slug:'cloudflare',     name:'Cloudflare',      cat:'Dev Tools',     logo:'https://asset.brandfetch.io/idjHuDHDzN/idBnNzKhIJ.svg' },
+  { slug:'aws',            name:'AWS',             cat:'Dev Tools',     logo:'https://upload.wikimedia.org/wikipedia/commons/9/93/Amazon_Web_Services_Logo.svg' },
+  { slug:'gcp',            name:'Google Cloud',    cat:'Dev Tools',     logo:'https://upload.wikimedia.org/wikipedia/commons/5/51/Google_Cloud_logo.svg' },
+  { slug:'azure',          name:'Azure',           cat:'Dev Tools',     logo:'https://upload.wikimedia.org/wikipedia/commons/f/fa/Microsoft_Azure.svg' },
+  { slug:'snowflake',      name:'Snowflake',       cat:'Dev Tools',     logo:'https://asset.brandfetch.io/idJz3CqNIk/idWYLEOTm7.svg' },
+  { slug:'dbt',            name:'dbt',             cat:'Dev Tools',     logo:'https://asset.brandfetch.io/idMKcFIYxb/idHb7AcFl9.png' },
+  { slug:'fivetran',       name:'Fivetran',        cat:'Dev Tools',     logo:'https://asset.brandfetch.io/idcMBrUSXz/idWBJcOCkO.svg' },
+  { slug:'looker',         name:'Looker',          cat:'Analytics',     logo:'https://asset.brandfetch.io/idH0DRxuIs/idhLbmz0v_.png' },
+  { slug:'tableau',        name:'Tableau',         cat:'Analytics',     logo:'https://asset.brandfetch.io/idxIuEPoFJ/idWUimobzH.svg' },
+  { slug:'metabase',       name:'Metabase',        cat:'Analytics',     logo:'https://asset.brandfetch.io/idXcKBnzVA/idLDJlblSX.svg' },
+  { slug:'grafana',        name:'Grafana',         cat:'Analytics',     logo:'https://asset.brandfetch.io/idKzLV2S4P/idGAH_EkJj.svg' },
+];
+
+const _HUB = {
+  allApps: _CATALOG,
+  connected: { ..._DEMO_CONNECTED },  // pre-seeded — Gmail, Calendar, GitHub
+  activeCat: 'all',
+  loaded: false,
 };
 
 const _DISPLAY_CATS = ['All','Collaboration','CRM','Project Mgmt','Dev Tools','Email','Marketing','Analytics','Documents','Calendar','AI','Storage','Social','Media','E-Commerce','Productivity'];
 
-function _appDisplayCat(app) {
-  for (const raw of (app.categories||[])) {
-    const mapped = _CAT_MAP[raw.toLowerCase()];
-    if (mapped) return mapped;
-  }
-  return 'Other';
-}
+function _appDisplayCat(app) { return app.cat || 'Other'; }
 
-async function loadComposioHub() {
-  // Already loaded this session — just re-render, no API call
-  if (_HUB.loaded) {
-    _renderCatFilters();
-    _filterApps();
-    return;
-  }
-
-  // Load connected apps first
-  try {
-    const list = await api.get('/api/composio/connected');
-    list.forEach(a => { _HUB.connected[a.app] = a; });
-  } catch(e) {}
-
+function loadIntegrationsHub() {
+  if (_HUB.loaded) { _renderCatFilters(); _filterApps(); return; }
+  document.getElementById('appsLoading').style.display = 'none';
   _renderCatFilters();
-  await _loadAppsPage(true);
+  _filterApps();
   _HUB.loaded = true;
 }
 
@@ -1406,51 +1493,19 @@ function _renderCatFilters() {
   });
 }
 
-async function _loadAppsPage(reset) {
-  if (_HUB.loading) return;
-  _HUB.loading = true;
-  if (reset) { _HUB.allApps = []; _HUB.cursor = null; }
-
-  document.getElementById('appsLoading').style.display = 'block';
-  document.getElementById('appsEmpty').style.display = 'none';
-  document.getElementById('appsLoadMore').style.display = 'none';
-
-  try {
-    const params = { limit: 50 };
-    if (_HUB.cursor) params.cursor = _HUB.cursor;
-    const data = await api.get('/api/composio/apps?' + new URLSearchParams(params));
-    const items = Array.isArray(data) ? data : (data.items || data);
-    _HUB.allApps.push(...items);
-    _HUB.cursor = Array.isArray(data) ? null : (data.next_cursor || null);
-    if (_HUB.cursor) document.getElementById('appsLoadMore').style.display = 'block';
-  } catch(e) {
-    document.getElementById('appsLoading').textContent = 'Failed to load apps: ' + e.message;
-    _HUB.loading = false;
-    return;
-  }
-
-  _HUB.loading = false;
-  document.getElementById('appsLoading').style.display = 'none';
-  _filterApps();
-}
-
 function _filterApps() {
-  // Don't filter while still loading — avoids "No apps match" flash
-  if (_HUB.loading || (!_HUB.loaded && _HUB.allApps.length === 0)) return;
-
   const q = (document.getElementById('appSearch')?.value || '').toLowerCase().trim();
   const cat = _HUB.activeCat;
 
   const filtered = _HUB.allApps.filter(app => {
     const matchQ = !q || app.name.toLowerCase().includes(q) || app.slug.includes(q);
-    const matchCat = cat === 'all' || _appDisplayCat(app) === cat;
+    const matchCat = cat === 'all' || app.cat === cat;
     return matchQ && matchCat;
   });
 
   const connectedApps = filtered.filter(a => _HUB.connected[a.slug]);
   const otherApps     = filtered.filter(a => !_HUB.connected[a.slug]);
 
-  // Connected section
   const connSec  = document.getElementById('connectedSection');
   const connGrid = document.getElementById('connectedGrid');
   connGrid.innerHTML = '';
@@ -1461,7 +1516,6 @@ function _filterApps() {
     connSec.style.display = 'none';
   }
 
-  // All apps section
   const allGrid = document.getElementById('allAppsGrid');
   allGrid.innerHTML = '';
   if (otherApps.length === 0 && connectedApps.length === 0) {
@@ -1475,179 +1529,101 @@ function _filterApps() {
 function _buildMarketCard(grid, app, isConnected) {
   const slug = app.slug || '';
   const name = app.name || slug;
-  const logo = app.logo || `https://logos.composio.dev/api/${slug}`;
-  const tools = app.tools_count || 0;
-  const cat = _appDisplayCat(app);
+  const logo = app.logo || '';
+  const cat  = app.cat  || 'Other';
 
   const card = document.createElement('div');
   card.style.cssText = `background:var(--canvas);border:1px solid ${isConnected?'rgba(93,184,114,.4)':'var(--hairline)'};border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;cursor:default;transition:border-color .15s,box-shadow .15s`;
   card.onmouseover = () => { card.style.borderColor = isConnected?'rgba(93,184,114,.7)':'var(--primary)'; card.style.boxShadow='0 1px 4px rgba(20,20,19,.08)'; };
   card.onmouseout  = () => { card.style.borderColor = isConnected?'rgba(93,184,114,.4)':'var(--hairline)'; card.style.boxShadow='none'; };
 
-  const logoHtml = `<img src="${escHtml(logo)}" style="width:36px;height:36px;border-radius:8px;object-fit:contain;background:var(--surface-soft);padding:2px;flex-shrink:0" onerror="this.style.display='none'">`;
+  const logoHtml = logo
+    ? `<img src="${escHtml(logo)}" style="width:36px;height:36px;border-radius:8px;object-fit:contain;background:var(--surface-soft);padding:2px;flex-shrink:0" onerror="this.style.display='none'">`
+    : `<div style="width:36px;height:36px;border-radius:8px;background:var(--surface-soft);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--muted)">${escHtml(name[0]||'?')}</div>`;
 
   const status = isConnected
     ? `<span style="font-size:10px;font-weight:600;color:#2d7a3a;background:rgba(93,184,114,.12);padding:2px 7px;border-radius:9999px">✓ Connected</span>`
     : `<span style="font-size:10px;color:var(--muted-soft);background:var(--surface-soft);padding:2px 7px;border-radius:9999px">${escHtml(cat)}</span>`;
 
-  const toolsLabel = tools ? `<span style="font-size:10px;color:var(--muted-soft)">${tools} actions</span>` : '';
-
-  const connId = isConnected ? (_HUB.connected[slug]?.id || '') : '';
+  const isAdmin = S.me?.is_admin !== false;
   const btn = isConnected
-    ? `<div style="display:flex;gap:5px">
-        <button class="btn-sm btn-sync" style="flex:1;font-size:11px;padding:5px 0" onclick="_syncApp('composio','${slug}',this)">↻ Sync</button>
-        <button class="btn-sm" style="flex:1;font-size:11px;padding:5px 0;background:#fef2f2;color:#c64545;border:1px solid #fecaca" onclick="_disconnectApp('${escHtml(slug)}','${escHtml(connId)}',this)">✕ Disconnect</button>
-       </div>`
-    : `<button class="btn-sm" style="width:100%;font-size:11px;padding:6px 0;background:var(--surface-soft);color:var(--ink);border:1px solid var(--hairline)" onclick="_connectApp('${escHtml(slug)}',this)">+ Connect</button>`;
+    ? (isAdmin
+        ? `<div style="display:flex;gap:5px">
+            <button class="btn-sm btn-sync" style="flex:1;font-size:11px;padding:5px 0" onclick="_syncConnected('${escHtml(slug)}',this)">↻ Sync</button>
+            <button class="btn-sm" style="flex:1;font-size:11px;padding:5px 0;background:#fef2f2;color:#c64545;border:1px solid #fecaca" onclick="_disconnectApp('${escHtml(slug)}',this)">✕ Disconnect</button>
+           </div>`
+        : `<div style="font-size:11px;text-align:center;color:#2d7a3a;padding:5px 0">✓ Active</div>`)
+    : `<button class="btn-sm" style="width:100%;font-size:11px;padding:6px 0;background:var(--surface-soft);color:var(--ink);border:1px solid var(--hairline)" onclick="_connectApp('${escHtml(slug)}','${escHtml(name)}',this)">+ Connect</button>`;
 
   card.innerHTML = `
     <div style="display:flex;align-items:flex-start;gap:10px">
       ${logoHtml}
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px">${escHtml(name)}</div>
-        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${status}${toolsLabel}</div>
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${status}</div>
       </div>
     </div>
     ${btn}`;
   grid.appendChild(card);
 }
 
-async function _connectApp(slug, btn) {
-  const orig = btn.textContent;
-  btn.textContent = 'Opening…'; btn.disabled = true;
-  try {
-    const res = await api.post('/api/composio/connect', {app: slug, redirect_url: window.location.href});
-    if (res.connect_url) {
-      window.open(res.connect_url, '_blank');
-      toast(`Complete OAuth in the new tab, then refresh this page`, 'ok');
-    } else {
-      toast(`Could not get OAuth URL for ${slug}`, 'err');
+async function _connectApp(slug, name, btn) {
+  // Non-demo path: attempt real OAuth via the API
+  if (!S.me?.is_guest) {
+    const orig = btn.textContent;
+    btn.textContent = 'Opening…'; btn.disabled = true;
+    try {
+      const res = await api.post('/api/composio/connect', {app: slug, redirect_url: window.location.href});
+      if (res.connect_url) {
+        window.open(res.connect_url, '_blank');
+        toast(`Complete the sign-in in the new tab, then refresh this page`, 'ok');
+      } else {
+        toast(`Could not get a login URL for ${name}`, 'err');
+      }
+    } catch(e) {
+      toast(`${name} — not yet configured. Ask your admin to set up credentials.`, 'warn');
     }
-  } catch(e) {
-    const msg = e.message || '';
-    // auth_config error = admin needs to set up OAuth credentials for this app
-    if (msg.includes('auth_config') || msg.includes('Could not initiate OAuth')) {
-      _showOAuthSetupModal(slug);
-    } else {
-      toast('Error: ' + msg, 'err');
-    }
+    btn.textContent = orig; btn.disabled = false;
+    return;
   }
-  btn.textContent = orig; btn.disabled = false;
+  // Demo / guest path: graceful no-op
+  toast(`${name} — coming soon in this demo 🙌`, 'ok');
 }
 
-function _showOAuthSetupModal(slug) {
-  const name = slug.charAt(0).toUpperCase() + slug.slice(1).replace(/_/g,' ');
-
-  // Detect which platform and give specific instructions
-  const isGoogle = ['gmail','googlesheets','googledocs','googledrive','googlecalendar','google_maps','googletasks'].includes(slug);
-  const isMicrosoft = ['outlook','one_drive','microsoft_teams'].includes(slug);
-
-  let steps = '';
-  let docsUrl = 'https://docs.composio.dev/patterns/auth/setting-up-custom-oauth';
-
-  if (isGoogle) {
-    docsUrl = 'https://docs.composio.dev/patterns/auth/setting-up-custom-oauth';
-    steps = `
-      <ol style="margin:12px 0 0 16px;line-height:1.9;color:var(--body);font-size:13px">
-        <li>Go to <a href="https://console.cloud.google.com" target="_blank" style="color:var(--primary)">Google Cloud Console</a></li>
-        <li>Create a project → enable the <strong>${name} API</strong></li>
-        <li>Go to <strong>Credentials → Create OAuth 2.0 Client ID</strong></li>
-        <li>Copy your <strong>Client ID</strong> and <strong>Client Secret</strong></li>
-        <li>Go to <a href="https://app.composio.dev" target="_blank" style="color:var(--primary)">app.composio.dev</a> → <strong>Settings → Auth Config</strong></li>
-        <li>Find <strong>${name}</strong> → paste your credentials → Save</li>
-      </ol>`;
-  } else if (isMicrosoft) {
-    steps = `
-      <ol style="margin:12px 0 0 16px;line-height:1.9;color:var(--body);font-size:13px">
-        <li>Go to <a href="https://portal.azure.com" target="_blank" style="color:var(--primary)">Azure Portal → App Registrations</a></li>
-        <li>Create a new registration → copy <strong>Client ID</strong></li>
-        <li>Go to <strong>Certificates & Secrets → New client secret</strong></li>
-        <li>Go to <a href="https://app.composio.dev" target="_blank" style="color:var(--primary)">app.composio.dev</a> → <strong>Settings → Auth Config</strong></li>
-        <li>Find <strong>${name}</strong> → paste your credentials → Save</li>
-      </ol>`;
-  } else {
-    steps = `
-      <ol style="margin:12px 0 0 16px;line-height:1.9;color:var(--body);font-size:13px">
-        <li>Go to <a href="https://app.composio.dev" target="_blank" style="color:var(--primary)">app.composio.dev</a></li>
-        <li>Navigate to <strong>Settings → Auth Config</strong></li>
-        <li>Find <strong>${name}</strong> and configure your OAuth credentials</li>
-        <li>Come back here and try connecting again</li>
-      </ol>`;
-  }
-
-  // Remove any existing modal
-  document.getElementById('oauthSetupModal')?.remove();
-
-  const modal = document.createElement('div');
-  modal.id = 'oauthSetupModal';
-  modal.style.cssText = `position:fixed;inset:0;background:rgba(20,20,19,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px`;
-  modal.innerHTML = `
-    <div style="background:var(--canvas);border-radius:16px;padding:28px 32px;max-width:500px;width:100%;box-shadow:0 8px 40px rgba(20,20,19,.18);border:1px solid var(--hairline)">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
-        <div style="width:36px;height:36px;background:#fef3e8;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px">⚙️</div>
-        <div>
-          <div style="font-weight:700;font-size:16px;color:var(--ink)">Setup required for ${name}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:1px">One-time configuration by workspace admin</div>
-        </div>
-      </div>
-
-      <div style="background:var(--surface-soft);border-radius:10px;padding:14px 16px;margin:16px 0;border-left:3px solid var(--accent-amber)">
-        <div style="font-size:12.5px;color:var(--body-strong);font-weight:500;margin-bottom:4px">Why is this needed?</div>
-        <div style="font-size:12.5px;color:var(--muted);line-height:1.6">${name} requires your own OAuth credentials for security and compliance. This is a one-time setup — after this, all your team members can connect with one click.</div>
-      </div>
-
-      <div style="font-size:13px;font-weight:600;color:var(--ink)">How to set it up:</div>
-      ${steps}
-
-      <div style="display:flex;gap:10px;margin-top:22px">
-        <a href="${docsUrl}" target="_blank" style="flex:1;text-align:center;padding:9px;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:500;text-decoration:none">View Setup Guide →</a>
-        <button onclick="document.getElementById('oauthSetupModal').remove()" style="flex:1;padding:9px;border-radius:8px;background:var(--surface-soft);color:var(--muted);border:1px solid var(--hairline);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">Close</button>
-      </div>
-    </div>`;
-
-  // Close on backdrop click
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
-  document.body.appendChild(modal);
-}
-
-async function _disconnectApp(slug, accountId, btn) {
+async function _disconnectApp(slug, btn) {
   if (!confirm(`Disconnect ${slug}? You can reconnect anytime.`)) return;
   const orig = btn.textContent;
   btn.textContent = 'Disconnecting…'; btn.disabled = true;
   try {
-    await api._delete(`/api/composio/connected/${encodeURIComponent(accountId)}`);
+    const connObj = _HUB.connected[slug];
+    const accountId = connObj?.id || '';
+    if (accountId) await api._delete(`/api/connected/${encodeURIComponent(accountId)}`);
     delete _HUB.connected[slug];
-    _HUB.loaded = false;  // force reload on next visit to reflect change
     toast(`${slug} disconnected`, 'ok');
-    // Re-render immediately
-    _HUB.loaded = true;
     _filterApps();
+    loadConnectedSources();
   } catch(e) {
     toast('Disconnect failed: ' + e.message, 'err');
     btn.textContent = orig; btn.disabled = false;
   }
 }
 
-async function _loadMoreApps() {
-  await _loadAppsPage(false);
-}
-
-async function _syncApp(source, appSlug, btn) {
+async function _syncConnected(slug, btn) {
   const orig = btn.textContent;
   btn.textContent = '…'; btn.disabled = true;
   try {
-    const body = appSlug ? {source, app: appSlug} : {source};
-    const res = await api.post('/api/sync', body);
-    const eps = res.new_episodes ?? res.episodes ?? 0;
-    const facts = res.new_facts ?? res.facts ?? 0;
-    toast(`✓ ${appSlug||source}: ${eps} episodes, ${facts} facts`,'ok');
+    const res = await api.post('/api/sync', {source: 'integrations', app: slug});
+    const eps   = res.new_episodes ?? res.episodes ?? 0;
+    const facts = res.new_facts    ?? res.facts    ?? 0;
+    toast(`✓ ${slug}: ${eps} episodes, ${facts} facts`, 'ok');
     S.teams = await api.get('/api/teams');
-    if (!S.activeSources) S.activeSources = [];
-    const label = appSlug || source;
-    if (!S.activeSources.includes(label)) S.activeSources.push(label);
-    renderDeptSelect(); renderSources();
-  } catch(e) { toast('Sync error: '+e.message,'err'); }
+    renderDeptSelect(); loadConnectedSources();
+  } catch(e) { toast('Sync error: ' + e.message, 'err'); }
   btn.textContent = orig; btn.disabled = false;
+}
+
+async function _syncApp(source, appSlug, btn) {
+  return _syncConnected(appSlug, btn);
 }
 
 async function _backfillApp(source, appSlug, btn) {
@@ -1656,28 +1632,32 @@ async function _backfillApp(source, appSlug, btn) {
   try {
     const body = appSlug ? {source, app: appSlug} : {source};
     const res = await api.post('/api/backfill', body);
-    const eps = res.new_episodes ?? res.episodes ?? 0;
-    toast(`✓ ${appSlug||source} backfill: ${eps} episodes`,'ok');
-  } catch(e) { toast('Backfill error: '+e.message,'err'); }
+    const eps = res.episodes ?? 0;
+    toast(`✓ ${appSlug||source} backfill: ${eps} episodes`, 'ok');
+  } catch(e) { toast('Backfill error: ' + e.message, 'err'); }
   btn.textContent = orig; btn.disabled = false;
 }
 
-async function _runComposioSync(btn) {
-  if (btn) { btn.textContent='Running…'; btn.disabled=true; }
+async function _syncAllConnected(btn) {
+  if (btn) { btn.textContent = 'Running…'; btn.disabled = true; }
   try {
     const slugs = Object.keys(_HUB.connected);
-    if (!slugs.length) { toast('No apps connected yet — connect one first','warn'); if(btn){btn.textContent='↻ Sync all connected';btn.disabled=false;} return; }
-    let totalEps=0, totalFacts=0;
-    for (const slug of slugs) {
-      const res = await api.post('/api/sync', {source:'composio', app: slug});
-      totalEps   += res.new_episodes ?? res.episodes ?? 0;
-      totalFacts += res.new_facts ?? res.facts ?? 0;
+    if (!slugs.length) {
+      toast('No integrations connected yet', 'warn');
+      if (btn) { btn.textContent = '↻ Sync all connected'; btn.disabled = false; }
+      return;
     }
-    toast(`✓ All synced: ${totalEps} episodes, ${totalFacts} facts`,'ok');
+    let totalEps = 0, totalFacts = 0;
+    for (const slug of slugs) {
+      const res = await api.post('/api/sync', {source: 'integrations', app: slug});
+      totalEps   += res.new_episodes ?? res.episodes ?? 0;
+      totalFacts += res.new_facts    ?? res.facts    ?? 0;
+    }
+    toast(`✓ All synced: ${totalEps} episodes, ${totalFacts} facts`, 'ok');
     S.teams = await api.get('/api/teams');
-    renderDeptSelect(); renderSources();
-  } catch(e) { toast('Error: '+e.message,'err'); }
-  if (btn) { btn.textContent='↻ Sync all connected'; btn.disabled=false; }
+    renderDeptSelect(); loadConnectedSources();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+  if (btn) { btn.textContent = '↻ Sync all connected'; btn.disabled = false; }
 }
 
 // ── chat ──────────────────────────────────────────────────────────────────────
@@ -1694,9 +1674,12 @@ function buildAnswerCard(result){
   const uncertain=result.answer!=='From company memory:';
 
   if(!facts.length){
+    const hint = S.me?.is_guest
+      ? `Try asking about emails, calendar, or GitHub repos.`
+      : `→ Connect integrations and sync data, then ask again.`;
     return `<div class="answer-card"><div class="answer-text" style="color:var(--muted);font-style:italic">
-      No relevant facts found in memory yet.<br>
-      <small style="font-size:12px;color:var(--muted-soft)">→ Load demo data from the Connections tab, then try: "Why did we drop Redis?"</small>
+      No relevant facts found for that question.<br>
+      <small style="font-size:12px;color:var(--muted-soft)">${hint}</small>
     </div></div>`;
   }
 
@@ -1733,16 +1716,25 @@ S.convId = null;        // active conversation id
 S.convs  = [];          // list from server
 
 async function loadConvList(){
+  let loadErr = null;
   try {
     S.convs = await api.get('/api/conversations');
-  } catch(_){ S.convs = []; }
-  renderConvList();
+  } catch(e){
+    S.convs = [];
+    loadErr = e?.message || 'Unknown error';
+    console.warn('[convList] failed to load:', loadErr);
+  }
+  renderConvList(loadErr);
 }
 
-function renderConvList(){
+function renderConvList(err){
   const el = document.getElementById('convList');
+  if(err){
+    el.innerHTML = `<div class="conv-empty" style="color:var(--error)">Could not load chats.</div>`;
+    return;
+  }
   if(!S.convs.length){
-    el.innerHTML = '<div class="conv-empty">No chats yet. Ask something to start one.</div>';
+    el.innerHTML = '<div class="conv-empty">Start a conversation to see it here.</div>';
     return;
   }
   el.innerHTML = S.convs.map(c=>`
@@ -1848,17 +1840,47 @@ async function _persistMsg(convId, role, content){
 
 async function sendQuery(q){
   if(!q.trim()) return;
+
+  // Guest session-level query cap (client-side fast-path)
+  if(S.me?.is_guest){
+    if(_guestQueriesUsed >= _guestSessionCap){
+      addMsg('q', escHtml(q));
+      addMsg('a', `<div class="answer-card"><div class="answer-text" style="color:var(--muted)">
+        <strong>Demo limit reached</strong><br>
+        You've used all ${_guestSessionCap} queries in this demo session.
+        <a href="/app" onclick="location.reload()" style="color:var(--primary);cursor:pointer">Start a new session</a> or
+        <a href="/" style="color:var(--primary)">sign up free</a> for unlimited access.
+      </div></div>`);
+      return;
+    }
+  }
+
   addMsg('q', escHtml(q));
-  const convId = await _ensureConv(q);
-  await _persistMsg(convId, 'user', q);
+  const convId = S.me?.is_guest ? null : await _ensureConv(q);
+  if(convId) await _persistMsg(convId, 'user', q);
   const load=addMsg('a','<div class="loading"><span></span><span></span><span></span></div>');
   try{
     const res=await api.post('/api/search',{query:q,team_id:S.currentTeam||null,cross_team:!S.currentTeam});
     load.innerHTML=buildAnswerCard(res);
-    // Persist assistant answer as JSON so we can re-render it when switching back
-    await _persistMsg(convId, 'assistant', JSON.stringify(res));
+    if(convId) await _persistMsg(convId, 'assistant', JSON.stringify(res));
+    if(S.me?.is_guest){
+      _guestQueriesUsed++;
+      sessionStorage.setItem('_guestQueriesUsed', String(_guestQueriesUsed));
+      _updateGuestBanner();
+    }
+    // Refresh sidebar so updated conversation titles and new convs always show
+    if(convId) loadConvList();
   } catch(e){
-    load.innerHTML=`<div class="answer-card"><div class="answer-text" style="color:var(--error)">Error: ${escHtml(e.message)}</div></div>`;
+    // Friendly message for server-side daily cap or session cap
+    if(e.message && (e.message.includes('demo_limit_daily') || e.message.includes('429'))){
+      load.innerHTML=`<div class="answer-card"><div class="answer-text" style="color:var(--muted)">
+        <strong>Demo limit reached</strong><br>
+        The daily demo quota has been reached. Please try again tomorrow or
+        <a href="/" style="color:var(--primary)">sign up free</a> for unlimited access.
+      </div></div>`;
+    } else {
+      load.innerHTML=`<div class="answer-card"><div class="answer-text" style="color:var(--error)">Error: ${escHtml(e.message)}</div></div>`;
+    }
   }
 }
 
@@ -1912,7 +1934,7 @@ const COMMANDS = [
   {
     slug: '/sync',
     args: '[source]',
-    desc: 'Pull recent items from a connector (slack, notion, composio…)',
+    desc: 'Pull recent items from a connector (slack, notion, github…)',
     async run(args) {
       const src = (args||'').trim() || 'slack';
       const res = await api.post('/api/sync', {source: src});
@@ -1927,7 +1949,7 @@ const COMMANDS = [
     desc: 'Pull full history from a connector (slow — use once)',
     async run(args) {
       const src = (args||'').trim();
-      if (!src) return {error: 'Usage: /backfill <source>  (slack, gmail, gdoc, calendar, notion, composio)'};
+      if (!src) return {error: 'Usage: /backfill <source>  (slack, gmail, gdoc, calendar, notion, github)'};
       const res = await api.post('/api/backfill', {source: src});
       const eps = res.episodes ?? 0;
       const facts = res.facts ?? 0;
@@ -2123,10 +2145,12 @@ document.addEventListener('click', e => {
 document.querySelectorAll('.example-q').forEach(b=>b.addEventListener('click',()=>sendQuery(b.dataset.q)));
 
 // ── activity ──────────────────────────────────────────────────────────────────
-async function loadActivity(){
+let _activityPollTimer = null;
+
+async function loadActivity(showSpinner=true){
   const tid=document.getElementById('actTeamFilter').value||null;
   const list=document.getElementById('actList');
-  list.innerHTML='<div class="act-empty">Loading…</div>';
+  if(showSpinner) list.innerHTML='<div class="act-empty">Loading…</div>';
   try{
     const rows=await api.get('/api/ledger'+(tid?`?team_id=${tid}`:''));
     if(!rows.length){ list.innerHTML='<div class="act-empty">No activity yet. Ask something in the Ask tab.</div>'; return; }
@@ -2143,99 +2167,19 @@ async function loadActivity(){
     }).join('');
   } catch(e){ list.innerHTML=`<div class="act-empty">Error: ${escHtml(e.message)}</div>`; }
 }
-document.getElementById('actRefresh').addEventListener('click',loadActivity);
-document.getElementById('actTeamFilter').addEventListener('change',loadActivity);
 
-// ── LLM settings ─────────────────────────────────────────────────────────────
-const _LLM_HINTS = {
-  openai:    'Get your key at platform.openai.com → API Keys',
-  anthropic: 'Get your key at console.anthropic.com → API Keys',
-  grok:      'Get your key at console.x.ai → API Keys',
-  gemini:    'Get your key at aistudio.google.com → Get API key',
-  azure:     'Find your key in Azure Portal → Cognitive Services → Keys and Endpoint',
-  cohere:    'Get your key at dashboard.cohere.com → API Keys',
-  mistral:   'Get your key at console.mistral.ai → API Keys',
-};
-
-function _onProviderChange() {
-  const provider = document.getElementById('llmProviderSelect')?.value || 'openai';
-  const hint = document.getElementById('llmKeyHint');
-  if (hint) hint.textContent = _LLM_HINTS[provider] || '';
-  document.getElementById('llmSaveStatus').textContent = '';
+function _startActivityPoll(){
+  _stopActivityPoll();
+  loadActivity(true);
+  _activityPollTimer = setInterval(()=>loadActivity(false), 20000);
 }
 
-function _onApiKeyChange() {
-  document.getElementById('llmSaveStatus').textContent = '';
+function _stopActivityPoll(){
+  if(_activityPollTimer){ clearInterval(_activityPollTimer); _activityPollTimer=null; }
 }
 
-function _toggleKeyVisibility() {
-  const inp = document.getElementById('llmApiKeyInput');
-  const icon = document.getElementById('eyeIcon');
-  if (!inp) return;
-  inp.type = inp.type === 'password' ? 'text' : 'password';
-  icon.innerHTML = inp.type === 'password'
-    ? '<path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>'
-    : '<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>';
-}
-
-async function _loadLLMSettings() {
-  try {
-    const data = await api.get('/api/settings/llm');
-    if (data.provider) {
-      const sel = document.getElementById('llmProviderSelect');
-      if (sel) sel.value = data.provider;
-    }
-    if (data.has_key) {
-      const inp = document.getElementById('llmApiKeyInput');
-      if (inp) inp.placeholder = '••••••••••••••••  (key saved)';
-    }
-    _onProviderChange();
-  } catch(_) { _onProviderChange(); }
-}
-
-async function _saveLLMKey() {
-  const provider = document.getElementById('llmProviderSelect')?.value;
-  const key = document.getElementById('llmApiKeyInput')?.value.trim();
-  const status = document.getElementById('llmSaveStatus');
-  if (!provider) return;
-  if (!key) { status.textContent = 'Enter your API key first.'; status.style.color = 'var(--error)'; return; }
-  status.textContent = 'Saving…'; status.style.color = 'var(--muted)';
-  try {
-    await api.post('/api/settings/llm', {provider, api_key: key});
-    status.textContent = '✓ Saved. Intellark will use this key for all AI queries.';
-    status.style.color = 'var(--success)';
-    document.getElementById('llmApiKeyInput').value = '';
-    document.getElementById('llmApiKeyInput').placeholder = '••••••••••••••••  (key saved)';
-    // Refresh status banner
-    S.status = await api.get('/api/status');
-    if (!S.status.mock_mode) document.getElementById('llmBanner').style.display = 'none';
-  } catch(e) {
-    status.textContent = 'Error: ' + e.message;
-    status.style.color = 'var(--error)';
-  }
-}
-
-async function _testLLMKey() {
-  const btn = document.getElementById('testLLMBtn');
-  const status = document.getElementById('llmSaveStatus');
-  const orig = btn.textContent;
-  btn.textContent = 'Testing…'; btn.disabled = true;
-  status.textContent = '';
-  try {
-    const res = await api.get('/api/status');
-    if (res.mock_mode) {
-      status.textContent = '✗ No API key is active. Save your key first.';
-      status.style.color = 'var(--error)';
-    } else {
-      status.textContent = `✓ Connected — ${res.llm_model || 'model active'}`;
-      status.style.color = 'var(--success)';
-    }
-  } catch(e) {
-    status.textContent = 'Connection test failed: ' + e.message;
-    status.style.color = 'var(--error)';
-  }
-  btn.textContent = orig; btn.disabled = false;
-}
+document.getElementById('actRefresh').addEventListener('click',()=>loadActivity(true));
+document.getElementById('actTeamFilter').addEventListener('change',()=>loadActivity(true));
 
 // ── settings ──────────────────────────────────────────────────────────────────
 function renderSettings(){
@@ -2258,29 +2202,30 @@ function renderSettings(){
       }).join('');
     }
 
-    const model=S.status.llm_model||'';
-    const mock=S.status.mock_mode;
-    const lmr = document.getElementById('llmModelRow');
-    if(lmr) lmr.innerHTML=
-      `<strong style="color:var(--ink)">LLM</strong> — ${model||'—'} ${mock?`<span style="color:var(--error)">(demo mode – no API key)</span>`:`<span style="color:var(--success)">(live)</span>`}`;
-  }
-
-  // Pre-populate LLM provider card from saved settings
-  _loadLLMSettings();
-
-  // Admin: load credits/usage + BYO keys
-  if(isAdmin){
     _loadUsageCredits();
-    _loadBYOKeys();
   }
 }
 
 // ── Credits / Usage UI ───────────────────────────────────────────────────────
 async function _loadUsageCredits(){
+  // Show loading state immediately so dashes don't persist
+  _setText('creditsUsedLabel', 'Loading...');
+  _setText('statTokens', '…');
+  _setText('statCost', '…');
+  _setText('statIntCalls', '…');
   try {
     const now = new Date();
     const period = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    const r = await _api(`/api/usage?period=${period}`);
+    // 8-second timeout — avoid hanging forever on slow DB
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 8000);
+    const resp = await fetch(`/api/usage?period=${period}`, {
+      headers: api._headers({'Content-Type': undefined}),
+      signal: ctrl.signal,
+    });
+    clearTimeout(tid);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const r = await resp.json();
     const used = r.credits_used ?? 0;
     const allowance = r.credits_allowance ?? 500;
     const pct = allowance > 0 ? Math.min(100, Math.round(used/allowance*100)) : 0;
@@ -2299,58 +2244,21 @@ async function _loadUsageCredits(){
     _setText('statTokens', (r.tokens ?? 0).toLocaleString());
     _setText('statCost', `$${(r.cost_usd ?? 0).toFixed(4)}`);
     _setText('statIntCalls', (r.integrations?.api_calls ?? 0).toLocaleString());
-  } catch(e){ console.warn('Usage load failed', e); }
+  } catch(e){
+    console.warn('[usage] load failed:', e?.message);
+    _setText('creditsUsedLabel', '0 credits used');
+    _setText('creditsPlanLabel', '— / mo');
+    _setText('statTokens', '0');
+    _setText('statCost', '$0.0000');
+    _setText('statIntCalls', '0');
+    const caption = document.getElementById('creditsCaption');
+    if(caption) caption.textContent = 'Usage data unavailable';
+  }
 }
 
 function _setText(id, val){
   const el = document.getElementById(id);
   if(el) el.textContent = val;
-}
-
-// ── BYO Key UI ───────────────────────────────────────────────────────────────
-async function _loadBYOKeys(){
-  const list = document.getElementById('byoKeyList');
-  if(!list) return;
-  try {
-    const keys = await _api('/api/byo-key');
-    if(!keys.length){
-      list.innerHTML = '<div style="font-size:13px;color:var(--muted)">No workspace key saved — using Intellark managed credits.</div>';
-      return;
-    }
-    list.innerHTML = keys.map(k => `
-      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface-card);border-radius:8px;padding:10px 14px">
-        <div>
-          <span style="font-size:13px;font-weight:500;color:var(--ink)">${escHtml(k.provider)}</span>
-          <span style="font-size:11.5px;color:var(--muted);margin-left:8px">Added ${new Date(k.created_at).toLocaleDateString()}</span>
-        </div>
-        <button onclick="_deleteBYOKey('${escHtml(k.provider)}')" style="background:transparent;border:none;color:var(--error);font-size:12px;cursor:pointer;padding:4px 8px">Remove</button>
-      </div>`).join('');
-  } catch(e){ console.warn('BYO key load failed', e); }
-}
-
-async function _saveBYOKey(){
-  const provider = document.getElementById('byoProviderSelect')?.value;
-  const key      = document.getElementById('byoKeyInput')?.value?.trim();
-  const status   = document.getElementById('byoSaveStatus');
-  if(!key || key.length < 10){ if(status) status.textContent = 'Key appears too short.'; return; }
-  if(status) status.textContent = 'Saving…';
-  try {
-    await _api('/api/byo-key', 'POST', { provider, api_key: key });
-    if(status){ status.style.color='var(--success)'; status.textContent = 'Saved!'; }
-    if(document.getElementById('byoKeyInput')) document.getElementById('byoKeyInput').value = '';
-    _loadBYOKeys();
-    setTimeout(()=>{ if(status) status.textContent=''; }, 3000);
-  } catch(e){
-    if(status){ status.style.color='var(--error)'; status.textContent = e.message || 'Save failed'; }
-  }
-}
-
-async function _deleteBYOKey(provider){
-  if(!confirm(`Remove the ${provider} workspace key?`)) return;
-  try {
-    await _api(`/api/byo-key/${provider}`, 'DELETE');
-    _loadBYOKeys();
-  } catch(e){ alert('Remove failed: ' + e.message); }
 }
 
 document.getElementById('settingsAddDept').addEventListener('click',()=>openModal());
@@ -2404,16 +2312,32 @@ document.getElementById('deptModal').addEventListener('keydown',e=>{
 function applyRoleUI(){
   const me           = S.me || {};
   const isAdmin      = me.is_admin !== false;
+  const isGuest      = me.is_guest === true;
   const isIndividual = me.account_type === 'individual';
-  const isCompany    = !isIndividual;
 
   // Show/hide all admin-only elements
   document.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = isAdmin ? '' : 'none';
   });
 
-  // Department block: hide entirely for individual accounts
-  document.querySelector('.dept-block').style.display = isIndividual ? 'none' : '';
+  // Guests: hide nav tabs they cannot use (settings, members, connections)
+  document.querySelectorAll('.nav-item[data-tab="settings"],' +
+    '.nav-item[data-tab="members"]').forEach(el => {
+    el.style.display = isGuest ? 'none' : '';
+  });
+
+  // Guests: make connections tab read-only by hiding action buttons inside it
+  // (actual server enforcement already blocks writes; this is just UX)
+  if(isGuest){
+    // Hide the "Sync all" button in the connections tab
+    document.querySelector('#tab-connections .btn-sync')?.setAttribute('style','display:none');
+    // Hide sign-out in favour of "back to signup"
+    document.getElementById('userPill').querySelector('.user-signout').textContent = 'Sign up free';
+    document.getElementById('userPill').querySelector('.user-signout').onclick = () => location.href='/';
+  }
+
+  // Department block: hide entirely for individual accounts or guests
+  document.querySelector('.dept-block').style.display = (isIndividual || isGuest) ? 'none' : '';
 
   // Settings: populate account info
   document.getElementById('settingsEmail').textContent    = me.email || '—';
@@ -2422,13 +2346,16 @@ function applyRoleUI(){
   document.getElementById('settingsWsId').textContent     = me.workspace_id || '—';
 
   // User pill role label
-  const roleLabel = me.role || (me.is_admin ? 'admin' : 'employee');
+  const roleLabel = isGuest ? 'demo' : (me.role || (me.is_admin ? 'admin' : 'employee'));
   document.getElementById('userRoleLabel').textContent = roleLabel;
 
   // Settings subhead
   document.getElementById('settingsSubhead').textContent = isAdmin
     ? 'Manage your AI provider, departments, and workspace.'
     : 'Your account details.';
+
+  // Guest banner
+  _updateGuestBanner();
 }
 
 function _populateInviteTeamSelect(){
@@ -2567,7 +2494,13 @@ async function sendInvite(){
   if(!email){ err.textContent = 'Email required'; return; }
   try {
     const data = await api.post('/api/members/invite', { email, role, team_id: teamId||null });
-    document.getElementById('inviteLinkBox').value = data.invite_url;
+    // Rewrite the base URL to the current origin (backend may return localhost in dev)
+    let inviteUrl = data.invite_url || '';
+    try {
+      const u = new URL(inviteUrl);
+      inviteUrl = window.location.origin + u.pathname + u.search + u.hash;
+    } catch(_){}
+    document.getElementById('inviteLinkBox').value = inviteUrl;
     res.style.display = '';
     document.getElementById('inviteEmail').value = '';
     loadPendingInvites();
@@ -2629,28 +2562,23 @@ async function revokeInvite(inviteId){
 
 async function loadApp(){
   try{
+    // /api/status is admin-only — skip it for guest sessions
+    const isLikelyGuest = !!sessionStorage.getItem('_guestToken');
+    const statusP = isLikelyGuest
+      ? Promise.resolve({})
+      : api.get('/api/status');
     [S.teams, S.status, S.me] = await Promise.all([
       api.get('/api/teams'),
-      api.get('/api/status'),
+      statusP,
       api.get('/api/me'),
     ]);
-
-    if(S.status.mock_mode){
-      document.getElementById('llmBanner').style.display='flex';
-    }
-
-    // LLM model row
-    const lmr = document.getElementById('llmModelRow');
-    if(lmr) lmr.innerHTML = `<strong style="color:var(--ink)">LLM</strong> — ${escHtml(S.status.llm_model||'mock')}`;
-
     // Apply role-based UI: show/hide admin-only elements
     applyRoleUI();
 
     renderDeptSelect();
-    renderSources();
     renderConnections();
-    loadComposioHub();
     loadConvList();
+    loadConnectedSources();
 
     const isIndividual = S.me?.account_type === 'individual';
     if(!isIndividual && S.teams.length && S.me?.is_admin !== false){

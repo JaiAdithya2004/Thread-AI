@@ -1,5 +1,10 @@
 import json, os, sys
-from brain.config import LLM_MODEL, LANGFUSE_ENABLED
+from brain.config import LANGFUSE_ENABLED
+from brain.core.resilience import retry, get_breaker, CircuitOpen
+import brain.config as config
+
+# LLM call timeout in seconds
+_LLM_TIMEOUT = int(os.getenv("BRAIN_LLM_TIMEOUT", "30"))
 
 def _completion(**kwargs):
     from litellm import completion
@@ -17,7 +22,7 @@ if LANGFUSE_ENABLED:
             host=LANGFUSE_HOST,
         )
     except Exception as _e:
-        print(f"[Intellark] Langfuse init failed (tracing disabled): {_e}", file=sys.stderr)
+        print(f"[thread] Langfuse init failed (tracing disabled): {_e}", file=sys.stderr)
         _langfuse = None
 
 
@@ -34,27 +39,20 @@ def _has_key():
                 or os.getenv("ANTHROPIC_API_KEY") or os.getenv("GROK_API_KEY"))
 
 
-def _build_kwargs(system: str, user: str, model: str = None, json_mode: bool = True) -> dict:
+def _build_kwargs(system: str, user: str, model: str, temperature: float,
+                  json_mode: bool = True, max_tokens: int = None) -> dict:
     kwargs = dict(
-        model=model or LLM_MODEL,
+        model=model,
         messages=[
             {"role": "system", "content": system},
             {"role": "user",   "content": user},
         ],
-        temperature=0.1,
+        temperature=temperature,
+        timeout=_LLM_TIMEOUT,
         **_grok_kwargs(),
     )
-    # BYO-key override: inject the workspace's own API key for this request
-    byo_provider, byo_key = _effective_api_key()
-    if byo_key:
-        if byo_provider == "openai":
-            kwargs["api_key"] = byo_key
-        elif byo_provider == "anthropic":
-            kwargs["api_key"] = byo_key
-        elif byo_provider == "grok":
-            from brain.config import GROK_BASE_URL
-            kwargs["api_key"]  = byo_key
-            kwargs["api_base"] = GROK_BASE_URL
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
     return kwargs
@@ -67,7 +65,7 @@ def _trace_start(task_name: str, model: str, messages: list):
         trace = _langfuse.trace(name=task_name)
         return trace.generation(name=task_name, model=model, input=messages)
     except Exception as e:
-        print(f"[Intellark] Langfuse span failed: {e}", file=sys.stderr)
+        print(f"[thread] Langfuse span failed: {e}", file=sys.stderr)
         return None
 
 
@@ -80,59 +78,26 @@ def _trace_end(gen, output, error=False):
         else:
             gen.end(output=output)
     except Exception as e:
-        print(f"[Intellark] Langfuse end failed: {e}", file=sys.stderr)
+        print(f"[thread] Langfuse end failed: {e}", file=sys.stderr)
 
 
-# ── cost metering & BYO-key ───────────────────────────────────────────────────
+# ── cost metering ─────────────────────────────────────────────────────────────
 
-# Thread-local context set by API layer so llm.py knows who to bill
 _ctx: dict = {}
 
 def set_billing_context(account_id: str, user_id: str, team_id: str = None):
-    """Call once per request (before any LLM calls) to attach billing context."""
     _ctx["account_id"] = account_id
     _ctx["user_id"]    = user_id
     _ctx["team_id"]    = team_id
-    # Eagerly load BYO key so all calls in this request use it
-    _ctx.pop("byo_provider", None)
-    _ctx.pop("byo_key", None)
-    if account_id:
-        _load_byo_key(account_id)
 
 
 def clear_billing_context():
     _ctx.clear()
 
 
-def _load_byo_key(account_id: str):
-    """Read workspace BYO key from DB and stash it in _ctx for this request."""
-    try:
-        from brain.core.db_pg import get_byo_key
-        for provider in ("openai", "anthropic", "grok"):
-            key = get_byo_key(account_id, provider)
-            if key:
-                _ctx["byo_provider"] = provider
-                _ctx["byo_key"]      = key
-                return
-    except Exception as e:
-        print(f"[Intellark] BYO-key load failed: {e}", file=sys.stderr)
-
-
-def _effective_api_key() -> tuple:
-    """Return (provider, api_key) to use for this request — BYO wins over env."""
-    if _ctx.get("byo_key"):
-        return _ctx["byo_provider"], _ctx["byo_key"]
-    return None, None
-
-
 def _check_credit_allowance():
-    """Raise HTTP 402 if this account has exhausted its monthly credit allowance.
-    Silently passes in dev/bypass mode (no account_id)."""
     account_id = _ctx.get("account_id")
     if not account_id:
-        return
-    # BYO-key accounts are never credit-capped — they pay their own provider directly
-    if _ctx.get("byo_key"):
         return
     try:
         from brain.core.db_pg import get_plan_for_account, get_credits_used_this_month
@@ -140,27 +105,25 @@ def _check_credit_allowance():
         allowance = plan.get("monthly_credits", 500)
         used      = get_credits_used_this_month(account_id)
         if used >= allowance:
-            # Import here to avoid circular import at module load time
             from fastapi import HTTPException
             raise HTTPException(
                 status_code=402,
                 detail=f"Monthly credit limit reached ({used}/{allowance} credits used). "
-                       "Upgrade your plan or add your own API key in Settings."
+                       "Upgrade your plan to continue using AI features."
             )
     except Exception as e:
-        # Only re-raise HTTP 402; swallow all other errors so metering never breaks queries
         from fastapi import HTTPException
         if isinstance(e, HTTPException):
             raise
-        print(f"[Intellark] credit check failed (non-fatal): {e}", file=sys.stderr)
+        print(f"[thread] credit check failed (non-fatal): {e}", file=sys.stderr)
 
 
-def _write_usage(task: str, model: str, prompt_tokens: int, completion_tokens: int, cost_usd: float):
-    """Write one row to usage_events in Postgres. Silently skips on any error."""
+def _write_usage(task: str, model: str, prompt_tokens: int,
+                 completion_tokens: int, cost_usd: float):
     account_id = _ctx.get("account_id")
     user_id    = _ctx.get("user_id", "unknown")
     if not account_id:
-        return  # no billing context — dev/bypass mode, skip silently
+        return
     try:
         from brain.core import db_pg as _pg
         conn = _pg.connect()
@@ -178,40 +141,85 @@ def _write_usage(task: str, model: str, prompt_tokens: int, completion_tokens: i
         finally:
             conn.close()
     except Exception as e:
-        print(f"[Intellark] usage_events write failed: {e}", file=sys.stderr)
+        print(f"[thread] usage_events write failed: {e}", file=sys.stderr)
 
 
 def _extract_usage(resp, model: str, task: str):
-    """Pull token counts from a litellm response and write to usage_events."""
     try:
         usage = resp.usage
         if usage is None:
             return
         pt = getattr(usage, "prompt_tokens", 0) or 0
         ct = getattr(usage, "completion_tokens", 0) or 0
-        from brain.config import MODEL_PRICES
-        prices = MODEL_PRICES.get(model, MODEL_PRICES.get("default", (0.0, 0.0)))
+        prices = config.MODEL_PRICES.get(model, config.MODEL_PRICES.get("default", (0.0, 0.0)))
         cost = (pt * prices[0] + ct * prices[1]) / 1000.0
         _write_usage(task, model, pt, ct, cost)
     except Exception as e:
-        print(f"[Intellark] usage extraction failed: {e}", file=sys.stderr)
+        print(f"[thread] usage extraction failed: {e}", file=sys.stderr)
 
 
 # ── LLM call helpers ──────────────────────────────────────────────────────────
 
-def chat_json(system: str, user: str, model: str = None, task_name: str = "unknown") -> dict:
+# Circuit breaker for LLM provider — trips after 5 consecutive failures,
+# recovers after 30 s.  All chat_json / chat_text calls share this breaker.
+_llm_breaker = get_breaker("llm", failure_threshold=5, recovery_timeout=30.0)
+
+
+@retry(max_attempts=3, base_delay=1.0, max_delay=8.0, jitter=0.4)
+def _call_llm(**kwargs):
+    """Single litellm call with retry wrapping.  Circuit breaker is applied by callers."""
+    return _completion(**kwargs)
+
+
+def _call_llm_with_fallback(primary: str, fallback: str, temperature: float,
+                             **kwargs) -> tuple:
+    """Try primary model; on circuit-open or exhausted retries, try fallback once."""
+    try:
+        with _llm_breaker:
+            resp = _call_llm(model=primary, temperature=temperature, **kwargs)
+        return resp, primary
+    except (CircuitOpen, Exception) as e:
+        if primary == fallback:
+            raise
+        print(f"[llm] primary {primary} failed ({e!r}), trying fallback {fallback}",
+              file=sys.stderr)
+        # Fallback: one attempt only (unwrapped — no retry decorator)
+        resp = _call_llm.__wrapped__(model=fallback, temperature=temperature, **kwargs)
+        return resp, fallback
+
+
+def chat_json(system: str, user: str, model: str = None,
+              task_name: str = "extract") -> dict:
     _check_credit_allowance()
-    if not _has_key() and not _ctx.get("byo_key"):
-        print("[Intellark] No API key detected — set an LLM key in .env.", file=sys.stderr)
+    if not _has_key():
+        print("[thread] No API key detected — set an LLM key in .env.", file=sys.stderr)
         return {"facts": [], "terms": []}
 
-    kwargs = _build_kwargs(system, user, model=model, json_mode=True)
-    gen = _trace_start(task_name, kwargs["model"], kwargs["messages"])
+    # Resolve model + temperature from TASK_ROUTES unless caller passed model explicitly
+    if model is not None:
+        primary_model  = model
+        fallback_model = model
+        temperature    = 0.1
+        max_tokens     = None
+    else:
+        route          = config.TASK_ROUTES.get(task_name, config.TASK_ROUTES["extract"])
+        primary_model  = route["primary"]
+        fallback_model = route["fallback"]
+        temperature    = route.get("temperature", 0.1)
+        max_tokens     = route.get("max_tokens", None)
+
+    kwargs = _build_kwargs(system, user, model=primary_model, temperature=temperature,
+                           json_mode=True, max_tokens=max_tokens)
+    # Remove model from kwargs — _call_llm_with_fallback passes it explicitly
+    base_kwargs = {k: v for k, v in kwargs.items() if k not in ("model", "temperature")}
+    gen = _trace_start(task_name, primary_model, kwargs["messages"])
 
     try:
-        resp = _completion(**kwargs)
+        resp, model_used = _call_llm_with_fallback(
+            primary_model, fallback_model, temperature, **base_kwargs)
+        print(f"[llm] task={task_name} model={model_used}", file=sys.stderr)
         text = resp.choices[0].message.content
-        _extract_usage(resp, kwargs["model"], task_name)
+        _extract_usage(resp, model_used, task_name)
         try:
             result = json.loads(text)
         except json.JSONDecodeError:
@@ -219,31 +227,95 @@ def chat_json(system: str, user: str, model: str = None, task_name: str = "unkno
             result = json.loads(text[i:])
         _trace_end(gen, result)
         return result
+    except CircuitOpen as e:
+        print(f"[thread] LLM circuit open — returning empty: {e}", file=sys.stderr)
+        _trace_end(gen, str(e), error=True)
+        return {"facts": [], "terms": []}
     except Exception as e:
         _trace_end(gen, e, error=True)
-        print(f"[Intellark] LLM call failed: {e}", file=sys.stderr)
+        print(f"[thread] LLM call failed: {e}", file=sys.stderr)
         return {"facts": [], "terms": []}
 
 
-def chat_text(system: str, user: str, model: str = None, task_name: str = "unknown") -> str:
+def chat_text(system: str, user: str, model: str = None,
+              task_name: str = "synthesize") -> str:
     _check_credit_allowance()
-    if not _has_key() and not _ctx.get("byo_key"):
-        print("[Intellark] No API key detected — set an LLM key in .env.", file=sys.stderr)
+    if not _has_key():
+        print("[thread] No API key detected — set an LLM key in .env.", file=sys.stderr)
         return ""
 
-    kwargs = _build_kwargs(system, user, model=model, json_mode=False)
-    gen = _trace_start(task_name, kwargs["model"], kwargs["messages"])
+    # Resolve model + temperature from TASK_ROUTES unless caller passed model explicitly
+    if model is not None:
+        primary_model  = model
+        fallback_model = model
+        temperature    = 0.3
+        max_tokens     = None
+    else:
+        route          = config.TASK_ROUTES.get(task_name, config.TASK_ROUTES["synthesize"])
+        primary_model  = route["primary"]
+        fallback_model = route["fallback"]
+        temperature    = route.get("temperature", 0.3)
+        max_tokens     = route.get("max_tokens", None)
+
+    kwargs = _build_kwargs(system, user, model=primary_model, temperature=temperature,
+                           json_mode=False, max_tokens=max_tokens)
+    base_kwargs = {k: v for k, v in kwargs.items() if k not in ("model", "temperature")}
+    gen = _trace_start(task_name, primary_model, kwargs["messages"])
 
     try:
-        resp = _completion(**kwargs)
+        resp, model_used = _call_llm_with_fallback(
+            primary_model, fallback_model, temperature, **base_kwargs)
+        print(f"[llm] task={task_name} model={model_used}", file=sys.stderr)
         result = resp.choices[0].message.content or ""
-        _extract_usage(resp, kwargs["model"], task_name)
+        _extract_usage(resp, model_used, task_name)
         _trace_end(gen, result)
         return result
+    except CircuitOpen as e:
+        print(f"[thread] LLM circuit open — returning empty: {e}", file=sys.stderr)
+        _trace_end(gen, str(e), error=True)
+        return ""
     except Exception as e:
         _trace_end(gen, e, error=True)
-        print(f"[Intellark] LLM call failed: {e}", file=sys.stderr)
+        print(f"[thread] LLM call failed: {e}", file=sys.stderr)
         return ""
+
+
+def embed(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list[list[float]]:
+    """
+    Embed texts via gemini-embedding-001 (768-dim, L2-normalized).
+
+    task_type: "RETRIEVAL_DOCUMENT" for facts being stored,
+               "RETRIEVAL_QUERY" for search queries.
+
+    Batches texts in groups of EMBED_BATCH_SIZE to respect free-tier limits.
+    Each returned vector is unit-L2-normalized (required for MRL-truncated dims).
+    Meters token usage into usage_events with task='embed'.
+
+    Never logs the text content.
+    """
+    if not texts:
+        return []
+
+    from brain.core.embed import embed_texts as _embed_texts, _zero_vec, EMBED_BATCH_SIZE
+
+    all_vectors = _embed_texts(texts, task_type=task_type)
+
+    # Approximate token count for metering (Gemini embed doesn't return token counts)
+    total_chars = sum(len(t) for t in texts)
+    total_tokens = max(1, total_chars // 4)
+
+    try:
+        _write_usage(
+            task="embed",
+            model=config.EMBED_MODEL,
+            prompt_tokens=total_tokens,
+            completion_tokens=0,
+            cost_usd=0.0,  # Gemini embedding is free-tier; update if billed
+        )
+    except Exception:
+        pass  # metering failure must not break embedding
+
+    return all_vectors
 
 
 def validate_llm_output(data: dict, model_class: type) -> tuple:
@@ -253,6 +325,6 @@ def validate_llm_output(data: dict, model_class: type) -> tuple:
         return (True, instance, "")
     except Exception as e:
         error_str = str(e)
-        print(f"[Intellark] LLM output validation failed ({model_class.__name__}): {error_str}",
+        print(f"[thread] LLM output validation failed ({model_class.__name__}): {error_str}",
               file=sys.stderr)
         return (False, None, error_str)

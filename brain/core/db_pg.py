@@ -2,23 +2,103 @@
 Postgres + pgvector backend for Company Brain.
 Uses psycopg2 (sync) so the rest of the codebase needs zero async changes.
 """
-import datetime, json, uuid
-from brain.config import EMBED_DIM
+import datetime, json, uuid, threading
 
 # ---------------------------------------------------------------------------
-# Connection
+# Connection pool — reuse connections instead of cold-opening one per request
 # ---------------------------------------------------------------------------
+
+_pool = None
+_pool_lock = threading.Lock()
+
+
+def _get_pool():
+    global _pool
+    if _pool is not None:
+        return _pool
+    with _pool_lock:
+        if _pool is not None:
+            return _pool
+        import psycopg2.pool, psycopg2.extras, os
+        url = os.getenv("DATABASE_URL", "postgresql://brain:brain_local@localhost:5432/brain")
+        _pool = psycopg2.pool.ThreadedConnectionPool(
+            minconn=2,
+            maxconn=10,
+            dsn=url,
+            cursor_factory=psycopg2.extras.RealDictCursor,
+        )
+    return _pool
+
+
+class _PooledConn:
+    """
+    Thin proxy around a psycopg2 connection that returns it to the pool
+    on close() instead of actually closing it.
+
+    psycopg2's connection.close is a read-only C attribute so we can't
+    monkey-patch it directly; this wrapper intercepts it at the Python level.
+    """
+    __slots__ = ("_conn", "_pool", "_real_close")
+
+    def __init__(self, conn, pool):
+        object.__setattr__(self, "_conn",       conn)
+        object.__setattr__(self, "_pool",       pool)
+        object.__setattr__(self, "_real_close", conn.close)
+
+    # ── intercept close() ──────────────────────────────────────────────────────
+    def close(self):
+        conn = object.__getattribute__(self, "_conn")
+        pool = object.__getattribute__(self, "_pool")
+        real = object.__getattribute__(self, "_real_close")
+        try:
+            if not conn.closed:
+                conn.rollback()
+            pool.putconn(conn)
+        except Exception:
+            try:
+                real()
+            except Exception:
+                pass
+
+    # ── forward everything else to the real connection ─────────────────────────
+    def __getattr__(self, name):
+        return getattr(object.__getattribute__(self, "_conn"), name)
+
+    def __setattr__(self, name, value):
+        if name in ("_conn", "_pool", "_real_close"):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(object.__getattribute__(self, "_conn"), name, value)
+
 
 def connect():
-    import psycopg2, psycopg2.extras, os
-    url = os.getenv("DATABASE_URL", "postgresql://brain:brain_local@localhost:5432/brain")
-    conn = psycopg2.connect(url, cursor_factory=psycopg2.extras.RealDictCursor)
-    conn.autocommit = False
-    return conn
+    """Get a connection from the pool. conn.close() returns it to the pool."""
+    pool = _get_pool()
+    raw  = pool.getconn()
+    raw.autocommit = False
+
+    # Clear any statement timeout the pooler may have left on this connection
+    try:
+        cur = raw.cursor()
+        cur.execute("SET statement_timeout = 0")
+        raw.commit()
+        cur.close()
+    except Exception:
+        pass
+
+    return _PooledConn(raw, pool)
+
+
+# Guard so migrate() runs once per process, not once per request
+_migrated = False
 
 
 def migrate(conn):
-    """Idempotent schema setup: extensions, tables, indexes, RLS."""
+    """Idempotent schema setup: extensions, tables, indexes, RLS. Runs once per process."""
+    global _migrated
+    if _migrated:
+        return
+    _migrated = True
     cur = conn.cursor()
 
     # Extensions
@@ -61,7 +141,7 @@ def migrate(conn):
     """)
 
     # Facts
-    cur.execute(f"""
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS facts (
             id            TEXT PRIMARY KEY,
             workspace_id  TEXT NOT NULL,
@@ -77,7 +157,7 @@ def migrate(conn):
             source_kind   TEXT DEFAULT 'llm',
             team_id       TEXT DEFAULT 'shared',
             visibility    TEXT DEFAULT 'team',
-            embedding     vector({EMBED_DIM}),
+            fact_vec_768  vector(768),
             fts_vec       tsvector GENERATED ALWAYS AS (
                               to_tsvector('english',
                                   coalesce(summary,'') || ' ' ||
@@ -86,12 +166,16 @@ def migrate(conn):
                           ) STORED
         );
     """)
-    # HNSW index for vector similarity
+    # Ensure 768-dim column exists on existing DBs (idempotent upgrade).
+    conn.commit()
     cur.execute("""
-        CREATE INDEX IF NOT EXISTS facts_embedding_hnsw
-            ON facts USING hnsw (embedding vector_cosine_ops)
-            WITH (m = 16, ef_construction = 64);
+        ALTER TABLE facts
+        ADD COLUMN IF NOT EXISTS fact_vec_768 vector(768)
     """)
+    # NOTE: The HNSW index (facts_vec_768_idx) is NOT created here — building it
+    # on app startup blocks all requests. Run scripts/rebuild_index.py once after
+    # reembed_gemini.py finishes to create it. Search still works without the index
+    # (falls back to sequential scan) until then.
     # GIN index for full-text
     cur.execute("""
         CREATE INDEX IF NOT EXISTS facts_fts_gin
@@ -127,6 +211,8 @@ def migrate(conn):
             team_id       TEXT
         );
     """)
+    cur.execute("CREATE INDEX IF NOT EXISTS ledger_ws ON ledger(workspace_id, id DESC);")
+    cur.execute("CREATE INDEX IF NOT EXISTS ledger_team ON ledger(workspace_id, team_id, id DESC);")
 
     # ── Auth / account tables ──────────────────────────────────────────────────
 
@@ -300,6 +386,65 @@ def migrate(conn):
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS wlk_acct ON workspace_llm_keys(account_id);")
 
+    # ── Phase 3: idempotent constraint additions ──────────────────────────────
+    # These ALTER TABLE statements are safe to run on existing installs.
+    # They add CHECK constraints that were omitted in the original schema.
+    # Existing rows that violate a constraint will cause the migration to fail —
+    # fix data first with: UPDATE facts SET confidence = LEAST(GREATEST(confidence, 0), 1)
+    try:
+        cur.execute(
+            "ALTER TABLE facts ADD CONSTRAINT IF NOT EXISTS "
+            "facts_confidence_range CHECK (confidence >= 0.0 AND confidence <= 1.0)"
+        )
+    except Exception as _e:
+        import sys as _sys
+        print(f"[migrate] facts_confidence_range constraint: {_e}", file=_sys.stderr)
+        conn.rollback()
+
+    try:
+        cur.execute(
+            "ALTER TABLE facts ADD CONSTRAINT IF NOT EXISTS "
+            "facts_source_kind_check CHECK (source_kind IN ('llm', 'human', 'agent', 'ai-tool'))"
+        )
+    except Exception as _e:
+        import sys as _sys
+        print(f"[migrate] facts_source_kind_check constraint: {_e}", file=_sys.stderr)
+        conn.rollback()
+
+    try:
+        cur.execute(
+            "ALTER TABLE facts ADD CONSTRAINT IF NOT EXISTS "
+            "facts_visibility_check CHECK (visibility IN ('team', 'org', 'private'))"
+        )
+    except Exception as _e:
+        import sys as _sys
+        print(f"[migrate] facts_visibility_check constraint: {_e}", file=_sys.stderr)
+        conn.rollback()
+
+    try:
+        cur.execute(
+            "ALTER TABLE ledger ADD CONSTRAINT IF NOT EXISTS "
+            "ledger_surface_check CHECK (surface IS NULL OR surface IN "
+            "('mcp', 'web', 'hook-inject', 'history', 'api', 'hook-harvest'))"
+        )
+    except Exception as _e:
+        import sys as _sys
+        print(f"[migrate] ledger_surface_check constraint: {_e}", file=_sys.stderr)
+        conn.rollback()
+
+    # episodes.source — ensure NOT NULL with default for any rows that have NULL source
+    try:
+        cur.execute(
+            "UPDATE episodes SET source = 'unknown' WHERE source IS NULL"
+        )
+        cur.execute(
+            "ALTER TABLE episodes ALTER COLUMN source SET DEFAULT 'unknown'"
+        )
+    except Exception as _e:
+        import sys as _sys
+        print(f"[migrate] episodes.source default: {_e}", file=_sys.stderr)
+        conn.rollback()
+
     # Row-Level Security — defense in depth, workspace isolation
     for table in ("episodes", "facts", "fact_edges", "ledger", "teams"):
         cur.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
@@ -338,6 +483,81 @@ def migrate(conn):
             )
         except Exception:
             pass  # role may not exist on local Postgres installs
+
+    # Dead-letter queue — poison jobs that exhausted all retries land here
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS dead_letter_jobs (
+            id          BIGSERIAL PRIMARY KEY,
+            job_name    TEXT NOT NULL,
+            kwargs      JSONB NOT NULL DEFAULT '{}',
+            error       TEXT NOT NULL,
+            attempts    INTEGER NOT NULL DEFAULT 0,
+            failed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+            replayed_at TIMESTAMPTZ,
+            status      TEXT NOT NULL DEFAULT 'failed'
+                            CHECK (status IN ('failed', 'replayed', 'discarded'))
+        );
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS dlq_status ON dead_letter_jobs(status, failed_at DESC);
+    """)
+
+    # ── Phase 1: Slack OAuth + channel mapping tables ─────────────────────────
+
+    # Slack OAuth per workspace
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS slack_workspace_integrations (
+            id              TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+            account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            slack_team_id   TEXT NOT NULL UNIQUE,
+            slack_team_name TEXT NOT NULL,
+            bot_token       TEXT NOT NULL,
+            bot_user_id     TEXT NOT NULL,
+            installed_by    TEXT NOT NULL,
+            created_at      TIMESTAMPTZ DEFAULT now()
+        );
+    """)
+
+    # Maps Slack user ID -> our user_id
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS slack_user_links (
+            id              TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+            user_id         TEXT NOT NULL,
+            account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            slack_user_id   TEXT NOT NULL,
+            slack_team_id   TEXT NOT NULL,
+            slack_email     TEXT,
+            linked_at       TIMESTAMPTZ DEFAULT now(),
+            UNIQUE (slack_user_id, slack_team_id)
+        );
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS slack_links_user
+            ON slack_user_links(user_id);
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS slack_links_slack_user
+            ON slack_user_links(slack_user_id, slack_team_id);
+    """)
+
+    # Channel -> department mapping (optional, admin-configured)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS slack_channel_mappings (
+            id              TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+            account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            slack_team_id   TEXT NOT NULL,
+            channel_id      TEXT NOT NULL,
+            channel_name    TEXT NOT NULL,
+            team_id         TEXT NOT NULL,
+            sync_members    BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at      TIMESTAMPTZ DEFAULT now(),
+            UNIQUE (account_id, channel_id)
+        );
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS slack_channel_map_acct
+            ON slack_channel_mappings(account_id, slack_team_id);
+    """)
 
     conn.commit()
     cur.close()
@@ -405,18 +625,18 @@ def save_episode(conn, ws, ep_dict, content_hash=None) -> str:
 def save_fact(conn, ws, fact_dict, embedding: list) -> str:
     _set_ws(conn, ws)
     fact_id = fact_dict.get("id") or str(uuid.uuid4())
-    emb_str = "[" + ",".join(str(x) for x in embedding) + "]" if embedding else None
+    emb_str = "[" + ",".join(f"{v:.8f}" for v in embedding) + "]" if embedding else None
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO facts
             (id, workspace_id, subject, predicate, object, summary,
              episode_id, acl, confidence, introduced_at, invalidated_at,
-             source_kind, team_id, visibility, embedding)
+             source_kind, team_id, visibility, fact_vec_768)
         VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         ON CONFLICT (id) DO UPDATE SET
             subject=EXCLUDED.subject, predicate=EXCLUDED.predicate,
             object=EXCLUDED.object, summary=EXCLUDED.summary,
-            confidence=EXCLUDED.confidence, embedding=EXCLUDED.embedding,
+            confidence=EXCLUDED.confidence, fact_vec_768=EXCLUDED.fact_vec_768,
             invalidated_at=EXCLUDED.invalidated_at, visibility=EXCLUDED.visibility
     """, (
         fact_id, ws,
@@ -457,14 +677,15 @@ def get_fact(conn, ws, fact_id: str):
 
 
 def search_vec(conn, query_embedding: list, n: int = 30) -> list:
-    emb_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
+    vec_str = "[" + ",".join(f"{v:.8f}" for v in query_embedding) + "]"
     cur = conn.cursor()
     cur.execute("""
         SELECT id FROM facts
-        WHERE invalidated_at IS NULL
-        ORDER BY embedding <=> %s::vector
+        WHERE fact_vec_768 IS NOT NULL
+          AND invalidated_at IS NULL
+        ORDER BY fact_vec_768 <=> %s::vector
         LIMIT %s
-    """, (emb_str, n))
+    """, (vec_str, n))
     rows = cur.fetchall()
     cur.close()
     return [r["id"] for r in rows]
@@ -531,19 +752,19 @@ def log(conn, ws, user, query, surface, fact_ids, context_sent, team_id=None):
     cur.close()
 
 
-def read_ledger(conn, ws, limit, team_id=None):
+def read_ledger(conn, ws, limit, team_id=None, offset=0):
     _set_ws(conn, ws)
     cur = conn.cursor()
     if team_id:
         cur.execute("""
             SELECT * FROM ledger WHERE workspace_id=%s AND team_id=%s
-            ORDER BY id DESC LIMIT %s
-        """, (ws, team_id, limit))
+            ORDER BY id DESC LIMIT %s OFFSET %s
+        """, (ws, team_id, limit, offset))
     else:
         cur.execute("""
             SELECT * FROM ledger WHERE workspace_id=%s
-            ORDER BY id DESC LIMIT %s
-        """, (ws, limit))
+            ORDER BY id DESC LIMIT %s OFFSET %s
+        """, (ws, limit, offset))
     rows = cur.fetchall()
     cur.close()
     return [dict(r) for r in rows]
@@ -707,7 +928,7 @@ def ensure_free_subscription(account_id: str):
             conn.close()
     except Exception as e:
         import sys
-        print(f"[Intellark] ensure_free_subscription failed: {e}", file=sys.stderr)
+        print(f"[Thread] ensure_free_subscription failed: {e}", file=sys.stderr)
 
 
 def record_integration_usage(account_id: str, provider: str,
@@ -747,4 +968,4 @@ def record_integration_usage(account_id: str, provider: str,
             conn.close()
     except Exception as e:
         import sys
-        print(f"[Intellark] integration_usage write failed: {e}", file=sys.stderr)
+        print(f"[Thread] integration_usage write failed: {e}", file=sys.stderr)

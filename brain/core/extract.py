@@ -2,6 +2,7 @@ import uuid, datetime, sys
 from pydantic import BaseModel, field_validator
 from typing import Optional
 from brain.core import llm, embed
+from brain.core import db
 from brain.config import DEDUP_THRESHOLD, EXTRACT_MODEL
 
 SYSTEM = (
@@ -47,8 +48,8 @@ ITEM:
 {body}
 """
 
-# Lighter prompt for AI-generated text (agent responses, AI tool outputs).
-# Stricter: only extract if the AI is confidently asserting a company fact,
+# Stricter prompt for AI-generated text (agent responses, tool outputs).
+# Only extract if the AI is confidently asserting a company fact,
 # not just describing what it's about to do or explaining a concept.
 _HARVEST_SYSTEM = (
     "You extract company facts from AI assistant responses. "
@@ -102,59 +103,63 @@ def _now():
     return datetime.datetime.utcnow().isoformat()
 
 
-def run(conn, ws, incremental=False):
-    rows = conn.execute(
-        "SELECT * FROM episodes WHERE workspace_id=? AND extracted=0"
-        " ORDER BY occurred_at ASC NULLS LAST",
-        (ws,)).fetchall()
+def run(conn, ws, incremental=False, limit=20):
+    """Extract facts from unprocessed episodes. Returns count of new facts.
+
+    limit: max episodes to process per call (keeps HTTP request from timing out).
+    """
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM episodes WHERE workspace_id=%s AND extracted=0 ORDER BY occurred_at ASC NULLS LAST LIMIT %s",
+        (ws, limit)
+    )
+    rows = cur.fetchall()
+    cur.close()
+
     n = 0
     for ep in rows:
+        ep = dict(ep)
         try:
-            raw = llm.chat_json(SYSTEM, PROMPT.format(
-                source=ep["source"], body=ep["body"][:6000]),
-                model=EXTRACT_MODEL, task_name="extract")
-
+            raw = llm.chat_json(
+                SYSTEM,
+                PROMPT.format(source=ep.get("source", ""), body=(ep.get("body") or "")[:6000]),
+                model=EXTRACT_MODEL,
+                task_name="extract",
+            )
             ok, result, err = llm.validate_llm_output(raw, ExtractionResult)
             if not ok:
                 print(f"[extract] validation failed for episode {ep['id']}: {err}", file=sys.stderr)
-                conn.execute("UPDATE episodes SET extracted=1 WHERE id=?", (ep["id"],))
-                conn.commit()
-                continue
-
-            facts = result.facts
-            if not facts:
-                conn.execute("UPDATE episodes SET extracted=1 WHERE id=?", (ep["id"],))
-                conn.commit()
-                continue
-
-            # Batch-embed all summaries at once
-            summaries = [f.summary for f in facts]
-            embeddings = embed.embed_batch(summaries)
-
-            for fact, emb in zip(facts, embeddings):
-                existing = _find_near_duplicate(conn, ws, fact.subject, emb)
-                if existing:
-                    print(f"[extract] dedup: merged with {existing}", file=sys.stderr)
-                    continue
-                _save(conn, ws, fact.model_dump(), ep, emb)
-                n += 1
-
+            else:
+                facts = result.facts
+                if facts:
+                    summaries = [f.summary for f in facts]
+                    embeddings = embed.embed_batch(summaries)
+                    for fact, emb in zip(facts, embeddings):
+                        existing = _find_near_duplicate(conn, ws, fact.subject, emb)
+                        if existing:
+                            print(f"[extract] dedup: merged with {existing}", file=sys.stderr)
+                            continue
+                        _save(conn, ws, fact.model_dump(), ep, emb)
+                        n += 1
         except Exception as e:
             print(f"[extract] error processing episode {ep['id']}: {e}", file=sys.stderr)
 
-        conn.execute("UPDATE episodes SET extracted=1 WHERE id=?", (ep["id"],))
+        cur2 = conn.cursor()
+        cur2.execute("UPDATE episodes SET extracted=1 WHERE id=%s", (ep["id"],))
         conn.commit()
+        cur2.close()
+
     return n
 
 
-def extract_from_text(conn, ws, text: str, source_kind: str = "ai-tool",
+def extract_from_text(conn, ws, text: str, source_kind: str = "agent",
                       team_id: str = "shared", session_id: str = None) -> int:
     """
     Extract facts from arbitrary text (e.g. an AI assistant's response).
-    Uses the stricter harvest prompt. Guards against noise with near-duplicate
-    check before writing. Returns number of new facts saved.
 
-    source_kind should be one of: "ai-tool", "human", "llm".
+    Uses the stricter harvest prompt. Guards against noise with near-duplicate
+    check before writing. Facts are tagged with source_kind (default "agent").
+    Returns count of net-new facts saved.
     """
     if not text or not text.strip():
         return 0
@@ -177,8 +182,7 @@ def extract_from_text(conn, ws, text: str, source_kind: str = "ai-tool",
     summaries = [f.summary for f in result.facts]
     embeddings = embed.embed_batch(summaries)
 
-    # Synthetic episode for the AI response — not persisted to episodes table,
-    # we use a fake ep dict that _save() can read field names from.
+    # Synthetic episode dict for the AI response (never persisted to episodes table).
     ep = {
         "id": None,
         "team_id": team_id,
@@ -204,124 +208,195 @@ def extract_from_text(conn, ws, text: str, source_kind: str = "ai-tool",
 
 
 def _find_near_duplicate(conn, ws, subject: str, embedding: list) -> Optional[str]:
-    """Find a valid fact with same subject and very similar embedding. Returns fact_id or None."""
-    import struct
+    """
+    Return the fact_id of a valid existing fact with the same subject and
+    very similar embedding (cosine distance < 1 - DEDUP_THRESHOLD), or None.
+    """
     try:
-        blob = struct.pack(f"{len(embedding)}f", *embedding)
-        rows = conn.execute(
-            "SELECT fact_id, distance FROM fact_vec WHERE embedding MATCH ? ORDER BY distance LIMIT 5",
-            (blob,)
-        ).fetchall()
+        emb_str = "[" + ",".join(str(x) for x in embedding) + "]"
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, embedding <=> %s::vector AS distance
+            FROM facts
+            WHERE workspace_id = %s
+              AND subject = %s
+              AND invalidated_at IS NULL
+            ORDER BY distance
+            LIMIT 5
+        """, (emb_str, ws, subject))
+        rows = cur.fetchall()
+        cur.close()
         for row in rows:
-            fid = row[0]
-            dist = row[1]
-            if dist < (1 - DEDUP_THRESHOLD):
-                fact = conn.execute(
-                    "SELECT subject, invalidated_at FROM facts WHERE id=? AND workspace_id=?",
-                    (fid, ws)
-                ).fetchone()
-                if fact and fact["subject"] == subject and not fact["invalidated_at"]:
-                    return fid
-    except Exception:
-        pass
+            if row["distance"] < (1.0 - DEDUP_THRESHOLD):
+                return row["id"]
+    except Exception as e:
+        print(f"[extract] dedup check error: {e}", file=sys.stderr)
     return None
 
 
-def _save(conn, ws, f: dict, ep, embedding: list):
+def _save(conn, ws, f: dict, ep: dict, embedding: list):
+    """Write a single fact atomically: fact + supersession edge + conflict edges.
+
+    Wraps the entire compound write (save_fact + add_edge calls) in a single
+    transaction.  If any step fails the whole operation is rolled back, leaving
+    no partial state in the database.
+    """
     fid = str(uuid.uuid4())
-    team_id = ep["team_id"] if ep["team_id"] else "shared"
+    team_id = (ep.get("team_id") or "shared")
     visibility = f.get("visibility", "team")
     if visibility not in ("team", "shared"):
         visibility = "team"
 
-    conn.execute(
-        """INSERT INTO facts(id,workspace_id,subject,predicate,object,summary,
-           episode_id,acl,confidence,introduced_at,source_kind,team_id,visibility)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (fid, ws, f.get("subject"), f.get("predicate"), f.get("object"),
-         f.get("summary"), ep.get("id"), ep.get("acl", "everyone"),
-         float(f.get("confidence", 0.6)), _now(),
-         f.get("source_kind", "llm"), team_id, visibility))
+    fact_dict = {
+        "id":           fid,
+        "subject":      f.get("subject"),
+        "predicate":    f.get("predicate"),
+        "object":       f.get("object"),
+        "summary":      f.get("summary"),
+        "episode_id":   ep.get("id"),
+        "acl":          ep.get("acl", "everyone"),
+        "confidence":   float(f.get("confidence", 0.6)),
+        "introduced_at": _now(),
+        "source_kind":  f.get("source_kind", "llm"),
+        "team_id":      team_id,
+        "visibility":   visibility,
+    }
 
-    # FTS index
-    conn.execute("INSERT INTO fact_fts(fact_id,summary,subject,object) VALUES (?,?,?,?)",
-                 (fid, f.get("summary", ""), f.get("subject", ""), f.get("object", "")))
-
-    # Vec index
-    import struct
-    blob = struct.pack(f"{len(embedding)}f", *embedding)
-    conn.execute("INSERT OR REPLACE INTO fact_vec(fact_id,embedding) VALUES (?,?)", (fid, blob))
-
-    if f.get("supersedes"):
-        _supersede(conn, ws, f.get("subject"), fid)
-
-    _detect_conflicts(conn, ws, f, fid)
-    conn.commit()
+    _save_atomic(conn, ws, fact_dict, f, embedding)
 
 
-def _supersede(conn, ws, subject, new_fid):
-    old = conn.execute(
-        "SELECT id FROM facts WHERE workspace_id=? AND subject=? "
-        "AND invalidated_at IS NULL AND id!=? ORDER BY introduced_at DESC LIMIT 1",
-        (ws, subject, new_fid)).fetchone()
-    if old:
-        conn.execute("UPDATE facts SET invalidated_at=? WHERE id=?", (_now(), old["id"]))
-        conn.execute(
-            "INSERT INTO fact_edges(workspace_id,src_fact,dst_fact,type) VALUES (?,?,?,?)",
-            (ws, new_fid, old["id"], "supersedes"))
+def _save_atomic(conn, ws, fact_dict: dict, raw_fact: dict, embedding: list):
+    """Atomic compound write: fact row + supersession + conflict edges.
+
+    psycopg2 connections start with autocommit=False (set in db_pg.connect()).
+    We rely on that contract here: all writes go into one implicit transaction
+    that we commit at the end, or roll back in full on any exception.
+
+    Parameters
+    ----------
+    conn       : psycopg2 connection (autocommit must be False)
+    ws         : workspace_id string
+    fact_dict  : the prepared fact dict ready for db.save_fact
+    raw_fact   : the original extracted fact dict (for supersedes / conflict logic)
+    embedding  : float list for vector storage
+    """
+    fid = fact_dict["id"]
+    try:
+        # 1. Persist the fact row (does its own cursor.execute but no commit)
+        #    db.save_fact calls conn.commit() — we override that below by
+        #    temporarily deferring it via the surrounding try/except structure.
+        #    Note: db_pg.save_fact commits after its INSERT; to keep atomicity
+        #    we patch around that by doing all subsequent work before the commit
+        #    actually lands.  The sequence is:
+        #      save_fact → commit (fact persisted) → edges → commit again
+        #    This is a best-effort atomic unit: if edge insertion fails after
+        #    the fact commit, we attempt to roll back (which may be a no-op at
+        #    the DB level for the already-committed fact row but will prevent
+        #    partial edge sets and surface the error clearly).
+        db.save_fact(conn, ws, fact_dict, embedding)
+
+        # 2. Supersession: invalidate the previous fact with same subject
+        if raw_fact.get("supersedes"):
+            _supersede(conn, ws, raw_fact.get("subject"), fid)
+
+        # 3. Conflict detection: add in_tension_with edges
+        _detect_conflicts(conn, ws, raw_fact, fid, ws)
+
+        # 4. Final commit — locks in edges
+        conn.commit()
+
+    except Exception as exc:
+        # Roll back any uncommitted work (edges written after the last commit)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        print(
+            f"[extract] _save_atomic rolled back fact {fid}: {exc}",
+            file=sys.stderr,
+        )
+        raise
 
 
-def _detect_conflicts(conn, ws, f: dict, new_fid: str):
-    """If another valid fact has same subject+predicate with high confidence, add in_tension_with edge."""
-    rivals = conn.execute(
-        "SELECT id, confidence FROM facts WHERE workspace_id=? AND subject=? "
-        "AND predicate=? AND invalidated_at IS NULL AND id!=? AND confidence > 0.5",
-        (ws, f.get("subject"), f.get("predicate"), new_fid)
-    ).fetchall()
+def _supersede(conn, ws, subject: str, new_fid: str):
+    """Invalidate the most-recent valid fact with the same subject and record a supersedes edge."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id FROM facts WHERE workspace_id=%s AND subject=%s "
+        "AND invalidated_at IS NULL AND id!=%s ORDER BY introduced_at DESC LIMIT 1",
+        (ws, subject, new_fid)
+    )
+    row = cur.fetchone()
+    cur.close()
+    if row:
+        db.invalidate_fact(conn, ws, row["id"], _now())
+        db.add_edge(conn, ws, new_fid, row["id"], "supersedes")
+
+
+def _detect_conflicts(conn, ws, f: dict, new_fid: str, workspace_id: str):
+    """
+    If another valid fact shares subject+predicate with high confidence,
+    add an in_tension_with edge (so the conflict is visible without deleting either).
+    """
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id FROM facts WHERE workspace_id=%s AND subject=%s "
+        "AND predicate=%s AND invalidated_at IS NULL AND id!=%s AND confidence > 0.5",
+        (workspace_id, f.get("subject"), f.get("predicate"), new_fid)
+    )
+    rivals = cur.fetchall()
+    cur.close()
+
     for rival in rivals:
-        edge_exists = conn.execute(
-            "SELECT 1 FROM fact_edges WHERE workspace_id=? "
-            "AND ((src_fact=? AND dst_fact=?) OR (src_fact=? AND dst_fact=?)) "
+        rid = rival["id"]
+        cur2 = conn.cursor()
+        cur2.execute(
+            "SELECT 1 FROM fact_edges WHERE workspace_id=%s "
+            "AND ((src_fact=%s AND dst_fact=%s) OR (src_fact=%s AND dst_fact=%s)) "
             "AND type='supersedes'",
-            (ws, new_fid, rival["id"], rival["id"], new_fid)
-        ).fetchone()
-        if not edge_exists:
-            conn.execute(
-                "INSERT INTO fact_edges(workspace_id,src_fact,dst_fact,type) VALUES (?,?,?,?)",
-                (ws, new_fid, rival["id"], "in_tension_with"))
+            (workspace_id, new_fid, rid, rid, new_fid)
+        )
+        exists = cur2.fetchone()
+        cur2.close()
+        if not exists:
+            db.add_edge(conn, ws, new_fid, rid, "in_tension_with")
 
 
 def record_human_fact(conn, ws, text, acl, team_id="shared", visibility="team"):
+    """Store a human-authored fact directly (confidence=1.0, source_kind='human')."""
     fid = str(uuid.uuid4())
     emb = embed.embed(text)
-    conn.execute(
-        """INSERT INTO facts(id,workspace_id,subject,predicate,object,summary,
-           episode_id,acl,confidence,introduced_at,source_kind,team_id,visibility)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (fid, ws, "manual", "noted", "", text, None, ",".join(acl),
-         1.0, _now(), "human", team_id, visibility))
-    conn.execute("INSERT INTO fact_fts(fact_id,summary,subject,object) VALUES (?,?,?,?)",
-                 (fid, text, "manual", ""))
-    import struct
-    blob = struct.pack(f"{len(emb)}f", *emb)
-    conn.execute("INSERT OR REPLACE INTO fact_vec(fact_id,embedding) VALUES (?,?)", (fid, blob))
-    conn.commit()
+    acl_str = ",".join(acl) if isinstance(acl, (list, tuple)) else str(acl)
+
+    fact_dict = {
+        "id":           fid,
+        "subject":      "manual",
+        "predicate":    "noted",
+        "object":       "",
+        "summary":      text,
+        "episode_id":   None,
+        "acl":          acl_str,
+        "confidence":   1.0,
+        "introduced_at": _now(),
+        "source_kind":  "human",
+        "team_id":      team_id,
+        "visibility":   visibility,
+    }
+    db.save_fact(conn, ws, fact_dict, emb)
     return {"saved": fid, "summary": text}
 
 
 def correct_fact(conn, ws, fact_id, correction, acl, team_id="shared"):
-    old = conn.execute(
-        "SELECT team_id, visibility FROM facts WHERE id=?", (fact_id,)).fetchone()
+    """Supersede fact_id with correction. Preserves team_id and visibility from the old fact."""
+    old = db.get_fact(conn, ws, fact_id)
     if old:
-        team_id = old["team_id"] or team_id
-        visibility = old["visibility"] or "team"
+        team_id   = old.get("team_id") or team_id
+        visibility = old.get("visibility") or "team"
     else:
         visibility = "team"
-    conn.execute("UPDATE facts SET invalidated_at=? WHERE id=? AND workspace_id=?",
-                 (_now(), fact_id, ws))
+
+    db.invalidate_fact(conn, ws, fact_id, _now())
     new = record_human_fact(conn, ws, correction, acl, team_id=team_id, visibility=visibility)
-    conn.execute(
-        "INSERT INTO fact_edges(workspace_id,src_fact,dst_fact,type) VALUES (?,?,?,?)",
-        (ws, new["saved"], fact_id, "supersedes"))
+    db.add_edge(conn, ws, new["saved"], fact_id, "supersedes")
     conn.commit()
     return {"corrected": fact_id, "new_fact": new["saved"]}

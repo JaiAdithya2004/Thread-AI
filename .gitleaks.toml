@@ -1,0 +1,88 @@
+# Gitleaks configuration for Thread / Company Brain
+# Detects API keys, connection strings, JWT secrets, and other credentials.
+# https://github.com/gitleaks/gitleaks
+
+title = "Thread Gitleaks Config"
+
+[extend]
+# Use the official gitleaks default ruleset as a baseline
+useDefault = true
+
+# ── Project-specific rules ────────────────────────────────────────────────────
+
+[[rules]]
+id          = "brain-jwt-secret"
+description = "Potential JWT / Supabase JWT secret"
+regex       = '''(?i)(jwt[_\-]?secret|supabase[_\-]?jwt[_\-]?secret)\s*=\s*['\"]?[A-Za-z0-9+/=]{20,}'''
+tags        = ["jwt", "secret"]
+
+[[rules]]
+id          = "clerk-secret-key"
+description = "Clerk secret key"
+regex       = '''sk_(live|test)_[A-Za-z0-9]{20,}'''
+tags        = ["clerk", "auth"]
+
+[[rules]]
+id          = "postgres-connection-string"
+description = "PostgreSQL connection string with credentials"
+regex       = '''postgres(?:ql)?://[^:]+:[^@]+@[^/\s]+/\S+'''
+tags        = ["database", "credentials"]
+
+[[rules]]
+id          = "openai-api-key"
+description = "OpenAI API key"
+regex       = '''sk-[A-Za-z0-9]{32,}'''
+tags        = ["openai", "llm"]
+
+[[rules]]
+id          = "anthropic-api-key"
+description = "Anthropic / Claude API key"
+regex       = '''sk-ant-[A-Za-z0-9\-_]{20,}'''
+tags        = ["anthropic", "llm"]
+
+[[rules]]
+id          = "composio-api-key"
+description = "Composio API key pattern"
+regex       = '''(?i)(composio[_\-]?api[_\-]?key)\s*=\s*['\"]?[A-Za-z0-9\-_]{20,}'''
+tags        = ["composio", "integration"]
+
+[[rules]]
+id          = "generic-secret-assignment"
+description = "Generic high-entropy secret assignment"
+regex       = '''(?i)(secret|password|passwd|api_key|token|private_key)\s*=\s*['\"][A-Za-z0-9+/!@#$%^&*]{16,}['\"]'''
+tags        = ["generic", "secret"]
+[rules.allowlist]
+regexes = [
+    # Allow test/placeholder values that are obviously fake
+    '''(?i)(test|example|placeholder|your[_\-]?key|xxx|dummy|sample|<[^>]+>)''',
+    # Allow env-var references like $SECRET or ${SECRET}
+    '''\$\{?[A-Z_]+\}?''',
+]
+
+# ── Global allowlist ──────────────────────────────────────────────────────────
+
+[allowlist]
+description = "Allowlist for known-safe patterns"
+paths = [
+    # Test fixtures and mocks are expected to contain fake keys
+    "tests/",
+    # Lock files / dependency metadata
+    ".lock",
+    "*.lock",
+    # Documentation and example files
+    "*.md",
+    "*.example",
+    "*.sample",
+]
+regexes = [
+    # Environment variable references
+    '''\$\{[A-Z_]+\}''',
+    # Pytest stub / mock values
+    '''sk-(test|fake|stub|mock)-''',
+    # Obviously short/fake values in docs
+    '''(?i)(sk-test-123|sk-openai-123|sk-ant-test|test-token-dev|sk-their-key)''',
+]
+commits = []
+stopwords = [
+    "test", "example", "sample", "placeholder", "dummy", "fake", "mock",
+]

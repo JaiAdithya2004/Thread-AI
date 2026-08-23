@@ -1,8 +1,34 @@
+# Python
 .venv/
-brain.db
-.env
 __pycache__/
 *.pyc
+*.pyo
 *.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local DB (dev artifact — use Postgres in prod)
+brain.db
+*.db
+*.sqlite3
+
+# Secrets
+.env
 token_*.json
+
+# Evals output
 evals/results.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Build
+dist/
+build/
+
+# Migration checkpoints (resume state — never commit)
+scripts/.reembed_progress.json

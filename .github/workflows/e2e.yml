@@ -1,0 +1,65 @@
+name: E2E Tests (Playwright)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: brain
+          POSTGRES_PASSWORD: brain_local
+          POSTGRES_DB: brain
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+
+    env:
+      DATABASE_URL:     postgresql://brain:brain_local@localhost:5432/brain
+      REDIS_URL:        redis://localhost:6379
+      BRAIN_ENV:        development
+      BRAIN_DEV_BYPASS: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: |
+          pip install playwright pytest-playwright
+          playwright install chromium --with-deps
+
+      - name: Run E2E journeys (headless)
+        run: pytest tests/e2e/ -v --tb=short --headed=false
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Upload screenshots + traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-artifacts
+          path: /tmp/pytest-*/test_*/
+          retention-days: 7
