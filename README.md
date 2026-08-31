@@ -118,7 +118,8 @@ Multi-tenancy is enforced in the database, not only in application code — a bu
 | **Private chat threads** | `conversations` and `messages` use **FORCE** row-level security and drop to a non-`BYPASSRLS` role, so not even the table owner can read another user's threads. Admins cannot read employee chats. |
 | **Identity** | Always derived server-side from the authenticated session. Never read from a request body, query string, or header. |
 | **Fact-level access** | Each fact carries an ACL and a team; visibility is `team` or `shared`. |
-| **Secrets** | Loaded from environment only — never stored in the database, logged, or returned in a response. |
+| **Secrets** | Platform keys are loaded from environment only — never stored in the database, logged, or returned in a response. |
+| **Customer keys at rest** | Customer-supplied LLM keys are Fernet-encrypted (AES-128-CBC + HMAC-SHA256) before they reach the database, under a master key held in `BRAIN_KEY_ENCRYPTION_KEY`. Decryption fails closed: a missing or wrong master key yields an empty string rather than ciphertext. The read endpoint returns booleans only, never key values. |
 | **Platform metrics** | Gated behind a `BRAIN_PLATFORM_OWNER` env flag, not a customer role, so no customer admin can reach cross-tenant figures. |
 | **Dev auth bypass** | Refuses to start if enabled while `BRAIN_ENV=production`. |
 | **Error responses** | 5xx details are logged server-side and returned opaque, so driver text and schema names never reach a client. |
@@ -250,7 +251,7 @@ Connectors re-deliver the same message on re-sync and webhook replay. Hashing co
 
 Stated plainly, because knowing what isn't built matters as much as what is:
 
-- **BYO API keys are stored in plaintext.** Envelope encryption with a KMS is designed but not implemented — the column exists, the wrapping does not.
+- **Key encryption uses a single environment-held master key**, not a managed KMS. There is no automated key rotation — rotating `BRAIN_KEY_ENCRYPTION_KEY` requires customers to re-enter their keys.
 - **No SSO or SCIM.** Authentication is Clerk-based; there is no SAML or directory provisioning.
 - **No data residency controls.** The deployment region is wherever it's hosted; there's no per-tenant region selection.
 - **No SOC 2 attestation.** The controls above are real and tested, but no third-party audit has been performed.

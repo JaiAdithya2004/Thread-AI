@@ -190,3 +190,55 @@ def test_plan_credits_config_matches_seeds():
 def test_credit_usd_cost_is_sensible():
     from brain.config import CREDIT_USD_COST
     assert 0 < CREDIT_USD_COST <= 0.01  # between $0 and $0.01 per credit
+
+
+# ── BYO-key encryption at rest ────────────────────────────────────────────────
+
+@pytest.fixture
+def _enc_key(monkeypatch):
+    """Configure a master key and reset the cached Fernet instance."""
+    from cryptography.fernet import Fernet
+    from brain.core import db_pg as pg
+    monkeypatch.setenv("BRAIN_KEY_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setattr(pg, "_fernet", None)
+    monkeypatch.setattr(pg, "_fernet_checked", False)
+    return pg
+
+
+def test_byo_key_ciphertext_does_not_contain_plaintext(_enc_key):
+    """The stored value must not contain the secret it protects."""
+    secret = "sk-proj-do-not-leak-me"
+    stored = _enc_key._encrypt_secret(secret)
+    assert secret not in stored
+    assert stored.startswith("enc:v1:")
+
+
+def test_byo_key_encryption_round_trips(_enc_key):
+    secret = "sk-ant-abc123"
+    assert _enc_key._decrypt_secret(_enc_key._encrypt_secret(secret)) == secret
+
+
+def test_byo_key_reads_legacy_plaintext_rows(_enc_key):
+    """Rows written before encryption existed must still be readable."""
+    assert _enc_key._decrypt_secret("sk-written-before-encryption") == \
+        "sk-written-before-encryption"
+
+
+def test_byo_key_wrong_master_key_fails_closed(_enc_key, monkeypatch):
+    """A key that cannot be decrypted returns empty, never ciphertext."""
+    from cryptography.fernet import Fernet
+    stored = _enc_key._encrypt_secret("sk-secret")
+    monkeypatch.setenv("BRAIN_KEY_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setattr(_enc_key, "_fernet", None)
+    monkeypatch.setattr(_enc_key, "_fernet_checked", False)
+    assert _enc_key._decrypt_secret(stored) == ""
+
+
+def test_byo_key_malformed_master_key_raises(monkeypatch):
+    """A bad master key must fail loudly, not silently store plaintext."""
+    from brain.core import db_pg as pg
+    monkeypatch.setenv("BRAIN_KEY_ENCRYPTION_KEY", "not-a-valid-fernet-key")
+    monkeypatch.setattr(pg, "_fernet", None)
+    monkeypatch.setattr(pg, "_fernet_checked", False)
+    with pytest.raises(RuntimeError):
+        pg._encrypt_secret("sk-secret")

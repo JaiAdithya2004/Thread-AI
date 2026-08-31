@@ -390,8 +390,9 @@ def migrate(conn):
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS subs_acct ON subscriptions(account_id);")
 
-    # workspace_llm_keys — BYO-key: encrypted at-rest (envelope encryption not yet
-    # implemented; stored as plaintext in this MVP — Phase 3 adds KMS wrapping)
+    # workspace_llm_keys — BYO customer LLM keys. api_key holds Fernet ciphertext
+    # (see _encrypt_secret); the master key lives in BRAIN_KEY_ENCRYPTION_KEY and
+    # is never stored in this database.
     cur.execute("""
         CREATE TABLE IF NOT EXISTS workspace_llm_keys (
             id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
@@ -1157,8 +1158,80 @@ def get_seat_count(account_id: str) -> int:
         return 0
 
 
+# ---------------------------------------------------------------------------
+# BYO-key encryption at rest
+#
+# Customer LLM keys are encrypted with Fernet (AES-128-CBC + HMAC-SHA256)
+# before they touch the database, so a dump or a read-replica leak does not
+# expose usable credentials. The master key comes from BRAIN_KEY_ENCRYPTION_KEY
+# in the environment and is never stored alongside the data it protects.
+#
+# Ciphertext is stored with an "enc:v1:" prefix. Values without that prefix are
+# plaintext written before encryption existed; they are still readable and are
+# transparently re-encrypted the next time they are written.
+# ---------------------------------------------------------------------------
+
+_ENC_PREFIX = "enc:v1:"
+_fernet = None
+_fernet_checked = False
+
+
+def _get_fernet():
+    """Return a Fernet instance, or None when no master key is configured."""
+    global _fernet, _fernet_checked
+    if _fernet_checked:
+        return _fernet
+    _fernet_checked = True
+    import os as _os
+    raw = _os.getenv("BRAIN_KEY_ENCRYPTION_KEY", "").strip()
+    if not raw:
+        print("[thread] WARNING: BRAIN_KEY_ENCRYPTION_KEY is not set — customer LLM "
+              "keys will be stored in plaintext. Generate one with: python -c "
+              "\"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"",
+              file=sys.stderr)
+        return None
+    try:
+        from cryptography.fernet import Fernet
+        _fernet = Fernet(raw.encode() if isinstance(raw, str) else raw)
+    except Exception as e:
+        # A malformed master key must not silently downgrade to plaintext.
+        raise RuntimeError(
+            "BRAIN_KEY_ENCRYPTION_KEY is set but invalid — it must be a 32-byte "
+            "url-safe base64 Fernet key."
+        ) from e
+    return _fernet
+
+
+def _encrypt_secret(value: str) -> str:
+    """Encrypt a secret for storage. Returns the value unchanged if no key is set."""
+    if not value:
+        return value
+    f = _get_fernet()
+    if f is None:
+        return value
+    return _ENC_PREFIX + f.encrypt(value.encode()).decode()
+
+
+def _decrypt_secret(stored: str) -> str:
+    """Decrypt a stored secret, tolerating pre-encryption plaintext rows."""
+    if not stored or not stored.startswith(_ENC_PREFIX):
+        return stored or ""      # legacy plaintext row
+    f = _get_fernet()
+    if f is None:
+        # Encrypted data with no key available — fail closed rather than
+        # returning ciphertext that would be sent to a provider as a credential.
+        print("[thread] ERROR: stored key is encrypted but BRAIN_KEY_ENCRYPTION_KEY "
+              "is not set; cannot decrypt.", file=sys.stderr)
+        return ""
+    try:
+        return f.decrypt(stored[len(_ENC_PREFIX):].encode()).decode()
+    except Exception as e:
+        print(f"[thread] ERROR: failed to decrypt stored key: {e}", file=sys.stderr)
+        return ""
+
+
 def get_byo_key(account_id: str, provider: str) -> str:
-    """Return the BYO API key for this account+provider, or '' if none."""
+    """Return the decrypted BYO API key for this account+provider, or '' if none."""
     if not account_id:
         return ""
     try:
@@ -1171,7 +1244,7 @@ def get_byo_key(account_id: str, provider: str) -> str:
             )
             row = cur.fetchone()
             cur.close()
-            return (row or {}).get("api_key", "") or ""
+            return _decrypt_secret((row or {}).get("api_key", "") or "")
         finally:
             conn.close()
     except Exception:
@@ -1179,7 +1252,7 @@ def get_byo_key(account_id: str, provider: str) -> str:
 
 
 def upsert_byo_key(account_id: str, provider: str, api_key: str, created_by: str):
-    """Save or replace BYO key for account+provider."""
+    """Encrypt and save (or replace) the BYO key for account+provider."""
     conn = connect()
     try:
         cur = conn.cursor()
@@ -1190,7 +1263,7 @@ def upsert_byo_key(account_id: str, provider: str, api_key: str, created_by: str
                 api_key    = EXCLUDED.api_key,
                 created_by = EXCLUDED.created_by,
                 created_at = now()
-        """, (account_id, provider, api_key, created_by))
+        """, (account_id, provider, _encrypt_secret(api_key), created_by))
         conn.commit()
         cur.close()
     finally:
