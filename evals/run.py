@@ -16,11 +16,22 @@ Connects to Postgres directly via DATABASE_URL (server does not need to be runni
 import argparse
 import json
 import math
+import sys
 import time
 from pathlib import Path
 from typing import Optional
 
 import yaml
+
+# The scorecard uses box-drawing and check/cross glyphs. On Windows the console
+# defaults to cp1252, which cannot encode them — printing one raised
+# UnicodeEncodeError mid-run and destroyed the whole eval. Force UTF-8 on the
+# streams we write to, and fall back to replacement characters if that fails.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 
 # ── Metric helpers ────────────────────────────────────────────────────────────
@@ -528,12 +539,28 @@ def main():
 
     t0 = time.perf_counter()
     results = []
+    errored = 0
     for i, q in enumerate(questions, 1):
         print(f"  [{i:02d}/{len(questions)}] {q['id']} — {q['question'][:55]}", end="", flush=True)
-        r = _run_question(brain, q, k=args.k, run_faithfulness=run_faithfulness)
+        try:
+            r = _run_question(brain, q, k=args.k, run_faithfulness=run_faithfulness)
+        except Exception as e:
+            # One provider hiccup must not destroy a 28-question run. Record the
+            # failure and keep going; the scorecard reports how many errored so
+            # a degraded run is never mistaken for a clean one.
+            errored += 1
+            print(f"  ERROR  ({type(e).__name__}: {str(e)[:80]})")
+            continue
         icon = "✓" if r["passed"] else "✗"
         print(f"  {icon}  ({r['latency_s']}s)")
         results.append(r)
+
+    if errored:
+        print(f"\nWARNING: {errored}/{len(questions)} questions errored and are "
+              f"excluded from the scores below.")
+    if not results:
+        print("No questions completed successfully — no scorecard to report.")
+        return
 
     total_time = time.perf_counter() - t0
     agg = _aggregate(results, k=args.k)
@@ -546,6 +573,7 @@ def main():
         "workspace":    ws,
         "k":            args.k,
         "n_questions":  len(results),
+        "n_errored":    errored,
         "fact_count":   fact_count,
         "vec_count":    vec_count,
         "total_time_s": round(total_time, 2),
