@@ -38,6 +38,9 @@ jobs:
       - run: pip install -e .
       - run: pytest tests/test_auth.py tests/test_validation.py tests/test_llm.py tests/test_metering.py -v --tb=short
       - run: pytest tests/test_extraction.py tests/test_retrieval.py -v --tb=short -k "not pg"
+      # Architectural guards: config/schema/migration consistency. No DB or LLM
+      # needed, so they run here rather than in the integration job.
+      - run: pytest tests/test_regression.py::TestArchitecturalGuards -v --tb=short
 
   integration-tests:
     runs-on: ubuntu-latest

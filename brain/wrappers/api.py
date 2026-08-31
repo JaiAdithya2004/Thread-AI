@@ -1370,13 +1370,11 @@ def get_byo_key_status(identity: Identity = Depends(require_admin)):
     from brain.core import db_pg as _pg
     account_id = _resolve_account_id(identity.user_id)
     providers = ("openai", "anthropic", "gemini")
-    configured = {}
-    for _prov in providers:
-        try:
-            configured[_prov] = bool(_pg.get_byo_key(account_id, _prov))
-        except Exception:
-            configured[_prov] = False
-    return {"configured": configured}
+    try:
+        found = _pg.get_byo_keys(account_id, providers)   # one connection, not three
+    except Exception:
+        found = {}
+    return {"configured": {p: bool(found.get(p)) for p in providers}}
 
 
 class _ProvisionRequest(BaseModel):

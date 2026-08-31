@@ -111,12 +111,15 @@ _ctx: dict = {}
 def _load_byo_key(account_id: str):
     """Load the BYO API key for this account and stash it in _ctx."""
     try:
-        from brain.core.db_pg import get_byo_key
-        for provider in ("openai", "anthropic", "gemini"):
-            key = get_byo_key(account_id, provider)
-            if key:
+        # One query for all providers: looping get_byo_key would take a separate
+        # pooled connection per provider while the request already holds one.
+        from brain.core.db_pg import get_byo_keys
+        providers = ("openai", "anthropic", "gemini")
+        found = get_byo_keys(account_id, providers)
+        for provider in providers:          # preserve preference order
+            if found.get(provider):
                 _ctx["byo_provider"] = provider
-                _ctx["byo_key"]      = key
+                _ctx["byo_key"]      = found[provider]
                 return
     except Exception as e:
         print(f"[thread] BYO key load failed (non-fatal): {e}", file=sys.stderr)

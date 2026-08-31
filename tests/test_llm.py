@@ -79,11 +79,45 @@ def test_extract_usage_skips_on_no_usage(monkeypatch):
 def test_load_byo_key_stashes_in_ctx(monkeypatch):
     from brain.core import llm
     _reset_ctx()
-    monkeypatch.setattr("brain.core.db_pg.get_byo_key",
-                        lambda acct, prov: "sk-openai-123" if prov == "openai" else "")
+    monkeypatch.setattr("brain.core.db_pg.get_byo_keys",
+                        lambda acct, provs: {"openai": "sk-openai-123"})
     llm._load_byo_key("acct_1")
     assert llm._ctx["byo_provider"] == "openai"
     assert llm._ctx["byo_key"]      == "sk-openai-123"
+    _reset_ctx()
+
+
+def test_load_byo_key_uses_one_query(monkeypatch):
+    """Key lookup must take a single DB round-trip.
+
+    Looping per provider took a pooled connection each time while the request
+    handler already held one, which exhausted the pool under load.
+    """
+    from brain.core import llm
+    _reset_ctx()
+    calls = []
+
+    def _batch(acct, provs):
+        calls.append(acct)
+        return {"gemini": "sk-gem-1"}
+
+    monkeypatch.setattr("brain.core.db_pg.get_byo_keys", _batch)
+    llm._load_byo_key("acct_1")
+    assert len(calls) == 1, f"expected 1 lookup, made {len(calls)}"
+    assert llm._ctx["byo_provider"] == "gemini"
+    _reset_ctx()
+
+
+def test_load_byo_key_prefers_openai_over_others(monkeypatch):
+    """When several providers have keys, preference order must be preserved."""
+    from brain.core import llm
+    _reset_ctx()
+    monkeypatch.setattr(
+        "brain.core.db_pg.get_byo_keys",
+        lambda acct, provs: {"gemini": "sk-gem", "openai": "sk-oai", "anthropic": "sk-ant"},
+    )
+    llm._load_byo_key("acct_1")
+    assert llm._ctx["byo_provider"] == "openai"
     _reset_ctx()
 
 

@@ -1251,6 +1251,40 @@ def get_byo_key(account_id: str, provider: str) -> str:
         return ""
 
 
+def get_byo_keys(account_id: str, providers: tuple) -> dict:
+    """Return {provider: decrypted_key} for the providers that have one set.
+
+    Single round-trip on one pooled connection. Callers that need several
+    providers must use this rather than calling get_byo_key in a loop, which
+    would take a separate connection per provider and can exhaust the pool
+    while the request handler is already holding one.
+    """
+    if not account_id or not providers:
+        return {}
+    try:
+        conn = connect()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT provider, api_key FROM workspace_llm_keys "
+                "WHERE account_id=%s AND provider = ANY(%s)",
+                (account_id, list(providers)),
+            )
+            rows = cur.fetchall() or []
+            cur.close()
+            out = {}
+            for r in rows:
+                r = dict(r)
+                val = _decrypt_secret(r.get("api_key") or "")
+                if val:
+                    out[r["provider"]] = val
+            return out
+        finally:
+            conn.close()
+    except Exception:
+        return {}
+
+
 def upsert_byo_key(account_id: str, provider: str, api_key: str, created_by: str):
     """Encrypt and save (or replace) the BYO key for account+provider."""
     conn = connect()

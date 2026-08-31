@@ -20,6 +20,7 @@ from brain.core.db_pg import (  # noqa: F401
     get_credits_used_this_month,
     get_seat_count,
     get_byo_key,
+    get_byo_keys,
     upsert_byo_key,
     delete_byo_key,
     ensure_free_subscription,

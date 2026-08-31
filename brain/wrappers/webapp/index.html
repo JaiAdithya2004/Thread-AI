@@ -833,7 +833,23 @@ const SRC_ICONS = {
   notion:  `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>`,
   human:   `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>`,
 };
-function srcIcon(s){ return SRC_ICONS[s]||SRC_ICONS.gdoc; }
+// Episode sources are stored as "<provider>:<app>" (e.g. "composio:gmail").
+// The integration provider is an internal implementation detail and must never
+// be shown to users — display the app alone.
+function baseSource(s){
+  const v=String(s||'');
+  const i=v.indexOf(':');
+  return (i>=0?v.slice(i+1):v).toLowerCase();
+}
+function prettySource(s){
+  const b=baseSource(s);
+  if(!b) return 'Company memory';
+  const NAMES={gmail:'Gmail',slack:'Slack',notion:'Notion',github:'GitHub',
+               gdrive:'Google Drive',gdoc:'Google Docs',linear:'Linear',
+               jira:'Jira',calendar:'Calendar'};
+  return NAMES[b]||b.charAt(0).toUpperCase()+b.slice(1);
+}
+function srcIcon(s){ const b=baseSource(s); return SRC_ICONS[b]||SRC_ICONS[s]||SRC_ICONS.gdoc; }
 function fmtDate(s){
   if(!s) return '';
   const d=new Date(s); if(isNaN(d)) return String(s).slice(0,10);
@@ -1692,7 +1708,7 @@ function buildAnswerCard(result){
 
   const rows=facts.map(f=>{
     const stale=f.status==='stale';
-    const srcName=f.ep_source?f.ep_source.charAt(0).toUpperCase()+f.ep_source.slice(1):(f.source==='human'?'Human record':'Company memory');
+    const srcName=f.ep_source?prettySource(f.ep_source):(f.source==='human'?'Human record':'Company memory');
     const srcDate=f.ep_occurred_at?', '+fmtDate(f.ep_occurred_at):'';
     const statusPill=stale?`<span class="pill pill-stale">superseded</span>`:`<span class="pill pill-current">current</span>`;
     const sharedPill=f.visibility==='shared'?`<span class="pill pill-shared">shared</span>`:'';
