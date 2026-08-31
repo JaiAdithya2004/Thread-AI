@@ -249,6 +249,21 @@ def correct_fact(
     if not correction:
         return json.dumps({"error": "correction must not be empty"})
     try:
+        # Ownership check: fact must exist in this workspace and the caller must
+        # appear in its ACL (or the ACL must be "everyone").
+        from brain.core import db as _db
+        fact = _db.get_fact(_brain.conn, _brain.ws, fact_id)
+        if not fact:
+            return json.dumps({"error": "fact not found"})
+        acl = set((fact.get("acl") or "everyone").split(","))
+        caller_allowed = (
+            "everyone" in acl
+            or _brain.caller in acl
+            or any(p in acl for p in _brain.principals)
+        )
+        if not caller_allowed:
+            return json.dumps({"error": "not authorized to correct this fact"})
+
         result = _brain.correct(fact_id, correction)
         return json.dumps(result)
     except Exception as e:

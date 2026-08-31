@@ -39,10 +39,13 @@ class SlackConnector(Connector):
             episodes.extend(self._fetch_channel(ch))
         return episodes
 
-    def poll(self):
-        """Fetch messages from the past 24 hours."""
+    def poll(self, since: datetime.datetime = None):
+        """Fetch messages since `since` (datetime) or the past 24 hours if None."""
         import time
-        oldest = str(time.time() - 86_400)
+        if since is not None:
+            oldest = str(since.timestamp())
+        else:
+            oldest = str(time.time() - 86_400)
         episodes = []
         for ch in self._list_channels():
             episodes.extend(self._fetch_channel(ch, oldest=oldest))

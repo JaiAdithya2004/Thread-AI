@@ -6,6 +6,10 @@ def _auto_model():
     explicit = os.getenv("BRAIN_LLM_MODEL")
     if explicit:
         return explicit
+    if os.getenv("OPENROUTER_API_KEY"):
+        return "openrouter/google/gemma-4-31b-it:free"
+    if os.getenv("MOONSHOT_API_KEY"):
+        return "moonshot/moonshot-v1-8k"
     if os.getenv("GROK_API_KEY"):
         return "openai/grok-3-mini"
     if os.getenv("ANTHROPIC_API_KEY"):
@@ -26,6 +30,10 @@ def _auto_synth_model():
         return "claude-3-5-sonnet-20241022"
     if os.getenv("OPENAI_API_KEY"):
         return "gpt-4o"
+    if os.getenv("MOONSHOT_API_KEY"):
+        return "moonshot/moonshot-v1-8k"
+    if os.getenv("OPENROUTER_API_KEY"):
+        return "openrouter/google/gemma-4-31b-it:free"
     return LLM_MODEL
 
 # Supabase Auth — set both to enable JWT verification in production.
@@ -59,6 +67,12 @@ RERANK_MODEL: str = os.getenv("BRAIN_RERANK_MODEL", "BAAI/bge-reranker-base")
 # caching
 REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
 CACHE_TTL: int = 300
+
+# webhook ingestion
+COMPOSIO_WEBHOOK_SECRET: str = os.getenv("COMPOSIO_WEBHOOK_SECRET", "")
+
+# background sync intervals
+BRAIN_RECONCILE_INTERVAL_MINUTES: int = int(os.getenv("BRAIN_RECONCILE_INTERVAL_MINUTES", "60"))
 
 # embedding — Gemini gemini-embedding-001 (768-dim, MRL-truncated, L2-normalized)
 EMBED_BATCH_SIZE: int = 64  # controls Gemini batchEmbedContents batch size
@@ -109,6 +123,11 @@ MODEL_PRICES: dict = {
     "gemini/gemini-2.5-flash":       (0.00015, 0.0006),
     "gemini/gemini-2.5-pro":         (0.00125, 0.005),
     "gemini/gemini-2.5-flash-lite":  (0.000075, 0.0003),
+    # OpenRouter free models
+    "openrouter/meta-llama/llama-3.1-8b-instruct:free": (0.0, 0.0),
+    # Moonshot / Kimi
+    "moonshot/moonshot-v1-8k":  (0.0012, 0.0012),
+    "moonshot/moonshot-v1-32k": (0.0024, 0.0024),
     # fallback — unknown model
     "default":                       (0.001, 0.002),
 }
@@ -138,16 +157,28 @@ PLATFORM_OWNER: bool = os.getenv("BRAIN_PLATFORM_OWNER", "false").lower() in ("1
 
 def _task_routes() -> dict:
     """Build per-task routing based on which API keys are present."""
+    openrouter = bool(os.getenv("OPENROUTER_API_KEY"))
+    moonshot = bool(os.getenv("MOONSHOT_API_KEY"))
     gemini  = bool(os.getenv("GEMINI_API_KEY"))
     openai  = bool(os.getenv("OPENAI_API_KEY"))
     anthro  = bool(os.getenv("ANTHROPIC_API_KEY"))
     grok    = bool(os.getenv("GROK_API_KEY"))
 
-    # Primary: prefer Gemini (free); fallback: OpenAI if available, else same model
+    _OR_EXTRACT = "openrouter/google/gemma-4-31b-it:free"
+    _OR_SYNTH   = "openrouter/google/gemma-4-31b-it:free"
+    _MS_MODEL   = "moonshot/moonshot-v1-8k"
+
     def _pair(gem_model, oai_model, anthro_model):
         if gemini:
+            # Gemini is primary (reliable daily quota); OpenRouter is fallback
             primary = f"gemini/{gem_model}"
-            fallback = f"openai/{oai_model}" if openai else (f"anthropic/{anthro_model}" if anthro else primary)
+            fallback = _OR_EXTRACT if openrouter else primary
+        elif openrouter:
+            primary = _OR_EXTRACT
+            fallback = primary
+        elif moonshot:
+            primary = _MS_MODEL
+            fallback = primary
         elif openai:
             primary = f"openai/{oai_model}"
             fallback = f"gemini/{gem_model}" if gemini else primary
@@ -162,8 +193,32 @@ def _task_routes() -> dict:
             fallback = primary
         return primary, fallback
 
+    def _pair_synth(gem_model, oai_model, anthro_model):
+        if gemini:
+            primary = f"gemini/{gem_model}"
+            fallback = _OR_SYNTH if openrouter else primary
+        elif openrouter:
+            primary = _OR_SYNTH
+            fallback = primary
+        elif moonshot:
+            primary = _MS_MODEL
+            fallback = primary
+        elif openai:
+            primary = f"openai/{oai_model}"
+            fallback = primary
+        elif anthro:
+            primary = f"anthropic/{anthro_model}"
+            fallback = primary
+        elif grok:
+            primary = "openai/grok-3-mini"
+            fallback = primary
+        else:
+            primary = "gpt-4o-mini"
+            fallback = primary
+        return primary, fallback
+
     extract_p, extract_f = _pair("gemini-2.5-flash", "gpt-4o-mini", "claude-haiku-4-5-20251001")
-    synth_p,   synth_f   = _pair("gemini-2.5-flash", "gpt-4o",      "claude-3-5-sonnet-20241022")
+    synth_p,   synth_f   = _pair_synth("gemini-2.5-flash", "gpt-4o", "claude-3-5-sonnet-20241022")
 
     return {
         "extract": {
@@ -232,7 +287,8 @@ def startup_check() -> None:
         _check("CLERK_SECRET_KEY", os.getenv("CLERK_SECRET_KEY", ""), required_in_prod=True)
     _check("LLM key (any)",
            next((os.getenv(k, "") for k in
-                 ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GROK_API_KEY", "GEMINI_API_KEY")
+                 ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GROK_API_KEY",
+                  "GEMINI_API_KEY", "OPENROUTER_API_KEY", "MOONSHOT_API_KEY")
                  if os.getenv(k)), ""),
            required_in_prod=True)
     _check("SLACK_BOT_TOKEN",   os.getenv("SLACK_BOT_TOKEN", ""))

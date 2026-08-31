@@ -1,0 +1,82 @@
+# Regression thresholds — the quality floor for every metric.
+#
+# A benchmark run fails if any metric drops MORE than `tolerance` below
+# the stored baseline.  Tolerances are intentionally generous for early-stage;
+# tighten them as the platform matures.
+#
+# Metric semantics (all 0.0–1.0 unless noted):
+#   hit_at_k          — fraction of answerable questions where a keyword-relevant
+#                       fact appears in the top-k retrieved results
+#   precision_at_k    — fraction of retrieved facts that are keyword-relevant
+#   recall_at_k       — fraction of relevant facts that are in top-k
+#   mrr               — mean reciprocal rank of first relevant result
+#   ndcg_at_k         — normalized discounted cumulative gain
+#   answer_correct    — fraction of answerable questions where synthesized answer
+#                       contains the expected substring
+#   keyword_hit_rate  — fraction of answerable questions where any retrieved fact
+#                       summary contains a keyword from expected_fact_keywords
+#   faithfulness_rate — fraction of synthesized answers judged faithful by LLM
+#   abstention_accuracy — fraction of unanswerable questions correctly abstained
+#   mean_latency_s    — seconds (lower is better; threshold is a MAX, not MIN)
+#   p95_latency_s     — p95 latency seconds (MAX)
+#
+# tolerance:  how much a metric may drop below baseline before flagged as regression
+#             0.05 means "5 percentage points below baseline is acceptable"
+# min_value:  hard floor regardless of baseline (catches catastrophic collapse)
+# direction:  "higher_is_better" or "lower_is_better"
+
+metrics:
+  hit_at_k:
+    direction: higher_is_better
+    tolerance: 0.10
+    min_value: 0.50
+
+  precision_at_k:
+    direction: higher_is_better
+    tolerance: 0.10
+    min_value: 0.20
+
+  recall_at_k:
+    direction: higher_is_better
+    tolerance: 0.10
+    min_value: 0.30
+
+  mrr:
+    direction: higher_is_better
+    tolerance: 0.10
+    min_value: 0.30
+
+  ndcg_at_k:
+    direction: higher_is_better
+    tolerance: 0.10
+    min_value: 0.30
+
+  answer_correct_rate:
+    direction: higher_is_better
+    tolerance: 0.10
+    min_value: 0.50
+
+  keyword_hit_rate:
+    direction: higher_is_better
+    tolerance: 0.10
+    min_value: 0.50
+
+  faithfulness_rate:
+    direction: higher_is_better
+    tolerance: 0.08
+    min_value: 0.70
+
+  abstention_accuracy:
+    direction: higher_is_better
+    tolerance: 0.10
+    min_value: 0.60
+
+  mean_latency_s:
+    direction: lower_is_better
+    tolerance: 2.0        # seconds; regression if mean latency increases by >2s
+    min_value: null       # no hard floor for latency
+
+  p95_latency_s:
+    direction: lower_is_better
+    tolerance: 5.0        # seconds
+    min_value: null

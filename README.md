@@ -1,92 +1,135 @@
 # Thread
 
-AI memory layer for your company. Connects to Slack and 1,000+ apps, extracts facts, and answers questions with sources — over a web UI, MCP, or CLI.
+**AI memory layer for software teams.** Thread connects to the tools your team already uses, extracts facts from conversations and documents, and answers questions with cited sources - over a web UI, an MCP server, or a REST API.
 
----
+## What it does
 
-## Quick Start
+- **Hybrid retrieval** - combines vector search (pgvector HNSW, 768-dim Gemini embeddings) with Postgres full-text search, fused via Reciprocal Rank Fusion
+- **Automatic fact extraction** - ingests episodes from Slack, Gmail, Notion, Drive, and 1,000+ apps; extracts structured facts with deduplication
+- **Source citations** - every answer includes the exact facts used and where they came from
+- **MCP server** - plugs into Claude Code, Cursor, and any MCP-compatible agent; facts inject automatically on every prompt
+- **Team scoping** - workspace and team-level isolation; facts are only visible to the right people
+- **Circuit breakers + caching** - Redis response cache, LLM circuit breaker, graceful degradation when APIs are down
+
+## Project structure
+
+```
+brain/                      # Core Python package
+  config.py                 # All env var loading and defaults
+  engine.py                 # Brain class - single public API surface
+  auth.py                   # JWT + API key authentication
+  worker.py                 # Background ingestion queue
+
+  core/
+    db.py                   # Re-exports db_pg (all DB access goes here)
+    db_pg.py                # Postgres + pgvector backend
+    embed.py                # Gemini embedding client (768-dim)
+    extract.py              # Document parsing and fact extraction
+    ingest.py               # Episode dedup + ingestion pipeline
+    retrieve.py             # Hybrid search + RRF + answer synthesis
+    llm.py                  # LiteLLM wrapper (any provider, metered)
+    resilience.py           # Circuit breakers, retry decorators
+    metrics.py              # Prometheus instrumentation
+    connectors/
+      slack.py              # Slack connector (direct)
+      composio.py           # 1,000+ app connector via Composio
+
+  wrappers/
+    api.py                  # FastAPI REST server
+    mcp_server.py           # MCP server for Claude Code / Cursor
+    cli.py                  # CLI (brain search / backfill / log)
+    slack_bot.py            # Slack bot (Bolt)
+    hooks/
+      claude_code_hook.py   # UserPromptSubmit + Stop lifecycle hooks
+    webapp/
+      index.html            # Single-page web UI
+      landing.html          # Marketing landing page
+
+api/                        # Vercel serverless entrypoint
+migrations/                 # Alembic schema migrations (4 versions)
+scripts/                    # Ops and benchmark utilities
+tests/                      # pytest suite
+evals/                      # Retrieval quality eval harness
+docs/                       # Architecture and ops runbooks
+```
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Language | Python 3.11 |
+| Web framework | FastAPI |
+| Database | PostgreSQL + pgvector (Supabase or self-hosted) |
+| Embeddings | Google Gemini (`gemini-embedding-001`, 768-dim) |
+| Vector index | pgvector HNSW (`m=16, ef_construction=64`) |
+| LLM routing | LiteLLM (Gemini / OpenAI / Anthropic) |
+| Auth | Clerk (JWT + API keys) |
+| Cache | Redis |
+| Deployment | Vercel (API) + Supabase (DB) |
+| Agent protocol | MCP (Model Context Protocol) |
+
+## Quick start
 
 ### 1. Install dependencies
-```
+
+```bash
 pip install -e .
 ```
 
-### 2. Configure `.env`
+### 2. Configure environment
 
-Copy `.env.example` to `.env` and fill in your values.
-
-**Required — pick one LLM provider:**
-
-| Provider | Where to get it | `.env` key |
-|---|---|---|
-| Gemini (free) | [aistudio.google.com](https://aistudio.google.com) → Get API key | `GEMINI_API_KEY=` |
-| OpenAI | [platform.openai.com](https://platform.openai.com) → API keys | `OPENAI_API_KEY=` |
-| Anthropic | [console.anthropic.com](https://console.anthropic.com) → API keys | `ANTHROPIC_API_KEY=` |
-| xAI Grok | [console.x.ai](https://console.x.ai) → API keys | `GROK_API_KEY=` |
-
-**Required for production database (Supabase):**
-1. Create project at [supabase.com](https://supabase.com)
-2. Settings → Database → URI (use the pooler URI, port 6543) → paste as `DATABASE_URL=`
-3. Set `BRAIN_DB_BACKEND=postgres`
-
-**Authentication (multi-user):**
-1. Create app at [dashboard.clerk.com](https://dashboard.clerk.com)
-2. API Keys → copy `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`
-3. Set `BRAIN_ENV=production` when deploying
-
-**Connectors:**
-
-| What | `.env` key | Where to get it |
-|---|---|---|
-| Slack | `SLACK_BOT_TOKEN=` | [api.slack.com](https://api.slack.com) → Your Apps |
-| 1,000+ apps (Gmail, Notion, GitHub…) | `COMPOSIO_API_KEY=` | [app.composio.dev](https://app.composio.dev) → Settings → API Keys |
-
-### 3. Start the server
-
+```bash
+cp .env.example .env
 ```
+
+Required variables:
+
+```env
+# Database (Supabase or self-hosted Postgres)
+DATABASE_URL=postgresql://user:pass@host:5432/db
+
+# Embeddings (required)
+GEMINI_API_KEY=your_key_here
+
+# LLM for synthesis (pick one)
+GEMINI_API_KEY=...
+OPENAI_API_KEY=...
+ANTHROPIC_API_KEY=...
+```
+
+See `.env.example` for the full list including connectors, auth, and Redis.
+
+### 3. Run migrations
+
+```bash
+alembic upgrade head
+```
+
+### 4. Start the server
+
+```bash
 python -m brain.wrappers.api
 ```
 
-Or on Windows, double-click `start.bat`.
+Opens at `http://localhost:7070`
 
-Opens at **http://localhost:7070**
+### 5. Start the background worker (auto-sync)
 
+```bash
+arq brain.worker.WorkerSettings
+```
 
-## Connecting apps
+This runs the polling loop that automatically syncs all connected apps every `BRAIN_POLL_INTERVAL_MINUTES` (default: 10 minutes). Requires Redis (`REDIS_URL` in `.env`).
 
-Go to the **Connections** tab in the web UI:
-1. Type any app name (e.g. `gmail`, `github`, `notion`) → click **+ Connect app**
-2. Complete OAuth in the browser tab that opens
-3. Click **↻ Sync** to pull data in
-
-Slack connects directly with `SLACK_BOT_TOKEN`.
-
----
-
-## Slash commands (in the chat box)
-
-| Command | What it does |
-|---|---|
-| `/sync slack` | Pull latest Slack messages |
-| `/sync composio` | Pull from all connected apps |
-| `/backfill slack` | Pull full Slack history (run once) |
-| `/record <text>` | Save a fact directly |
-| `/history <topic>` | See decision history for a topic |
-| `/facts` | Show recent facts in memory |
-| `/status` | Show which keys and connections are active |
-
----
+The worker:
+- Discovers all active workspaces
+- For each workspace, checks when it was last synced per connector
+- Fetches only new content since the last sync (watermark-based, not full re-fetch)
+- Deduplicates before storing - re-running is always safe
 
 ## Connecting your AI agent (Claude Code / Cursor)
 
-This is the primary experience. Once wired up:
-- **Every prompt** automatically gets relevant company facts injected as context (logged to the ledger with `surface="hook-inject"`).
-- **Every response** is harvested for new facts — stored with `source_kind="agent"`, deduped, ledger-logged.
-- **MCP tools** let the agent explicitly search, record, correct, and trace decision history.
-
-### Step 1 — MCP server
-
-Add to `~/.claude/settings.json` (Cursor: `.cursor/mcp.json`):
+Add to `~/.claude/settings.json`:
 
 ```json
 {
@@ -100,16 +143,7 @@ Add to `~/.claude/settings.json` (Cursor: `.cursor/mcp.json`):
         "BRAIN_TEAM": "engineering"
       }
     }
-  }
-}
-```
-
-### Step 2 — Lifecycle hooks (auto-inject + harvest)
-
-Add to the same `~/.claude/settings.json`:
-
-```json
-{
+  },
   "hooks": {
     "UserPromptSubmit": [{
       "matcher": "*",
@@ -117,33 +151,23 @@ Add to the same `~/.claude/settings.json`:
         "args": ["/absolute/path/to/thread/brain/wrappers/hooks/claude_code_hook.py"],
         "timeout": 15}]
     }],
-    "Stop": [{
-      "hooks": [{"type": "command", "command": "python",
-        "args": ["/absolute/path/to/thread/brain/wrappers/hooks/claude_code_hook.py"],
-        "timeout": 30}]
-    }]
+    "Stop": [{"hooks": [{"type": "command", "command": "python",
+      "args": ["/absolute/path/to/thread/brain/wrappers/hooks/claude_code_hook.py"],
+      "timeout": 30}]}]
   }
 }
 ```
 
-### MCP tools available to your agent
+Every prompt gets relevant company facts injected before the model sees it. After the session ends, new decisions are extracted and stored automatically.
+
+### MCP tools
 
 | Tool | What it does |
 |---|---|
-| `search_company_facts` | Semantic + FTS search — use before answering company questions |
-| `get_decision_history` | Ordered timeline of decisions about any topic |
-| `record_fact` | Store a human-authored fact (decision, commitment, ownership) |
-| `correct_fact` | Supersede a wrong fact with the correct version |
-| `harvest_from_response` | Explicit harvest trigger for a specific response |
-| `list_teams` | List all registered teams |
-
-### How to verify it's working
-
-1. Ask Claude Code: *"What database are we using?"* — it should call `search_company_facts`.
-2. State a decision: *"We decided to use Postgres for billing."* — after the session ends, check the ledger: the fact should appear with `source_kind="agent"`.
-3. Run `/status` in the web UI to see the ledger with `surface="hook-inject"` entries.
-
----
+| `search_company_facts` | Semantic + full-text search across all stored facts |
+| `get_decision_history` | Ordered timeline of decisions on any topic |
+| `record_fact` | Save a fact (decision, ownership, context) |
+| `correct_fact` | Supersede an outdated fact with the correct version |
 
 ## Running tests
 
@@ -151,49 +175,33 @@ Add to the same `~/.claude/settings.json`:
 pytest
 ```
 
-85 tests — covers auth, metering, validation, and privacy isolation. Integration tests (ingest/retrieve pipeline) require a `DATABASE_URL`; all other tests run without one.
+85+ tests covering auth, retrieval, extraction, privacy isolation, metering, and validation. Integration tests require `DATABASE_URL`; all other tests run without one.
 
----
+## Eval harness
 
-## Smoke test (against a live server)
+Measures retrieval quality against a benchmark dataset of 28 questions:
 
 ```bash
-python scripts/smoke_test.py --url http://localhost:7070
+python -m evals.run
 ```
 
-Checks status endpoint, security headers, search responses, and platform gate.
+Current results: Hit@5 = 1.000, MRR = 0.961, NDCG@5 = 0.898
 
----
+Capture a baseline and compare regressions:
 
-## Project structure
-
+```bash
+python scripts/bench_snapshot.py    # save baseline
+python scripts/bench_compare.py     # compare against it
 ```
-brain/
-  auth.py          — JWT auth + identity (Clerk or bypass)
-  config.py        — env var loading, defaults, boot validation
-  engine.py        — Brain class: single public API surface
-  core/
-    db.py          — re-exports db_pg; all DB access goes here
-    db_pg.py       — Postgres + pgvector backend (Supabase or self-hosted)
-    extract.py     — LLM fact extraction
-    retrieve.py    — semantic search + answer synthesis
-    ingest.py      — episode dedup + worthiness filter
-    embed.py       — fastembed (bge-small, local, zero API cost)
-    llm.py         — litellm wrapper (any provider, metered)
-    connectors/
-      slack.py     — Slack connector (direct)
-      composio.py  — Integration connector (1,000+ apps)
-  wrappers/
-    api.py         — FastAPI web server
-    mcp_server.py  — MCP server for Claude Code
-    cli.py         — CLI (brain search / backfill / log)
-    hooks/
-      claude_code_hook.py  — UserPromptSubmit + Stop hooks
-    webapp/
-      index.html   — Single-page web UI
 
-scripts/
-  smoke_test.py          — Live server smoke test
+## Scripts
 
-tests/                   — pytest suite (85 tests)
-```
+| Script | Purpose |
+|---|---|
+| `scripts/smoke_test.py` | End-to-end smoke test against a live server |
+| `scripts/seed_demo.py` | Seed a demo workspace with synthetic facts |
+| `scripts/reembed_gemini.py` | Batch re-embed all facts after a model change |
+| `scripts/rebuild_index.py` | Rebuild pgvector HNSW index after re-embedding |
+| `scripts/verify_indexes.py` | Confirm DB indexes are present and healthy |
+| `scripts/check_rls.py` | Validate Postgres row-level security enforcement |
+| `scripts/explain_queries.py` | Run EXPLAIN ANALYZE on key queries |

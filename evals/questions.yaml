@@ -9,6 +9,24 @@
 #    create ai Agents to make your work easier"
 #   channel renamed from "all-aa-bot-notifier" to "engineering"
 #
+# Schema per question:
+#   id                             — stable identifier
+#   category                       — decision | ownership | status | technical |
+#                                    not_sure | shared_fact | calibration
+#   question                       — the natural-language query
+#   expected_answer_contains       — substring that must appear in synthesized answer (case-insensitive)
+#                                    empty string "" means no substring requirement (pair with expect_not_sure)
+#   expected_source_fact_summary_contains — substring expected in at least one retrieved fact summary
+#   expect_not_sure                — true: system should abstain / report low confidence
+#   expected_fact_keywords         — list of keywords; at least one retrieved fact summary must
+#                                    contain at least one of these (checked case-insensitively)
+#                                    empty list [] skips this check
+#   answerable                     — true: a correct answer exists in the knowledge base
+#   difficulty                     — easy | medium | hard
+#     easy:   direct keyword match expected
+#     medium: requires inference or synonym matching
+#     hard:   temporal reasoning, contradiction surfacing, or multi-hop
+#
 # Categories: decision, ownership, technical, status, not_sure, calibration
 
 # ── DECISION ─────────────────────────────────────────────────────────────────
@@ -18,35 +36,50 @@
   question: "What database are we using?"
   expected_answer_contains: "supabase"
   expected_source_fact_summary_contains: "supabase"
+  expected_fact_keywords: ["supabase", "database", "postgresql", "postgres"]
   expect_not_sure: false
+  answerable: true
+  difficulty: easy
 
 - id: q002
   category: decision
   question: "Which database did the team decide to use?"
   expected_answer_contains: "supabase"
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: ["supabase"]
   expect_not_sure: false
+  answerable: true
+  difficulty: easy
 
 - id: q003
   category: decision
   question: "What mobile framework did we choose?"
   expected_answer_contains: "react native"
   expected_source_fact_summary_contains: "react native"
+  expected_fact_keywords: ["react native", "react", "mobile", "framework"]
   expect_not_sure: false
+  answerable: true
+  difficulty: easy
 
 - id: q004
   category: decision
   question: "Did we decide to build the mobile app with Flutter or React Native?"
   expected_answer_contains: "react native"
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: ["react native"]
   expect_not_sure: false
+  answerable: true
+  difficulty: medium
 
 - id: q005
   category: decision
   question: "What did the team decide about AI agents for productivity?"
   expected_answer_contains: "ai agents"
   expected_source_fact_summary_contains: "agent"
+  expected_fact_keywords: ["agent", "ai", "deadline", "productivity"]
   expect_not_sure: false
+  answerable: true
+  difficulty: medium
 
 # ── OWNERSHIP ────────────────────────────────────────────────────────────────
 
@@ -55,28 +88,40 @@
   question: "Who owns the onboarding flow?"
   expected_answer_contains: "jai"
   expected_source_fact_summary_contains: "onboarding"
+  expected_fact_keywords: ["jai", "onboarding"]
   expect_not_sure: false
+  answerable: true
+  difficulty: easy
 
 - id: q007
   category: ownership
   question: "Who is responsible for onboarding?"
   expected_answer_contains: "jai"
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: ["jai", "onboarding", "responsible", "owns"]
   expect_not_sure: false
+  answerable: true
+  difficulty: easy
 
 - id: q008
   category: ownership
   question: "Who owns the payments integration?"
   expected_answer_contains: ""
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: []
   expect_not_sure: true
+  answerable: false
+  difficulty: easy
 
 - id: q009
   category: ownership
   question: "Who is the engineering lead?"
   expected_answer_contains: ""
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: []
   expect_not_sure: true
+  answerable: false
+  difficulty: easy
 
 # ── STATUS ───────────────────────────────────────────────────────────────────
 
@@ -85,35 +130,50 @@
   question: "When is the launch scheduled?"
   expected_answer_contains: "july"
   expected_source_fact_summary_contains: "launch"
+  expected_fact_keywords: ["launch", "july", "scheduled", "date"]
   expect_not_sure: false
+  answerable: true
+  difficulty: easy
 
 - id: q011
   category: status
   question: "What is the launch date?"
   expected_answer_contains: "july"
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: ["july", "launch"]
   expect_not_sure: false
+  answerable: true
+  difficulty: easy
 
 - id: q012
   category: status
   question: "Has the launch date changed?"
   expected_answer_contains: "july"
   expected_source_fact_summary_contains: "launch"
+  expected_fact_keywords: ["launch", "pushed", "changed", "july"]
   expect_not_sure: false
+  answerable: true
+  difficulty: hard
 
 - id: q013
   category: status
   question: "What is the current state of the mobile app?"
   expected_answer_contains: "react native"
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: ["react native", "mobile", "app"]
   expect_not_sure: false
+  answerable: true
+  difficulty: medium
 
 - id: q014
   category: status
   question: "What was the Slack channel renamed from?"
   expected_answer_contains: ""
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: []
   expect_not_sure: true
+  answerable: false
+  difficulty: medium
 
 # ── TECHNICAL ────────────────────────────────────────────────────────────────
 
@@ -122,21 +182,30 @@
   question: "What backend database are we using in production?"
   expected_answer_contains: "supabase"
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: ["supabase", "database", "backend"]
   expect_not_sure: false
+  answerable: true
+  difficulty: easy
 
 - id: q016
   category: technical
   question: "Are we using React Native or a web view for mobile?"
   expected_answer_contains: "react native"
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: ["react native"]
   expect_not_sure: false
+  answerable: true
+  difficulty: medium
 
 - id: q017
   category: technical
   question: "What is our approach to handling deadline pressure?"
   expected_answer_contains: "agent"
   expected_source_fact_summary_contains: "agent"
+  expected_fact_keywords: ["agent", "deadline", "ai"]
   expect_not_sure: false
+  answerable: true
+  difficulty: hard
 
 # ── NOT SURE (calibration) ────────────────────────────────────────────────────
 
@@ -145,35 +214,50 @@
   question: "What is the salary of our CEO?"
   expected_answer_contains: ""
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: []
   expect_not_sure: true
+  answerable: false
+  difficulty: easy
 
 - id: q019
   category: not_sure
   question: "Which cloud provider do we use for production?"
   expected_answer_contains: ""
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: []
   expect_not_sure: true
+  answerable: false
+  difficulty: easy
 
 - id: q020
   category: not_sure
   question: "What is our monthly burn rate?"
   expected_answer_contains: ""
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: []
   expect_not_sure: true
+  answerable: false
+  difficulty: easy
 
 - id: q021
   category: not_sure
   question: "How many employees does the company have?"
   expected_answer_contains: ""
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: []
   expect_not_sure: true
+  answerable: false
+  difficulty: easy
 
 - id: q022
   category: not_sure
   question: "What is our marketing budget?"
   expected_answer_contains: ""
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: []
   expect_not_sure: true
+  answerable: false
+  difficulty: easy
 
 # ── CROSS-TEAM / SHARED ───────────────────────────────────────────────────────
 
@@ -182,39 +266,59 @@
   question: "What stack are we using: backend database and mobile framework?"
   expected_answer_contains: "supabase"
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: ["supabase", "react native"]
   expect_not_sure: false
+  answerable: true
+  difficulty: medium
 
 - id: q024
   category: shared_fact
   question: "Summarise what was decided in engineering this week."
   expected_answer_contains: "supabase"
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: ["supabase", "react native", "jai", "onboarding", "launch", "july"]
   expect_not_sure: false
+  answerable: true
+  difficulty: hard
 
 - id: q025
   category: shared_fact
   question: "What are the team's key commitments right now?"
   expected_answer_contains: "july"
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: ["launch", "july", "onboarding", "react native"]
   expect_not_sure: false
+  answerable: true
+  difficulty: hard
+
+# ── CALIBRATION (adversarial) ─────────────────────────────────────────────────
 
 - id: q026
   category: calibration
   question: "Why did we drop Redis?"
   expected_answer_contains: ""
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: []
   expect_not_sure: true
+  answerable: false
+  difficulty: easy
 
 - id: q027
   category: calibration
   question: "Who proposed using Redis for the payments service?"
   expected_answer_contains: ""
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: []
   expect_not_sure: true
+  answerable: false
+  difficulty: easy
 
 - id: q028
   category: calibration
   question: "When do refunds ship?"
   expected_answer_contains: ""
   expected_source_fact_summary_contains: ""
+  expected_fact_keywords: []
   expect_not_sure: true
+  answerable: false
+  difficulty: easy

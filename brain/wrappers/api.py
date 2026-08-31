@@ -902,10 +902,38 @@ def composio_connected(
 
 @app.delete("/api/composio/connected/{account_id}")
 def composio_disconnect(account_id: str,
-                        _identity: Identity = Depends(require_admin)):
-    """Disconnect a connected integration by its account ID. Admin only."""
+                        identity: Identity = Depends(require_admin)):
+    """Disconnect a connected integration by its account ID. Admin only.
+    Also deregisters any webhook triggers associated with this connection."""
     try:
-        from brain.core.connectors.composio import disconnect_app
+        from brain.core.connectors.composio import disconnect_app, deregister_webhook_trigger
+        from brain.core import db_pg as _pg
+
+        # Deregister any webhook subscriptions for this account before disconnecting
+        try:
+            conn = _pg.connect()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT composio_trigger_id FROM webhook_subscriptions "
+                "WHERE workspace_id=%s AND active=TRUE",
+                (identity.workspace_id,),
+            )
+            rows = cur.fetchall()
+            for row in rows:
+                if row.get("composio_trigger_id"):
+                    deregister_webhook_trigger(row["composio_trigger_id"])
+            cur.execute(
+                "UPDATE webhook_subscriptions SET active=FALSE "
+                "WHERE workspace_id=%s AND active=TRUE",
+                (identity.workspace_id,),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            import sys
+            print(f"[disconnect] webhook cleanup error: {e}", file=sys.stderr)
+
         return disconnect_app(account_id)
     except Exception as e:
         raise HTTPException(400, str(e))
@@ -917,15 +945,97 @@ def composio_connect(
     identity: Identity = Depends(require_not_guest),
 ):
     """Initiate OAuth for a Composio app. Uses the caller's user_id as entity_id
-    so each user's connection is isolated — teammates cannot see each other's data."""
+    so each user's connection is isolated — teammates cannot see each other's data.
+    After OAuth completes, the /api/composio/callback endpoint registers webhook triggers."""
     try:
         from brain.core.connectors.composio import get_connect_url
-        # entity_id = caller's user_id → each user gets their own OAuth connection
+        # entity_id = caller's user_id - each user gets their own OAuth connection
         redirect = req.redirect_url or os.getenv("APP_BASE_URL", "http://localhost:7070")
-        url = get_connect_url(req.app, user_id=identity.user_id, redirect_url=redirect)
+        # Point Composio callback back through our endpoint so we can register webhooks
+        app_base = os.getenv("APP_BASE_URL", "http://localhost:7070").rstrip("/")
+        callback = f"{app_base}/api/composio/callback?user_id={identity.user_id}&workspace_id={identity.workspace_id}&account_id={identity.account_id or ''}"
+        url = get_connect_url(req.app, user_id=identity.user_id, redirect_url=callback)
         return {"app": req.app, "connect_url": url}
     except RuntimeError as e:
         raise HTTPException(400, str(e))
+
+
+@app.get("/api/composio/callback")
+def composio_oauth_callback(
+    request: Request,
+    user_id: str = "",
+    workspace_id: str = "",
+    account_id: str = "",
+    app: str = "",
+    connected_account_id: str = "",
+):
+    """
+    Composio redirects here after a user completes OAuth.
+    Registers webhook triggers and saves the entity->workspace routing
+    so inbound webhook events can be routed to the right workspace.
+    Then redirects the browser to the integrations page.
+    """
+    from brain.core.connectors.composio import (
+        register_webhook_trigger, list_connected_apps,
+    )
+    from brain.core import db_pg as _pg
+    from brain.core.db_pg import upsert_webhook_route
+    from fastapi.responses import RedirectResponse
+
+    entity_id = user_id or "default"
+    ws = workspace_id or config.WORKSPACE_ID
+    acct = account_id or ""
+
+    # Save entity->workspace route so webhook events can be dispatched
+    if entity_id and ws:
+        try:
+            conn = _pg.connect()
+            upsert_webhook_route(conn, entity_id=entity_id,
+                                 workspace_id=ws, account_id=acct)
+            conn.close()
+        except Exception as e:
+            import sys
+            print(f"[callback] route upsert failed: {e}", file=sys.stderr)
+
+    # Register webhook triggers for each newly connected app
+    app_base = os.getenv("APP_BASE_URL", "http://localhost:7070").rstrip("/")
+    webhook_url = f"{app_base}/api/ingest/event"
+    webhook_secret = config.COMPOSIO_WEBHOOK_SECRET
+
+    if webhook_secret:
+        try:
+            connected = list_connected_apps(user_id=entity_id)
+            conn = _pg.connect()
+            cur = conn.cursor()
+            for acct_info in connected:
+                app_slug = acct_info.get("app", "")
+                if not app_slug:
+                    continue
+                # Check if already subscribed
+                cur.execute(
+                    "SELECT 1 FROM webhook_subscriptions "
+                    "WHERE workspace_id=%s AND app_slug=%s AND active=TRUE",
+                    (ws, app_slug),
+                )
+                if cur.fetchone():
+                    continue
+                trigger_id = register_webhook_trigger(app_slug, entity_id, webhook_url)
+                cur.execute(
+                    """INSERT INTO webhook_subscriptions
+                       (workspace_id, source, app_slug, composio_trigger_id, webhook_url, active)
+                       VALUES (%s, %s, %s, %s, %s, TRUE)
+                       ON CONFLICT DO NOTHING""",
+                    (ws, "composio", app_slug, trigger_id or None, webhook_url),
+                )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            import sys
+            print(f"[callback] webhook registration error: {e}", file=sys.stderr)
+
+    # Redirect back to the integrations page
+    return RedirectResponse(url="/#integrations", status_code=302)
 
 
 @app.post("/api/auth/signup")
@@ -1620,34 +1730,140 @@ def backfill(
 
 
 @app.post("/api/sync")
-def sync(
+async def sync(
     req: SyncRequest,
     identity: Identity = Depends(require_not_guest),
 ):
-    """Pull recent items from a connector. Runs in a background thread so the
-    HTTP request returns immediately — embedding + LLM extraction can take minutes."""
-    import threading as _threading
-    from brain.core import db_pg as _pg
-
-    captured_identity = identity
-
-    def _run():
-        try:
-            b = _brain(captured_identity)
-            b.sync(req.source, team_id=captured_identity.team_id)
-        except Exception as exc:
-            import sys
-            print(f"[sync] background error: {exc}", file=sys.stderr)
-
-    # Ingest episodes synchronously (fast — just writes raw text to DB)
-    # then kick extraction off in a daemon thread so HTTP returns quickly
+    """Pull recent items from a connector. Enqueues an ARQ job and returns immediately."""
     from brain.engine import REGISTRY
     if req.source not in REGISTRY:
         raise HTTPException(400, f"Unknown source '{req.source}'")
 
-    t = _threading.Thread(target=_run, daemon=True)
-    t.start()
-    return {"source": req.source, "status": "syncing", "message": "Sync started — facts will appear within 1-2 minutes."}
+    try:
+        import arq
+        pool = await arq.create_pool(
+            arq.connections.RedisSettings.from_dsn(config.REDIS_URL)
+        )
+        await pool.enqueue_job(
+            "sync_source",
+            ws=identity.workspace_id,
+            source=req.source,
+            team_id=identity.team_id,
+            trigger="manual",
+        )
+        await pool.aclose()
+    except Exception as exc:
+        import sys
+        print(f"[sync] arq unavailable, falling back to thread: {exc}", file=sys.stderr)
+        import sys as _sys
+        captured_identity = identity
+
+        def _run():
+            try:
+                b = _brain(captured_identity)
+                b.sync(req.source, team_id=captured_identity.team_id)
+            except Exception as e:
+                print(f"[sync] background error: {e}", file=_sys.stderr)
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    return {"source": req.source, "status": "syncing",
+            "message": "Sync started - facts will appear within 1-2 minutes."}
+
+
+# ── Webhook ingest endpoint ────────────────────────────────────────────────────
+
+class _WebhookRequest(BaseModel):
+    pass  # body parsed from raw bytes
+
+
+@app.post("/api/ingest/event")
+async def ingest_event_webhook(request: Request):
+    """
+    Inbound webhook receiver for push events from connected integrations.
+    Verifies HMAC signature, deduplicates via delivery ID, resolves workspace,
+    then enqueues an ingest_event_job for background processing.
+    Returns 200 immediately - never blocks on ingestion or extraction.
+    """
+    import hashlib, hmac as _hmac
+
+    webhook_secret = config.COMPOSIO_WEBHOOK_SECRET
+    if not webhook_secret:
+        raise HTTPException(503, "Webhook ingestion not configured")
+
+    body_bytes = await request.body()
+
+    # HMAC verification
+    sig_header = request.headers.get("x-composio-signature", "")
+    expected = "sha256=" + _hmac.new(
+        webhook_secret.encode(), body_bytes, hashlib.sha256
+    ).hexdigest()
+    if not _hmac.compare_digest(sig_header, expected):
+        raise HTTPException(401, "Invalid webhook signature")
+
+    # Replay protection via delivery ID
+    delivery_id = request.headers.get("x-webhook-delivery-id", "")
+    if delivery_id:
+        try:
+            import redis as _redis_lib
+            r = _redis_lib.from_url(config.REDIS_URL)
+            key = f"webhook:seen:{delivery_id}"
+            if r.exists(key):
+                return {"status": "duplicate", "delivery_id": delivery_id}
+            r.setex(key, 86400, "1")
+        except Exception:
+            pass  # Redis unavailable - continue without replay protection
+
+    try:
+        payload = json.loads(body_bytes)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON payload")
+
+    # Resolve workspace from entity_id in payload
+    entity_id = (
+        payload.get("entity_id")
+        or payload.get("connectedAccountId")
+        or payload.get("connected_account_id")
+        or ""
+    )
+
+    workspace_id = None
+    if entity_id:
+        try:
+            from brain.core import db as _db
+            from brain.core.db_pg import lookup_webhook_route
+            conn = _db.connect()
+            route = lookup_webhook_route(conn, entity_id)
+            conn.close()
+            if route:
+                workspace_id = route["workspace_id"]
+        except Exception as e:
+            print(f"[webhook] route lookup error: {e}", file=sys.stderr)
+
+    if not workspace_id:
+        # Fall back to default workspace if entity routing not set up yet
+        workspace_id = config.WORKSPACE_ID
+
+    # Idempotent enqueue: use delivery_id as job_id so duplicates are no-ops
+    idempotency_key = delivery_id or str(_uuid_mod.uuid4())
+    try:
+        import arq
+        pool = await arq.create_pool(
+            arq.connections.RedisSettings.from_dsn(config.REDIS_URL)
+        )
+        await pool.enqueue_job(
+            "ingest_event_job",
+            ws=workspace_id,
+            source="composio",
+            raw=payload,
+            team_id="shared",
+            _job_id=idempotency_key,
+        )
+        await pool.aclose()
+    except Exception as e:
+        raise HTTPException(503, f"Job queue unavailable: {e}")
+
+    return {"status": "accepted", "event_id": idempotency_key}
 
 
 class SubscriptionRequest(BaseModel):
@@ -1784,7 +2000,7 @@ def list_dead_letter(
 
 
 @app.post("/api/admin/dead-letter/{job_id}/replay")
-def replay_dead_letter(
+async def replay_dead_letter(
     job_id: int,
     _identity: Identity = Depends(require_admin),
 ):
@@ -1807,17 +2023,12 @@ def replay_dead_letter(
         job_name = row["job_name"]
         kwargs   = row["kwargs"] if isinstance(row["kwargs"], dict) else json.loads(row["kwargs"])
 
-        # Re-enqueue via arq
-        import asyncio, arq as _arq
+        # Re-enqueue via arq (async-native, no deprecated event loop access)
+        import arq as _arq
         from arq.connections import RedisSettings as _RS
-        from brain import config as _cfg
-
-        async def _enqueue():
-            pool = await _arq.create_pool(_RS.from_dsn(_cfg.REDIS_URL))
-            await pool.enqueue_job(job_name, **kwargs)
-            await pool.aclose()
-
-        asyncio.get_event_loop().run_until_complete(_enqueue())
+        pool = await _arq.create_pool(_RS.from_dsn(config.REDIS_URL))
+        await pool.enqueue_job(job_name, **kwargs)
+        await pool.aclose()
 
         cur.execute(
             "UPDATE dead_letter_jobs SET status='replayed', replayed_at=now() WHERE id=%s",

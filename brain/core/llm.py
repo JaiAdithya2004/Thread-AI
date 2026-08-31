@@ -26,17 +26,38 @@ if LANGFUSE_ENABLED:
         _langfuse = None
 
 
-def _grok_kwargs():
+def _provider_kwargs(model: str) -> dict:
+    """Return provider-specific kwargs for litellm based on the model prefix."""
     grok_key = os.getenv("GROK_API_KEY")
-    if grok_key:
+    or_key = os.getenv("OPENROUTER_API_KEY")
+    gemini_key = os.getenv("GEMINI_API_KEY")
+
+    if model.startswith("openrouter/") and or_key:
+        return {"api_key": or_key, "api_base": "https://openrouter.ai/api/v1"}
+    if grok_key and model.startswith("openai/grok"):
         from brain.config import GROK_BASE_URL
         return {"api_key": grok_key, "api_base": GROK_BASE_URL}
+    if model.startswith("gemini/") and gemini_key:
+        return {"api_key": gemini_key}
+    return {}
+
+
+def _grok_kwargs():
+    """Legacy shim — kept so _build_kwargs still works; returns empty (provider_kwargs now handles it)."""
     return {}
 
 
 def _has_key():
     return bool(os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY")
-                or os.getenv("ANTHROPIC_API_KEY") or os.getenv("GROK_API_KEY"))
+                or os.getenv("ANTHROPIC_API_KEY") or os.getenv("GROK_API_KEY")
+                or os.getenv("OPENROUTER_API_KEY") or os.getenv("MOONSHOT_API_KEY"))
+
+
+def _model_supports_json_mode(model: str) -> bool:
+    """Some OpenRouter free models don't support response_format:json_object."""
+    if "llama" in model or "mistral" in model:
+        return False
+    return True
 
 
 def _build_kwargs(system: str, user: str, model: str, temperature: float,
@@ -49,11 +70,11 @@ def _build_kwargs(system: str, user: str, model: str, temperature: float,
         ],
         temperature=temperature,
         timeout=_LLM_TIMEOUT,
-        **_grok_kwargs(),
+        **_provider_kwargs(model),
     )
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
-    if json_mode:
+    if json_mode and _model_supports_json_mode(model):
         kwargs["response_format"] = {"type": "json_object"}
     return kwargs
 
@@ -183,8 +204,11 @@ def _call_llm_with_fallback(primary: str, fallback: str, temperature: float,
             raise
         print(f"[llm] primary {primary} failed ({e!r}), trying fallback {fallback}",
               file=sys.stderr)
-        # Fallback: one attempt only (unwrapped — no retry decorator)
-        resp = _call_llm.__wrapped__(model=fallback, temperature=temperature, **kwargs)
+        # Re-inject provider kwargs for the fallback model (different provider = different creds)
+        fallback_kwargs = {k: v for k, v in kwargs.items()
+                          if k not in ("api_key", "api_base")}
+        fallback_kwargs.update(_provider_kwargs(fallback))
+        resp = _call_llm.__wrapped__(model=fallback, temperature=temperature, **fallback_kwargs)
         return resp, fallback
 
 
@@ -220,11 +244,18 @@ def chat_json(system: str, user: str, model: str = None,
         print(f"[llm] task={task_name} model={model_used}", file=sys.stderr)
         text = resp.choices[0].message.content
         _extract_usage(resp, model_used, task_name)
+        # Strip markdown code fences that free models often wrap JSON in
+        clean = text.strip()
+        if clean.startswith("```"):
+            clean = clean.split("```", 2)[1]
+            if clean.startswith("json"):
+                clean = clean[4:]
+            clean = clean.rsplit("```", 1)[0].strip()
         try:
-            result = json.loads(text)
+            result = json.loads(clean)
         except json.JSONDecodeError:
-            i = min((text.find("["), text.find("{")), key=lambda x: (x < 0, x))
-            result = json.loads(text[i:])
+            i = min((clean.find("["), clean.find("{")), key=lambda x: (x < 0, x))
+            result = json.loads(clean[i:])
         _trace_end(gen, result)
         return result
     except CircuitOpen as e:

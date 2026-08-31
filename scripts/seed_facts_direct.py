@@ -145,8 +145,8 @@ def main():
             INSERT INTO facts
                 (id, workspace_id, team_id, subject, predicate, object,
                  summary, episode_id, acl, confidence, introduced_at,
-                 source_kind, embedding)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::vector)
+                 source_kind, fact_vec_768, visibility)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::vector,%s)
             ON CONFLICT DO NOTHING
         """, (
             fid, DEMO_WS, fact["team_id"],
@@ -158,6 +158,7 @@ def main():
             _now(),
             fact["source_kind"],
             emb_str,
+            "shared",
         ))
         inserted += 1
 

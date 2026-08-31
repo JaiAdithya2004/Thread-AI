@@ -135,7 +135,7 @@ class Brain:
                     "error": str(e)}
 
         # ingest is idempotent — content-hash dedup prevents duplicates on re-run
-        n_ep = ingest.run(self.conn, self.ws, episodes, team_id=tid)
+        n_ep = ingest.run(self.conn, self.ws, episodes, team_id=tid, trigger="backfill")
         clear_billing_context()
 
         try:
@@ -149,8 +149,9 @@ class Brain:
         n_fa = extract.run(self.conn, self.ws)
         return {"source": source, "team": tid, "episodes": n_ep, "facts": n_fa}
 
-    def sync(self, source: str, team_id: str = None) -> dict:
-        """Incremental poll — same isolation and idempotency guarantees as backfill."""
+    def sync(self, source: str, team_id: str = None, since=None) -> dict:
+        """Incremental poll. `since` is a datetime watermark from connector_sync_state.
+        When None the connector defaults to the last 24h."""
         import sys
         tid = team_id or self.team_id
         db.ensure_team(self.conn, self.ws, tid, tid.replace("-", " ").title())
@@ -159,15 +160,19 @@ class Brain:
         set_billing_context(self.account_id or "")
 
         try:
-            connector = REGISTRY[source](user_id=self.caller) if source == "composio" else REGISTRY[source]()
-            episodes = connector.poll()
+            if source == "composio":
+                connector = REGISTRY[source](user_id=self.caller)
+                episodes = connector.poll(since=since)
+            else:
+                connector = REGISTRY[source]()
+                episodes = connector.poll(since=since) if since is not None else connector.poll()
         except Exception as e:
             print(f"[engine] connector '{source}' sync failed: {e}", file=sys.stderr)
             clear_billing_context()
             return {"source": source, "team": tid, "new_episodes": 0, "new_facts": 0,
                     "error": str(e)}
 
-        n_ep = ingest.run(self.conn, self.ws, episodes, team_id=tid)
+        n_ep = ingest.run(self.conn, self.ws, episodes, team_id=tid, trigger="poll")
         clear_billing_context()
 
         if USE_ASYNC_WORKER:
@@ -177,21 +182,26 @@ class Brain:
         return {"source": source, "team": tid, "new_episodes": n_ep, "new_facts": n_fa}
 
     def ingest_event(self, source: str, raw: dict, team_id: str = None) -> dict:
-        """Webhook path: one live item."""
+        """Webhook path: one live item. Always async-extracts if worker is enabled."""
         tid = team_id or self.team_id
-        connector = REGISTRY[source]()
+        connector = REGISTRY[source](user_id=self.caller) if source == "composio" else REGISTRY[source]()
         ep = connector.normalize(raw)
         ep.setdefault("team_id", tid)
-        n_ep = ingest.run(self.conn, self.ws, [ep], team_id=tid)
-        n_fa = extract.run(self.conn, self.ws)
-        return {"new_episodes": n_ep, "new_facts": n_fa}
+        n_ep = ingest.run(self.conn, self.ws, [ep], team_id=tid, trigger="webhook")
+        if n_ep > 0:
+            if USE_ASYNC_WORKER:
+                self._async_enqueue("extract_facts", ws=self.ws, team_id=tid)
+                return {"new_episodes": n_ep, "queued": True}
+            n_fa = extract.run(self.conn, self.ws)
+            return {"new_episodes": n_ep, "new_facts": n_fa}
+        return {"new_episodes": 0, "new_facts": 0}
 
     # ---- serve (live) ----
     def search(self, query: str, surface="mcp", cross_team: bool = False) -> dict:
         facts = retrieve.run(self.conn, self.ws, query, self.principals,
                              self.caller, surface, team_id=self.team_id,
                              cross_team=cross_team)
-        return retrieve.format_answer(query, facts)
+        return retrieve.format_answer(query, facts, conn=self.conn, ws=self.ws)
 
     def decision_history(self, subject: str, cross_team: bool = False) -> dict:
         facts = retrieve.run(self.conn, self.ws, f"decisions about {subject}",

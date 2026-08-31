@@ -559,12 +559,264 @@ def migrate(conn):
             ON slack_channel_mappings(account_id, slack_team_id);
     """)
 
+    # ── Connector sync state (polling watermarks + state machine) ────────────
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS connector_sync_state (
+            workspace_id        TEXT NOT NULL,
+            source              TEXT NOT NULL,
+            last_synced_at      TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01T00:00:00Z',
+            last_count          INTEGER NOT NULL DEFAULT 0,
+            status              TEXT NOT NULL DEFAULT 'idle'
+                                    CHECK (status IN ('idle', 'running', 'failed')),
+            consecutive_failures INTEGER NOT NULL DEFAULT 0,
+            last_error          TEXT,
+            locked_until        TIMESTAMPTZ,
+            last_run_job_id     TEXT,
+            last_run_started_at TIMESTAMPTZ,
+            PRIMARY KEY (workspace_id, source)
+        );
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS css_status_idx
+            ON connector_sync_state(status, locked_until);
+    """)
+    # Migrate existing rows: add new columns if the table already existed
+    for col, defn in [
+        ("status",               "TEXT NOT NULL DEFAULT 'idle'"),
+        ("consecutive_failures", "INTEGER NOT NULL DEFAULT 0"),
+        ("last_error",           "TEXT"),
+        ("locked_until",         "TIMESTAMPTZ"),
+        ("last_run_job_id",      "TEXT"),
+        ("last_run_started_at",  "TIMESTAMPTZ"),
+    ]:
+        try:
+            cur.execute(f"ALTER TABLE connector_sync_state ADD COLUMN IF NOT EXISTS {col} {defn}")
+        except Exception:
+            conn.rollback()
+
+    # ── External-id supersession on episodes ──────────────────────────────────
+    cur.execute("""
+        ALTER TABLE episodes
+            ADD COLUMN IF NOT EXISTS supersedes_episode_id UUID REFERENCES episodes(id)
+                ON DELETE SET NULL;
+    """)
+    cur.execute("""
+        ALTER TABLE episodes
+            ADD COLUMN IF NOT EXISTS ingest_trigger TEXT DEFAULT 'poll'
+                CHECK (ingest_trigger IN ('webhook','poll','backfill','reconcile','manual'));
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS episodes_ext_id
+            ON episodes(workspace_id, external_id)
+            WHERE external_id IS NOT NULL;
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS episodes_supersedes
+            ON episodes(supersedes_episode_id)
+            WHERE supersedes_episode_id IS NOT NULL;
+    """)
+
+    # ── Webhook routing: entity_id -> workspace ───────────────────────────────
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS connector_webhook_routes (
+            entity_id     TEXT PRIMARY KEY,
+            workspace_id  TEXT NOT NULL,
+            account_id    TEXT NOT NULL,
+            created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+            id                   TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+            workspace_id         TEXT NOT NULL,
+            source               TEXT NOT NULL,
+            app_slug             TEXT NOT NULL,
+            composio_trigger_id  TEXT,
+            webhook_url          TEXT NOT NULL,
+            created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+            active               BOOLEAN NOT NULL DEFAULT TRUE
+        );
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS ws_sub_workspace
+            ON webhook_subscriptions(workspace_id, source, active);
+    """)
+
+    conn.commit()
+    cur.close()
+
+    # Warn if HNSW vector index is missing — searches degrade to sequential scan
+    try:
+        chk = conn.cursor()
+        chk.execute("""
+            SELECT 1 FROM pg_indexes
+            WHERE tablename='facts' AND indexname='facts_vec_768_idx'
+        """)
+        if not chk.fetchone():
+            import sys
+            print(
+                "[thread] WARNING: HNSW vector index not found on facts.fact_vec_768. "
+                "Vector search will use a slow sequential scan. "
+                "Run: python scripts/rebuild_index.py",
+                file=sys.stderr,
+            )
+        chk.close()
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Connector sync state helpers
+# ---------------------------------------------------------------------------
+
+def get_sync_state(conn, workspace_id: str, source: str) -> dict:
+    """Return full sync state for a workspace+source."""
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT last_synced_at, last_count, status, consecutive_failures,
+                  last_error, locked_until, last_run_job_id, last_run_started_at
+           FROM connector_sync_state
+           WHERE workspace_id=%s AND source=%s""",
+        (workspace_id, source),
+    )
+    row = cur.fetchone()
+    cur.close()
+    if row:
+        return dict(row)
+    return {
+        "last_synced_at": None, "last_count": 0, "status": "idle",
+        "consecutive_failures": 0, "last_error": None,
+        "locked_until": None, "last_run_job_id": None, "last_run_started_at": None,
+    }
+
+
+def set_sync_state(conn, workspace_id: str, source: str, last_count: int = 0):
+    """Mark a sync successful: update watermark to now(), reset failure counters."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO connector_sync_state
+            (workspace_id, source, last_synced_at, last_count, status,
+             consecutive_failures, last_error, locked_until)
+        VALUES (%s, %s, now(), %s, 'idle', 0, NULL, NULL)
+        ON CONFLICT (workspace_id, source) DO UPDATE SET
+            last_synced_at       = now(),
+            last_count           = EXCLUDED.last_count,
+            status               = 'idle',
+            consecutive_failures = 0,
+            last_error           = NULL,
+            locked_until         = NULL
+        """,
+        (workspace_id, source, last_count),
+    )
     conn.commit()
     cur.close()
 
 
+def set_sync_state_running(conn, workspace_id: str, source: str, job_id: str = ""):
+    """Mark a sync as in-flight."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO connector_sync_state
+            (workspace_id, source, status, last_run_job_id, last_run_started_at)
+        VALUES (%s, %s, 'running', %s, now())
+        ON CONFLICT (workspace_id, source) DO UPDATE SET
+            status               = 'running',
+            last_run_job_id      = EXCLUDED.last_run_job_id,
+            last_run_started_at  = now()
+        """,
+        (workspace_id, source, job_id),
+    )
+    conn.commit()
+    cur.close()
+
+
+def set_sync_state_failed(conn, workspace_id: str, source: str, error: str = ""):
+    """Mark a sync failed and compute exponential backoff for locked_until."""
+    import datetime, math
+    cur = conn.cursor()
+    # Read current failure count
+    cur.execute(
+        "SELECT consecutive_failures FROM connector_sync_state "
+        "WHERE workspace_id=%s AND source=%s",
+        (workspace_id, source),
+    )
+    row = cur.fetchone()
+    failures = (row["consecutive_failures"] if row else 0) + 1
+    backoff_s = min(2 ** failures * 60, 3600)
+    locked_until = datetime.datetime.utcnow() + datetime.timedelta(seconds=backoff_s)
+    cur.execute(
+        """
+        INSERT INTO connector_sync_state
+            (workspace_id, source, status, consecutive_failures, last_error, locked_until)
+        VALUES (%s, %s, 'failed', %s, %s, %s)
+        ON CONFLICT (workspace_id, source) DO UPDATE SET
+            status               = 'failed',
+            consecutive_failures = EXCLUDED.consecutive_failures,
+            last_error           = EXCLUDED.last_error,
+            locked_until         = EXCLUDED.locked_until
+        """,
+        (workspace_id, source, failures, error[:2000], locked_until),
+    )
+    conn.commit()
+    cur.close()
+
+
+def reset_stuck_sync(conn, workspace_id: str, source: str):
+    """Reset a sync stuck in 'running' state back to idle."""
+    cur = conn.cursor()
+    cur.execute(
+        """UPDATE connector_sync_state SET status='idle', last_run_job_id=NULL
+           WHERE workspace_id=%s AND source=%s AND status='running'""",
+        (workspace_id, source),
+    )
+    conn.commit()
+    cur.close()
+
+
+def lookup_webhook_route(conn, entity_id: str) -> dict:
+    """Resolve entity_id -> {workspace_id, account_id}. Returns None if not found."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT workspace_id, account_id FROM connector_webhook_routes WHERE entity_id=%s",
+        (entity_id,),
+    )
+    row = cur.fetchone()
+    cur.close()
+    return dict(row) if row else None
+
+
+def upsert_webhook_route(conn, entity_id: str, workspace_id: str, account_id: str):
+    """Register or update the entity_id -> workspace mapping for webhook routing."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO connector_webhook_routes (entity_id, workspace_id, account_id)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (entity_id) DO UPDATE SET
+            workspace_id = EXCLUDED.workspace_id,
+            account_id   = EXCLUDED.account_id
+        """,
+        (entity_id, workspace_id, account_id),
+    )
+    conn.commit()
+    cur.close()
+
+
+def list_active_workspaces(conn) -> list:
+    """Return all workspace_ids that have at least one active fact."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT DISTINCT workspace_id FROM facts WHERE invalidated_at IS NULL"
+    )
+    rows = cur.fetchall()
+    cur.close()
+    return [r["workspace_id"] for r in rows]
+
+
 # ---------------------------------------------------------------------------
-# RLS helper — set workspace for every connection before queries
+# RLS helper - set workspace for every connection before queries
 # ---------------------------------------------------------------------------
 
 def _set_ws(conn, ws: str):
@@ -676,16 +928,26 @@ def get_fact(conn, ws, fact_id: str):
     return dict(row) if row else None
 
 
-def search_vec(conn, query_embedding: list, n: int = 30) -> list:
+def search_vec(conn, query_embedding: list, n: int = 30, workspace_id: str = None) -> list:
     vec_str = "[" + ",".join(f"{v:.8f}" for v in query_embedding) + "]"
     cur = conn.cursor()
-    cur.execute("""
-        SELECT id FROM facts
-        WHERE fact_vec_768 IS NOT NULL
-          AND invalidated_at IS NULL
-        ORDER BY fact_vec_768 <=> %s::vector
-        LIMIT %s
-    """, (vec_str, n))
+    if workspace_id:
+        cur.execute("""
+            SELECT id FROM facts
+            WHERE fact_vec_768 IS NOT NULL
+              AND invalidated_at IS NULL
+              AND workspace_id = %s
+            ORDER BY fact_vec_768 <=> %s::vector
+            LIMIT %s
+        """, (workspace_id, vec_str, n))
+    else:
+        cur.execute("""
+            SELECT id FROM facts
+            WHERE fact_vec_768 IS NOT NULL
+              AND invalidated_at IS NULL
+            ORDER BY fact_vec_768 <=> %s::vector
+            LIMIT %s
+        """, (vec_str, n))
     rows = cur.fetchall()
     cur.close()
     return [r["id"] for r in rows]

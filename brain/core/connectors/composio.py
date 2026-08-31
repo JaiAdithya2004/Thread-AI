@@ -3,7 +3,7 @@ Integration connector — 1,047+ app integrations.
 
 Internal implementation detail. Never expose vendor name to users.
 """
-import os, datetime, time
+import os, datetime
 from .base import Connector
 
 # Thread-local billing context set by the API layer
@@ -53,9 +53,6 @@ _APP_ACTIONS = {
     ],
     "hubspot": [
         ("HUBSPOT_LIST_CONTACTS", {"limit": 50}),
-    ],
-    "notion": [
-        ("NOTION_SEARCH_NOTION_PAGE", {"query": ""}),
     ],
 }
 
@@ -160,6 +157,57 @@ def disconnect_app(connected_account_id: str):
     return {"ok": True}
 
 
+def register_webhook_trigger(app_slug: str, entity_id: str, webhook_url: str) -> str:
+    """
+    Subscribe to push events for an app+entity via the triggers API.
+    Returns the composio trigger_id, or empty string if registration fails
+    (non-fatal - poll loop still works).
+    """
+    try:
+        # Find the default trigger for this app (e.g. GMAIL_NEW_EMAIL)
+        triggers_data = _get("/triggers", params={"toolkit_slug": app_slug, "limit": 10})
+        triggers = triggers_data.get("items") or triggers_data.get("triggers") or []
+        if not triggers:
+            return ""
+        trigger_slug = triggers[0].get("slug") or triggers[0].get("name", "")
+        if not trigger_slug:
+            return ""
+
+        body = {
+            "triggerName": trigger_slug,
+            "entityId": entity_id,
+            "config": {"webhook_url": webhook_url},
+        }
+        result = _post("/triggers/subscribe", body)
+        trigger_id = result.get("triggerId") or result.get("trigger_id") or ""
+        return trigger_id
+    except Exception as e:
+        import sys
+        print(f"[integrations] webhook registration failed for {app_slug}: {e}", file=sys.stderr)
+        return ""
+
+
+def deregister_webhook_trigger(trigger_id: str) -> bool:
+    """
+    Unsubscribe a webhook trigger by its composio trigger_id.
+    Non-fatal on failure.
+    """
+    if not trigger_id:
+        return False
+    try:
+        import requests
+        resp = requests.delete(
+            f"{_BASE}/triggers/{trigger_id}",
+            headers=_headers(), timeout=15,
+        )
+        resp.raise_for_status()
+        return True
+    except Exception as e:
+        import sys
+        print(f"[integrations] webhook deregistration failed for {trigger_id}: {e}", file=sys.stderr)
+        return False
+
+
 def get_connect_url(app_slug: str, user_id: str = "default", redirect_url: str = None):
     """Initiate OAuth for an app. Returns a URL the user opens in browser."""
     try:
@@ -185,6 +233,27 @@ def execute_action(action_slug: str, arguments: dict, entity_id: str = "default"
     if connected_account_id:
         body["connectedAccountId"] = connected_account_id
     return _post(f"/tools/execute/{action_slug}", body)
+
+
+def _filter_since(episodes: list, since: datetime.datetime) -> list:
+    """Drop episodes whose occurred_at is older than `since`. Keeps episodes
+    with unparseable or missing timestamps (safer to over-ingest than miss)."""
+    out = []
+    for ep in episodes:
+        ts_raw = ep.get("occurred_at")
+        if not ts_raw:
+            out.append(ep)
+            continue
+        try:
+            ts_str = str(ts_raw).replace("Z", "+00:00")
+            ts = datetime.datetime.fromisoformat(ts_str)
+            if ts.tzinfo is not None:
+                ts = ts.replace(tzinfo=None)
+            if ts >= since:
+                out.append(ep)
+        except Exception:
+            out.append(ep)
+    return out
 
 
 def _normalize_result(app, action, raw_result) -> list:
@@ -303,13 +372,16 @@ def _normalize_result(app, action, raw_result) -> list:
 
     else:
         # Generic fallback — dump raw JSON as body so it still gets extracted
-        import json
+        import json, hashlib
         body_text = json.dumps(data, indent=2)[:3000] if data else ""
         if body_text:
+            stable_hash = hashlib.sha256(
+                json.dumps(data, sort_keys=True).encode()
+            ).hexdigest()[:16]
             episodes.append({
                 "source":      f"composio:{app}",
-                "external_id": f"composio:{app}:{action}:{int(time.time())}",
-                "title":       f"{app} — {action}",
+                "external_id": f"composio:{app}:{action}:{stable_hash}",
+                "title":       f"{app} - {action}",
                 "body":        body_text,
                 "author":      app,
                 "url":         "",
@@ -356,10 +428,14 @@ class ComposioConnector(Connector):
         return self._connected
 
     def backfill(self):
-        return list(self._fetch(poll=False))
+        return list(self._fetch(since=None))
 
-    def poll(self):
-        return list(self._fetch(poll=True))
+    def poll(self, since: datetime.datetime = None):
+        """Incremental poll. `since` is the last_synced_at watermark from DB.
+        Defaults to 24h ago if not provided."""
+        if since is None:
+            since = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+        return list(self._fetch(since=since))
 
     def normalize(self, raw):
         """Webhook path: raw Composio event → Episode dict."""
@@ -373,7 +449,7 @@ class ComposioConnector(Connector):
             "acl": ["everyone"],
         }
 
-    def _fetch(self, poll: bool):
+    def _fetch(self, since: datetime.datetime = None):
         connected = self._connected_apps()
         if not connected:
             raise RuntimeError(
@@ -391,20 +467,21 @@ class ComposioConnector(Connector):
             app = account["app"]
             if self.app and app != self.app:
                 continue
-            # Use this account's owner as entity_id (falls back to self.user_id)
             entity_id = account.get("user_id") or self.user_id
             actions = _APP_ACTIONS.get(app, [])
             for action_slug, args in actions:
                 try:
-                    if poll and "query" in args:
-                        cutoff = (datetime.datetime.utcnow() - datetime.timedelta(days=3))
-                        args = dict(args, query=f"after:{cutoff.strftime('%Y/%m/%d')}")
+                    # Inject date filter when we have a watermark
+                    if since is not None and "query" in args:
+                        args = dict(args, query=f"after:{since.strftime('%Y/%m/%d')}")
                     result = execute_action(action_slug, args, entity_id=entity_id)
                     total_calls += 1
                     eps = list(_normalize_result(app, action_slug, result))
+                    # Filter to items newer than watermark when possible
+                    if since is not None:
+                        eps = _filter_since(eps, since)
                     total_items += len(eps)
                     for ep in eps:
-                        # Tag with owner's ACL so only they can retrieve it
                         ep["acl"] = acl_owner
                         yield ep
                 except Exception as e:
@@ -420,7 +497,7 @@ class ComposioConnector(Connector):
                     account_id=acct_id,
                     provider="integrations",
                     api_calls=total_calls,
-                    backfill_items=total_items if not poll else 0,
+                    backfill_items=total_items if since is None else 0,
                     connected_accounts=len(connected),
                 )
         except Exception as e:
