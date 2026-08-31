@@ -401,7 +401,8 @@ def _resolve_account_id(user_id: str) -> str:
         try:
             cur = conn.cursor()
             cur.execute(
-                "SELECT account_id FROM memberships WHERE user_id=%s AND status='active' LIMIT 1",
+                "SELECT account_id FROM memberships WHERE user_id=%s AND status='active' "
+                "ORDER BY created_at DESC LIMIT 1",
                 (user_id,)
             )
             row = cur.fetchone()
@@ -1085,7 +1086,8 @@ def signup(req: SignupRequest, request: Request):
         cur = conn.cursor()
         # Idempotent — don't create duplicate account if already exists
         cur.execute(
-            "SELECT m.account_id FROM memberships m WHERE m.user_id=%s AND m.status='active' LIMIT 1",
+            "SELECT m.account_id FROM memberships m WHERE m.user_id=%s AND m.status='active' "
+            "ORDER BY m.created_at DESC LIMIT 1",
             (user_id,)
         )
         existing = cur.fetchone()
@@ -1158,7 +1160,8 @@ def create_conversation(
         # Get account_id
         cur.execute("""
             SELECT account_id FROM memberships
-            WHERE user_id = %s AND status = 'active' LIMIT 1
+            WHERE user_id = %s AND status = 'active'
+            ORDER BY created_at DESC LIMIT 1
         """, (identity.user_id,))
         row = cur.fetchone()
         if not row:
@@ -1604,9 +1607,12 @@ def invite_member(
     conn = _pg.connect()
     try:
         cur = conn.cursor()
+        # Newest membership first: a user can belong to several accounts, and an
+        # unordered LIMIT 1 would pick an arbitrary one.
         cur.execute("""
             SELECT account_id FROM memberships
-            WHERE user_id = %s AND status = 'active' LIMIT 1
+            WHERE user_id = %s AND status = 'active'
+            ORDER BY created_at DESC LIMIT 1
         """, (identity.user_id,))
         row = cur.fetchone()
         if not row:
