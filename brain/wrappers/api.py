@@ -140,13 +140,18 @@ app.add_middleware(SecurityHeadersMiddleware)
 @app.exception_handler(StarletteHTTPException)
 async def _http_exc(request: _Req, exc: StarletteHTTPException):
     """Convert all HTTP exceptions to clean JSON. Status 4xx logged at debug, 5xx at error."""
+    detail = exc.detail
     if exc.status_code >= 500:
         import sys
-        print(f"[api] 5xx {exc.status_code} {request.method} {request.url.path}: {exc.detail}",
+        print(f"[api] 5xx {exc.status_code} {request.method} {request.url.path}: {detail}",
               file=sys.stderr)
+        # Several handlers raise HTTPException(500, str(e)), which would echo raw
+        # driver text — table names, constraints, SQL — straight to the client.
+        # Log the detail above, return an opaque message.
+        detail = "An internal error occurred. Please try again."
     return _JSONResp(
         status_code=exc.status_code,
-        content={"error": exc.detail, "status": exc.status_code},
+        content={"error": detail, "status": exc.status_code},
     )
 
 
@@ -1643,7 +1648,9 @@ def invite_member(
         base_url = os.getenv("APP_BASE_URL", "http://localhost:7070").rstrip("/")
         if row:
             expires = datetime.datetime.utcnow() + datetime.timedelta(days=7)
-            team_ids_json = f'["{req.team_id}"]' if req.team_id else "[]"
+            # Serialize properly: interpolating the value would let a quote in
+            # team_id corrupt the stored JSON that accept-invite later parses.
+            team_ids_json = json.dumps([req.team_id] if req.team_id else [])
             cur.execute("""
                 INSERT INTO invitations
                     (id, account_id, email, team_ids, role, token, invited_by, expires_at, status)
@@ -1732,15 +1739,22 @@ def update_member(
     conn = _pg.connect()
     try:
         cur = conn.cursor()
-        # Verify target is in same account
+        # Resolve the admin's own account, then confirm the target belongs to it.
+        # The account id is kept so the UPDATE below can be scoped to it.
         cur.execute("""
-            SELECT m2.id FROM memberships m2
-            WHERE m2.user_id = %s
-              AND m2.account_id = (
-                SELECT account_id FROM memberships
-                WHERE user_id = %s AND status='active' LIMIT 1
-              )
-        """, (user_id, identity.user_id))
+            SELECT account_id FROM memberships
+            WHERE user_id = %s AND status='active'
+            ORDER BY created_at DESC LIMIT 1
+        """, (identity.user_id,))
+        _admin_row = cur.fetchone()
+        if not _admin_row:
+            raise HTTPException(404, "Member not found in your account")
+        admin_account_id = _admin_row["account_id"]
+
+        cur.execute(
+            "SELECT id FROM memberships WHERE user_id = %s AND account_id = %s",
+            (user_id, admin_account_id),
+        )
         if not cur.fetchone():
             raise HTTPException(404, "Member not found in your account")
 
@@ -1762,9 +1776,13 @@ def update_member(
         if not updates:
             return {"ok": True}
 
-        params.append(user_id)
+        # Scope the write to the admin's account: user_id is not unique across
+        # accounts, so an unscoped UPDATE would edit this person's membership in
+        # every other account they belong to.
+        params.extend([user_id, admin_account_id])
         cur.execute(
-            f"UPDATE memberships SET {', '.join(updates)} WHERE user_id = %s",
+            f"UPDATE memberships SET {', '.join(updates)} "
+            "WHERE user_id = %s AND account_id = %s",
             params,
         )
         conn.commit()
@@ -1795,7 +1813,8 @@ def remove_member(
             WHERE user_id = %s
               AND account_id = (
                 SELECT account_id FROM memberships
-                WHERE user_id = %s AND status='active' LIMIT 1
+                WHERE user_id = %s AND status='active'
+                ORDER BY created_at DESC LIMIT 1
               )
         """, (user_id, identity.user_id))
         if cur.rowcount == 0:
