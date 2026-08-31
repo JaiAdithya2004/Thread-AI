@@ -104,7 +104,6 @@ def migrate(conn):
     global _migrated
     if _migrated:
         return
-    _migrated = True
     cur = conn.cursor()
 
     # Extensions
@@ -593,7 +592,7 @@ def migrate(conn):
     # ── External-id supersession on episodes ──────────────────────────────────
     cur.execute("""
         ALTER TABLE episodes
-            ADD COLUMN IF NOT EXISTS supersedes_episode_id UUID REFERENCES episodes(id)
+            ADD COLUMN IF NOT EXISTS supersedes_episode_id TEXT REFERENCES episodes(id)
                 ON DELETE SET NULL;
     """)
     cur.execute("""
@@ -640,6 +639,7 @@ def migrate(conn):
 
     conn.commit()
     cur.close()
+    _migrated = True
 
     # Warn if HNSW vector index is missing — searches degrade to sequential scan
     try:
