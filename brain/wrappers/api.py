@@ -2377,7 +2377,10 @@ def platform_metrics(period: str = None, _identity: Identity = Depends(get_ident
     else:
         period_end = period_start.replace(month=period_start.month + 1, day=1)
 
-    conn = _pg.connect()
+    try:
+        conn = _pg.connect()
+    except Exception as _e:
+        raise HTTPException(status_code=500, detail="DB unavailable") from _e
     try:
         cur = conn.cursor()
 
@@ -2425,6 +2428,8 @@ def platform_metrics(period: str = None, _identity: Identity = Depends(get_ident
             })
 
         cur.close()
+    except Exception as _e:
+        raise HTTPException(status_code=500, detail="metrics query failed") from _e
     finally:
         conn.close()
 

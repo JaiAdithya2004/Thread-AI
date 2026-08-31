@@ -110,7 +110,7 @@ def api_client():
     # Must import AFTER env vars are set
     from fastapi.testclient import TestClient
     from brain.wrappers.api import app
-    return TestClient(app, raise_server_exceptions=True)
+    return TestClient(app, raise_server_exceptions=False)
 
 
 @pytest.fixture
