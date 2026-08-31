@@ -114,10 +114,10 @@ def test_incremental_sync_no_duplicate_episodes(brain):
 
     cur = brain.conn.cursor()
     cur.execute(
-        "SELECT COUNT(*) FROM episodes WHERE workspace_id=%s",
+        "SELECT COUNT(*) AS n FROM episodes WHERE workspace_id=%s",
         (brain.ws,),
     )
-    count = cur.fetchone()[0]
+    count = cur.fetchone()["n"]   # pool uses RealDictCursor — rows are dicts
     cur.close()
     assert count == 1, f"Expected 1 episode after dedup, found {count}"
 

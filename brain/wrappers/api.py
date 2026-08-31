@@ -1397,16 +1397,21 @@ def dev_provision(body: _ProvisionRequest):
             (account_id, body.account_type, body.name or body.user_id),
         )
         role = "owner" if body.account_type == "individual" else "admin"
-        # Also enrol the caller's own identity: in dev-bypass every request arrives
-        # as config.CALLER, so without this row follow-up calls find no membership.
-        for _uid in {body.user_id, config.CALLER}:
-            cur.execute(
-                "INSERT INTO memberships (id, user_id, account_id, role, status) "
-                "VALUES (%s, %s, %s, %s, 'active') ON CONFLICT DO NOTHING",
-                (str(_uuid.uuid4()), _uid, account_id, role),
-            )
+        # Enrol under the identity that subsequent requests actually arrive as. In
+        # dev-bypass that is always config.CALLER, so keying the membership off the
+        # request body would leave the caller with no account. One row, one seat —
+        # enrolling both would consume the free plan's single seat before any invite.
+        from brain.auth import _BYPASS as _bypass_active
+        member_id = config.CALLER if _bypass_active else body.user_id
+        cur.execute(
+            "INSERT INTO memberships (id, user_id, account_id, role, status) "
+            "VALUES (%s, %s, %s, %s, 'active') ON CONFLICT DO NOTHING",
+            (str(_uuid.uuid4()), member_id, account_id, role),
+        )
         conn.commit()
         cur.close()
+        # Membership changed — drop the cached user_id → account_id mapping.
+        _account_id_cache.pop(member_id, None)
         ensure_free_subscription(account_id)
         return {"ok": True, "account_id": account_id}
     except Exception as _e:

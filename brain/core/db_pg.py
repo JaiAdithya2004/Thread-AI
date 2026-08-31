@@ -498,17 +498,25 @@ def migrate(conn):
         # insufficient privilege to create roles — RLS still enforced for app roles
         print(f"[migrate] authenticated role: {_e}", file=sys.stderr)
 
-    # Grant DML to Supabase's non-bypassrls roles so SET LOCAL ROLE authenticated works
-    for table in ("conversations", "messages"):
-        cur.execute(f"SAVEPOINT _grant_{table}")
+    # Grant DML to Supabase's non-bypassrls roles so SET LOCAL ROLE authenticated works.
+    # Write access stays confined to the caller's own chat tables; the lookup tables
+    # below are read-only, since request handlers must resolve the caller's account
+    # after dropping to this role.
+    _grants = [
+        ("conversations", "SELECT, INSERT, UPDATE, DELETE"),
+        ("messages",      "SELECT, INSERT, UPDATE, DELETE"),
+        ("memberships",   "SELECT"),
+        ("accounts",      "SELECT"),
+        ("teams",         "SELECT"),
+    ]
+    for _i, (table, privs) in enumerate(_grants):
+        cur.execute(f"SAVEPOINT _grant_{_i}")
         try:
-            cur.execute(
-                f"GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO authenticated;"
-            )
-            cur.execute(f"RELEASE SAVEPOINT _grant_{table}")
+            cur.execute(f"GRANT {privs} ON {table} TO authenticated;")
+            cur.execute(f"RELEASE SAVEPOINT _grant_{_i}")
         except Exception:
-            cur.execute(f"ROLLBACK TO SAVEPOINT _grant_{table}")
-            cur.execute(f"RELEASE SAVEPOINT _grant_{table}")
+            cur.execute(f"ROLLBACK TO SAVEPOINT _grant_{_i}")
+            cur.execute(f"RELEASE SAVEPOINT _grant_{_i}")
             # role may not exist on local Postgres installs — non-fatal
 
     # Dead-letter queue — poison jobs that exhausted all retries land here

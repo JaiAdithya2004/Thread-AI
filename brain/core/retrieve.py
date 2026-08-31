@@ -96,8 +96,19 @@ def _cache_set(key: str, value, ttl: int):
         print(f"[retrieve] Redis set failed (non-fatal): {e}", file=sys.stderr)
 
 
-def _cache_key(embedding: list) -> str:
-    return "brain:qcache:" + hashlib.md5(str(embedding).encode()).hexdigest()
+def _cache_key(embedding: list, ws: str, principals: list, team_id, cross_team: bool,
+               include_invalid: bool, top: int) -> str:
+    """Cache key covering every input that changes the result set.
+
+    The embedding alone is not enough: results are filtered by workspace, ACL
+    principals and team scope, so keying on the vector only would let one
+    tenant's cached results be served to another.
+    """
+    parts = "|".join([
+        str(embedding), ws or "", ",".join(sorted(principals or [])),
+        str(team_id or ""), str(cross_team), str(include_invalid), str(top),
+    ])
+    return "brain:qcache:" + hashlib.md5(parts.encode()).hexdigest()
 
 
 def _vec(conn, query_emb, n=30, workspace_id=None):
@@ -282,7 +293,8 @@ def run(conn, ws, query, principals, caller, surface,
     q_emb = _cached_embed(query)
 
     # Redis cache check — falls through silently if Redis is down
-    cache_key = _cache_key(q_emb)
+    cache_key = _cache_key(q_emb, ws, principals, team_id, cross_team,
+                           include_invalid, top)
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
