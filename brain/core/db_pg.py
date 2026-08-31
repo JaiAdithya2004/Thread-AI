@@ -1213,16 +1213,25 @@ def delete_byo_key(account_id: str, provider: str):
 
 
 def ensure_free_subscription(account_id: str):
-    """Provision a free-plan subscription for a newly created account if none exists."""
+    """Provision a starting subscription for a newly created account if none exists.
+
+    The tier follows the account's own type, read from the DB rather than taken
+    from the caller: an 'individual' gets the 1-seat free plan, while a 'company'
+    gets the team plan — on the free plan its single seat is filled by the admin,
+    leaving a company structurally unable to invite the members that define it.
+    """
     try:
         conn = connect()
         try:
             cur = conn.cursor()
+            cur.execute("SELECT type FROM accounts WHERE id = %s", (account_id,))
+            row = cur.fetchone() or {}
+            plan_id = "plan_team" if row.get("type") == "company" else "plan_free"
             cur.execute("""
                 INSERT INTO subscriptions (account_id, plan_id, status)
-                VALUES (%s, 'plan_free', 'active')
+                VALUES (%s, %s, 'active')
                 ON CONFLICT (account_id) DO NOTHING
-            """, (account_id,))
+            """, (account_id, plan_id))
             conn.commit()
             cur.close()
         finally:
