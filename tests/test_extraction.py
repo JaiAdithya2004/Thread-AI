@@ -61,7 +61,7 @@ def test_dedup_identical_texts_produces_one_fact(pg_conn, ws_id):
     db.migrate(pg_conn)
 
     # Call extract_from_text twice with the same text / same subject
-    n1 = extract.extract_from_text(
+    _n1 = extract.extract_from_text(
         pg_conn, ws_id,
         "We decided to adopt Python as our backend language.",
         source_kind="agent", team_id="eng",

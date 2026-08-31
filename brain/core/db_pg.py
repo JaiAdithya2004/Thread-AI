@@ -2,7 +2,11 @@
 Postgres + pgvector backend for Company Brain.
 Uses psycopg2 (sync) so the rest of the codebase needs zero async changes.
 """
-import datetime, json, uuid, threading
+import datetime
+import json
+import sys
+import uuid
+import threading
 
 # ---------------------------------------------------------------------------
 # Connection pool — reuse connections instead of cold-opening one per request
@@ -19,7 +23,9 @@ def _get_pool():
     with _pool_lock:
         if _pool is not None:
             return _pool
-        import psycopg2.pool, psycopg2.extras, os
+        import psycopg2.pool
+        import psycopg2.extras
+        import os
         url = os.getenv("DATABASE_URL", "postgresql://brain:brain_local@localhost:5432/brain")
         _pool = psycopg2.pool.ThreadedConnectionPool(
             minconn=2,
@@ -387,63 +393,48 @@ def migrate(conn):
     cur.execute("CREATE INDEX IF NOT EXISTS wlk_acct ON workspace_llm_keys(account_id);")
 
     # ── Phase 3: idempotent constraint additions ──────────────────────────────
-    # These ALTER TABLE statements are safe to run on existing installs.
-    # They add CHECK constraints that were omitted in the original schema.
-    # Existing rows that violate a constraint will cause the migration to fail —
-    # fix data first with: UPDATE facts SET confidence = LEAST(GREATEST(confidence, 0), 1)
-    try:
-        cur.execute(
-            "ALTER TABLE facts ADD CONSTRAINT IF NOT EXISTS "
-            "facts_confidence_range CHECK (confidence >= 0.0 AND confidence <= 1.0)"
-        )
-    except Exception as _e:
-        import sys as _sys
-        print(f"[migrate] facts_confidence_range constraint: {_e}", file=_sys.stderr)
-        conn.rollback()
-
-    try:
-        cur.execute(
-            "ALTER TABLE facts ADD CONSTRAINT IF NOT EXISTS "
-            "facts_source_kind_check CHECK (source_kind IN ('llm', 'human', 'agent', 'ai-tool'))"
-        )
-    except Exception as _e:
-        import sys as _sys
-        print(f"[migrate] facts_source_kind_check constraint: {_e}", file=_sys.stderr)
-        conn.rollback()
-
-    try:
-        cur.execute(
-            "ALTER TABLE facts ADD CONSTRAINT IF NOT EXISTS "
-            "facts_visibility_check CHECK (visibility IN ('team', 'org', 'private'))"
-        )
-    except Exception as _e:
-        import sys as _sys
-        print(f"[migrate] facts_visibility_check constraint: {_e}", file=_sys.stderr)
-        conn.rollback()
-
-    try:
-        cur.execute(
-            "ALTER TABLE ledger ADD CONSTRAINT IF NOT EXISTS "
-            "ledger_surface_check CHECK (surface IS NULL OR surface IN "
-            "('mcp', 'web', 'hook-inject', 'history', 'api', 'hook-harvest'))"
-        )
-    except Exception as _e:
-        import sys as _sys
-        print(f"[migrate] ledger_surface_check constraint: {_e}", file=_sys.stderr)
-        conn.rollback()
+    # Use DO blocks with EXISTS checks — ADD CONSTRAINT IF NOT EXISTS is not
+    # valid Postgres syntax. Savepoints ensure a failed check doesn't roll
+    # back the entire migration transaction.
+    _constraints = [
+        ("facts", "facts_confidence_range",
+         "CHECK (confidence >= 0.0 AND confidence <= 1.0)"),
+        ("facts", "facts_source_kind_check",
+         "CHECK (source_kind IN ('llm', 'human', 'agent', 'ai-tool'))"),
+        ("facts", "facts_visibility_check",
+         "CHECK (visibility IN ('team', 'org', 'private'))"),
+        ("ledger", "ledger_surface_check",
+         "CHECK (surface IS NULL OR surface IN "
+         "('mcp', 'web', 'hook-inject', 'history', 'api', 'hook-harvest'))"),
+    ]
+    _stderr = sys.stderr
+    for _tbl, _cname, _cdef in _constraints:
+        cur.execute("SAVEPOINT _add_constraint")
+        try:
+            _sql = (
+                "DO $do$ BEGIN "
+                "IF NOT EXISTS (SELECT 1 FROM pg_constraint "
+                "WHERE conname = %s AND conrelid = %s::regclass) "
+                "THEN EXECUTE 'ALTER TABLE ' || %s || ' ADD CONSTRAINT ' || %s || ' ' || %s; "
+                "END IF; END $do$;"
+            )
+            cur.execute(_sql, (_cname, _tbl, _tbl, _cname, _cdef))
+            cur.execute("RELEASE SAVEPOINT _add_constraint")
+        except Exception as _e:
+            cur.execute("ROLLBACK TO SAVEPOINT _add_constraint")
+            cur.execute("RELEASE SAVEPOINT _add_constraint")
+            print(f"[migrate] {_cname} constraint: {_e}", file=_stderr)
 
     # episodes.source — ensure NOT NULL with default for any rows that have NULL source
+    cur.execute("SAVEPOINT _src_default")
     try:
-        cur.execute(
-            "UPDATE episodes SET source = 'unknown' WHERE source IS NULL"
-        )
-        cur.execute(
-            "ALTER TABLE episodes ALTER COLUMN source SET DEFAULT 'unknown'"
-        )
+        cur.execute("UPDATE episodes SET source = 'unknown' WHERE source IS NULL")
+        cur.execute("ALTER TABLE episodes ALTER COLUMN source SET DEFAULT 'unknown'")
+        cur.execute("RELEASE SAVEPOINT _src_default")
     except Exception as _e:
-        import sys as _sys
-        print(f"[migrate] episodes.source default: {_e}", file=_sys.stderr)
-        conn.rollback()
+        cur.execute("ROLLBACK TO SAVEPOINT _src_default")
+        cur.execute("RELEASE SAVEPOINT _src_default")
+        print(f"[migrate] episodes.source default: {_e}", file=sys.stderr)
 
     # Row-Level Security — defense in depth, workspace isolation
     for table in ("episodes", "facts", "fact_edges", "ledger", "teams"):
@@ -735,7 +726,7 @@ def set_sync_state_running(conn, workspace_id: str, source: str, job_id: str = "
 
 def set_sync_state_failed(conn, workspace_id: str, source: str, error: str = ""):
     """Mark a sync failed and compute exponential backoff for locked_until."""
-    import datetime, math
+    import datetime
     cur = conn.cursor()
     # Read current failure count
     cur.execute(

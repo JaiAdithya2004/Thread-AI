@@ -25,7 +25,6 @@ pytestmark = pytest.mark.isolation
 def test_cross_workspace_blocked(pg_conn):
     """Facts seeded in workspace A are not retrievable from workspace B."""
     from brain.core import ingest, extract, retrieve
-    import unittest.mock as mock
 
     ws_a = f"ws_a_{uuid.uuid4().hex[:6]}"
     ws_b = f"ws_b_{uuid.uuid4().hex[:6]}"
@@ -105,7 +104,7 @@ def test_admin_endpoints_blocked_for_non_admin(api_client, monkeypatch):
     import brain.auth as _auth
     import brain.wrappers.api as _api
 
-    non_admin_identity = _auth.Identity(
+    _non_admin_identity = _auth.Identity(
         user_id="emp_user",
         email="emp@example.com",
         workspace_id="ws_test",
@@ -147,7 +146,7 @@ def test_platform_metrics_accessible_with_flag(api_client, auth_headers, monkeyp
     resp = api_client.get("/api/_platform/metrics", headers=auth_headers)
     # May 200 or 500 (no DB in unit test env), but NOT 403
     assert resp.status_code != 403, \
-        f"Platform metrics still blocked even with flag set"
+        "Platform metrics still blocked even with flag set"
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -161,7 +160,7 @@ def test_invite_token_reuse_blocked(api_client, auth_headers, pg_conn):
         pytest.skip("requires Postgres DATABASE_URL")
 
     # Create account + invite manually in DB
-    import psycopg2.extras, datetime
+    import datetime
     account_id = str(uuid.uuid4())
     token = f"tok_{uuid.uuid4().hex}"
     admin_id = f"admin_{uuid.uuid4().hex[:8]}"
@@ -301,7 +300,6 @@ def test_chat_privacy_rls(pg_conn):
 def test_wrong_tenant_isolation(pg_conn):
     """Brain instance for ws_X cannot retrieve facts seeded in ws_Y."""
     from brain.core import ingest, retrieve
-    import unittest.mock as mock
 
     ws_x = f"ws_x_{uuid.uuid4().hex[:6]}"
     ws_y = f"ws_y_{uuid.uuid4().hex[:6]}"

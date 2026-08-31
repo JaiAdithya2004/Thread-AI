@@ -1,4 +1,6 @@
-import hashlib, re, uuid
+import hashlib
+import re
+import uuid
 from brain.config import WORTHY_MIN_LEN
 
 

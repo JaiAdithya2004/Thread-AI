@@ -15,6 +15,7 @@ import uuid
 import json
 import threading
 import time
+import unittest.mock as mock
 import pytest
 import psycopg2
 import psycopg2.extras
@@ -30,10 +31,6 @@ if not DATABASE_URL:
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 BASE_URL   = "http://127.0.0.1:7171"   # dedicated E2E port avoids collisions
-
-
-# ── Stub LLM for all E2E tests (no real API key needed) ──────────────────────
-import unittest.mock as mock
 
 _STUB_FACTS  = {"facts": [{"subject": "thread", "predicate": "is",
                             "object": "company memory",
@@ -71,9 +68,11 @@ def stub_embed_session():
     from brain.config import EMBED_DIM
     p1 = mock.patch.object(_embed, "embed",       lambda t: [0.0] * EMBED_DIM)
     p2 = mock.patch.object(_embed, "embed_batch", lambda ts: [[0.0] * EMBED_DIM for _ in ts])
-    p1.start(); p2.start()
+    p1.start()
+    p2.start()
     yield
-    p1.stop(); p2.stop()
+    p1.stop()
+    p2.stop()
 
 
 # ── FastAPI server thread ─────────────────────────────────────────────────────

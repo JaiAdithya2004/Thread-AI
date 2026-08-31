@@ -12,12 +12,22 @@ exclusively from the verified token — never from query parameters or request b
 Development / single-tenant mode: if SUPABASE_JWT_SECRET is not set, auth runs in
 BYPASS mode and all requests use the config defaults.  See brain/auth.py.
 """
-import os, json, time, threading, re, uuid as _uuid_mod
+import os
+import sys
+import json
+import time
+import threading
+import re
+import traceback as _traceback
+import uuid as _uuid_mod
 from collections import defaultdict
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response, PlainTextResponse, StreamingResponse
+from fastapi import Request as _Req
+from fastapi.responses import HTMLResponse, JSONResponse as _JSONResp, Response, PlainTextResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel
 from pathlib import Path
 
@@ -126,12 +136,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(SecurityHeadersMiddleware)
 
 # ── Global exception handlers — clean JSON errors, no stack traces to clients ─
-import traceback as _traceback
-from fastapi import Request as _Req
-from fastapi.responses import JSONResponse as _JSONResp
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-
 
 @app.exception_handler(StarletteHTTPException)
 async def _http_exc(request: _Req, exc: StarletteHTTPException):
@@ -150,7 +154,7 @@ async def _http_exc(request: _Req, exc: StarletteHTTPException):
 async def _validation_exc(_request: _Req, exc: RequestValidationError):
     """Pydantic validation errors → 422 with field-level messages, no stack trace."""
     errors = [
-        {"field": ".".join(str(l) for l in e["loc"]), "msg": e["msg"]}
+        {"field": ".".join(str(loc) for loc in e["loc"]), "msg": e["msg"]}
         for e in exc.errors()
     ]
     return _JSONResp(
@@ -613,7 +617,12 @@ def guest_session(request: Request):
         raise HTTPException(503, "Demo access is not enabled on this server.")
     _rate_limit(request, limit=20, window=60, identity=None)  # IP-keyed
 
-    import hmac, hashlib, base64, json as _json, time as _time, uuid as _uuid
+    import hmac
+    import hashlib
+    import base64
+    import json as _json
+    import time as _time
+    import uuid as _uuid
 
     exp = int(_time.time()) + 4 * 3600   # 4-hour session
     payload = _json.dumps({
@@ -842,7 +851,8 @@ def composio_apps(limit: int = 50, cursor: str = None,
         return cached[1]
 
     try:
-        import requests as _req, os
+        import requests as _req
+        import os
         key = os.getenv("COMPOSIO_API_KEY", "")
         params = {"limit": limit}
         if cursor:
@@ -950,7 +960,7 @@ def composio_connect(
     try:
         from brain.core.connectors.composio import get_connect_url
         # entity_id = caller's user_id - each user gets their own OAuth connection
-        redirect = req.redirect_url or os.getenv("APP_BASE_URL", "http://localhost:7070")
+        _ = req.redirect_url or os.getenv("APP_BASE_URL", "http://localhost:7070")
         # Point Composio callback back through our endpoint so we can register webhooks
         app_base = os.getenv("APP_BASE_URL", "http://localhost:7070").rstrip("/")
         callback = f"{app_base}/api/composio/callback?user_id={identity.user_id}&workspace_id={identity.workspace_id}&account_id={identity.account_id or ''}"
@@ -1379,7 +1389,7 @@ def accept_invite(token: str, req: InviteAcceptRequest, request: Request):
     _rl_auth(request)
     if not token or len(token) > 128:
         raise HTTPException(400, "Invalid invite token")
-    import datetime, json as _json
+    import json as _json
     if len(req.password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
 
@@ -1508,7 +1518,8 @@ def invite_member(
     identity: Identity = Depends(require_admin),
 ):
     """Create a pending invitation for a new member. Admin-only."""
-    import secrets, datetime
+    import secrets
+    import datetime
 
     req.email = req.email.lower().strip()
     if req.role not in ("employee", "admin"):
@@ -1647,13 +1658,16 @@ def update_member(
         if req.role is not None:
             if req.role not in ("employee", "admin"):
                 raise HTTPException(400, "role must be 'employee' or 'admin'")
-            updates.append("role = %s"); params.append(req.role)
+            updates.append("role = %s")
+            params.append(req.role)
         if req.status is not None:
             if req.status not in ("active", "disabled"):
                 raise HTTPException(400, "status must be 'active' or 'disabled'")
-            updates.append("status = %s"); params.append(req.status)
+            updates.append("status = %s")
+            params.append(req.status)
         if req.team_id is not None:
-            updates.append("team_id = %s"); params.append(req.team_id or None)
+            updates.append("team_id = %s")
+            params.append(req.team_id or None)
         if not updates:
             return {"ok": True}
 
@@ -1785,7 +1799,8 @@ async def ingest_event_webhook(request: Request):
     then enqueues an ingest_event_job for background processing.
     Returns 200 immediately - never blocks on ingestion or extraction.
     """
-    import hashlib, hmac as _hmac
+    import hashlib
+    import hmac as _hmac
 
     webhook_secret = config.COMPOSIO_WEBHOOK_SECRET
     if not webhook_secret:

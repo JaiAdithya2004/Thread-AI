@@ -31,7 +31,7 @@ def test_journey_individual_signup_and_search(live_server, db_conn, page):
     with that fact cited.
     """
     uid = f"user_{uuid.uuid4().hex[:8]}"
-    ws  = f"ws_{uuid.uuid4().hex[:8]}"
+    _ws = f"ws_{uuid.uuid4().hex[:8]}"
 
     # 1. Provision account via API
     r = httpx.post(
@@ -41,7 +41,7 @@ def test_journey_individual_signup_and_search(live_server, db_conn, page):
         headers=AUTH,
     )
     assert r.status_code == 200, r.text
-    account_id = r.json()["account_id"]
+    _account_id = r.json()["account_id"]
 
     # 2. Record a fact
     r2 = httpx.post(
@@ -180,8 +180,6 @@ def test_journey_chat_privacy(live_server, db_conn):
     User A creates a conversation. User B (and admin) cannot see it via API.
     Bypass mode uses a single identity — test at DB level with direct queries.
     """
-    from brain.core import db_pg as _pg
-    import brain.auth as _auth
 
     user_a = f"ua_{uuid.uuid4().hex[:8]}"
     user_b = f"ub_{uuid.uuid4().hex[:8]}"
@@ -223,8 +221,6 @@ def test_journey_cost_cap(live_server, db_conn):
     When an account has no credits left, the LLM call raises 402.
     After adding a BYO key, the cap is lifted.
     """
-    import brain.core.llm as _llm
-    import importlib
 
     # Simulate credit exhaustion by mocking _check_credits to raise
     class _CreditsExhausted(Exception):

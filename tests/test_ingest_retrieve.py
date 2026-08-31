@@ -42,7 +42,7 @@ def _ep(body, team_id="test-team", source="test", external_id=None, acl="everyon
 # ── Ingest ────────────────────────────────────────────────────────────────────
 
 def test_ingest_stores_episode(brain):
-    from brain.core import ingest, db
+    from brain.core import ingest
     ep = _ep("We decided to use Postgres for all production databases.")
     n = ingest.run(brain.conn, brain.ws, [ep], team_id="test-team")
     assert n == 1
@@ -133,7 +133,7 @@ def test_team_isolation(brain, monkeypatch):
 
 def test_shared_facts_visible_across_teams(brain):
     """Facts marked visibility='shared' should be visible to members of other teams."""
-    from brain.core import ingest, retrieve, db, extract
+    from brain.core import retrieve, db, extract
 
     team_a = "team-share-a"
     team_b = "team-share-b"
@@ -141,7 +141,6 @@ def test_shared_facts_visible_across_teams(brain):
     db.ensure_team(brain.conn, brain.ws, team_b, "Share B")
 
     # Record a shared fact directly (bypassing LLM extract)
-    from brain.core import extract
     extract.record_human_fact(
         brain.conn, brain.ws,
         "The company mission is to empower every team with AI.",
@@ -225,11 +224,10 @@ def test_brain_record_stores_fact(brain):
 
 def test_brain_record_shared_visible_cross_team(brain):
     """shared=True writes fact with visibility='shared'."""
-    from brain.core import extract
     result = brain.record("All hands meeting is every Friday at 10am.", acl=["everyone"],
                           visibility="shared")
     cur = brain.conn.cursor()
     cur.execute("SELECT visibility FROM facts WHERE visibility='shared' LIMIT 1")
-    row = cur.fetchone()
+    _row = cur.fetchone()
     # May be None if LLM stub returns empty facts — that's OK; check no crash
     assert result is not None

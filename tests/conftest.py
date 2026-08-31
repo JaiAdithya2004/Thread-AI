@@ -4,16 +4,17 @@ Shared pytest fixtures for Thread test suite.
 Tests that require a live Postgres connection are skipped automatically when
 DATABASE_URL is not set. LLM and embed calls are always stubbed.
 """
-import os, json, uuid, pytest
+import os
+import json
+import uuid
+import unittest.mock as mock
+import pytest
 
 POSTGRES_AVAILABLE = bool(os.getenv("DATABASE_URL"))
 
 # ── Environment flags ─────────────────────────────────────────────────────────
 os.environ["BRAIN_ENV"]        = "development"
 os.environ["BRAIN_DEV_BYPASS"] = "true"
-
-# ── Stub LLM so no real API keys are needed ───────────────────────────────────
-import unittest.mock as mock
 
 _STUB_FACTS = {"facts": [{"subject": "pytest", "predicate": "is", "object": "great",
                            "summary": "pytest is great", "confidence": 0.9}], "terms": []}
@@ -25,7 +26,8 @@ def _restore_auth_bypass():
     """After each test, reload brain.auth so _BYPASS is re-evaluated from current env.
     Guards against auth tests that call importlib.reload(brain.auth) leaving _BYPASS=False."""
     yield
-    import importlib, brain.auth
+    import importlib
+    import brain.auth
     importlib.reload(brain.auth)
 
 

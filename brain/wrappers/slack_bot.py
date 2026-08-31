@@ -37,9 +37,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 slack_router = APIRouter()
 
 # ── env vars ──────────────────────────────────────────────────────────────────
-_CLIENT_ID      = lambda: os.getenv("SLACK_CLIENT_ID", "")
-_CLIENT_SECRET  = lambda: os.getenv("SLACK_CLIENT_SECRET", "")
-_SIGNING_SECRET = lambda: os.getenv("SLACK_SIGNING_SECRET", "")
+def _CLIENT_ID():      return os.getenv("SLACK_CLIENT_ID", "")
+def _CLIENT_SECRET():  return os.getenv("SLACK_CLIENT_SECRET", "")
+def _SIGNING_SECRET(): return os.getenv("SLACK_SIGNING_SECRET", "")
 
 _SCOPES = (
     "channels:history,channels:read,groups:history,groups:read,"
