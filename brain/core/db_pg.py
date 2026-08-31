@@ -645,7 +645,6 @@ def migrate(conn):
             WHERE tablename='facts' AND indexname='facts_vec_768_idx'
         """)
         if not chk.fetchone():
-            import sys
             print(
                 "[thread] WARNING: HNSW vector index not found on facts.fact_vec_768. "
                 "Vector search will use a slow sequential scan. "
