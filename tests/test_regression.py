@@ -316,16 +316,28 @@ class TestArchitecturalGuards:
         )
 
     def test_embed_dim_consistent_with_hnsw(self):
-        """EMBED_DIM in config must match the vector column dimension in migrations."""
+        """EMBED_DIM in config must match the vector column dimension in migrations.
+
+        The dimension is declared where the column is created (0002), not in the
+        HNSW migration (0003) which only builds an index over an existing column.
+        """
         from brain.config import EMBED_DIM
-        migration = Path("migrations/versions/0003_hnsw_768.py")
+        migration = Path("migrations/versions/0002_embed_768.py")
         if not migration.exists():
             pytest.skip("Migration file not found")
         content = migration.read_text()
-        assert f"vector({EMBED_DIM})" in content or f"({EMBED_DIM})" in content, (
-            f"EMBED_DIM={EMBED_DIM} not found in HNSW migration — "
+        assert f"vector({EMBED_DIM})" in content, (
+            f"EMBED_DIM={EMBED_DIM} not declared in the vector column migration — "
             "config and DB schema may be out of sync"
         )
+
+        # The index migration must target the column for that same dimension.
+        index_migration = Path("migrations/versions/0003_hnsw_768.py")
+        if index_migration.exists():
+            assert f"fact_vec_{EMBED_DIM}" in index_migration.read_text(), (
+                f"HNSW migration does not index fact_vec_{EMBED_DIM} — "
+                "the index and the configured embedding dimension disagree"
+            )
 
     def test_dedup_threshold_in_range(self):
         """DEDUP_THRESHOLD must be in [0.80, 0.99] — outside this range is dangerous."""
