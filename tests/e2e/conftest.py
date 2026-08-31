@@ -152,10 +152,10 @@ def seed_fact(conn, ws: str, summary: str, team_id: str = "shared") -> str:
     import uuid as _u
     cur = conn.cursor()
     fact_id = str(_u.uuid4())
-    embedding = [0.0] * 384
+    embedding = [0.0] * 768
     cur.execute("""
         INSERT INTO facts (id, workspace_id, subject, predicate, object, summary,
-                           confidence, team_id, embedding, source_kind)
+                           confidence, team_id, fact_vec_768, source_kind)
         VALUES (%s, %s, 'test', 'is', 'a test', %s, 0.9, %s,
                 %s::vector, 'human')
         ON CONFLICT DO NOTHING

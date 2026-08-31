@@ -421,12 +421,22 @@ def test_admin_cannot_read_employee_chat(pg_conn):
     pg_conn.commit()
 
     # Now switch session var to admin — admin must NOT see employee's conversation
-    cur.execute("SELECT set_config('brain.user_id', %s, false)", (admin_id,))
-    cur.execute(
-        "SELECT id FROM conversations WHERE id = %s",
-        (conv_id,)
-    )
-    row = cur.fetchone()
+    try:
+        cur.execute("SET ROLE authenticated")
+    except Exception:
+        pg_conn.rollback()
+    try:
+        cur.execute("SELECT set_config('brain.user_id', %s, false)", (admin_id,))
+        cur.execute(
+            "SELECT id FROM conversations WHERE id = %s",
+            (conv_id,)
+        )
+        row = cur.fetchone()
+    finally:
+        try:
+            cur.execute("RESET ROLE")
+        except Exception:
+            pass
     cur.close()
 
     assert row is None, (

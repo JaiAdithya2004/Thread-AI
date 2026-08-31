@@ -9,6 +9,9 @@ import json
 import uuid
 import unittest.mock as mock
 import pytest
+from dotenv import load_dotenv
+
+load_dotenv()
 
 POSTGRES_AVAILABLE = bool(os.getenv("DATABASE_URL"))
 

@@ -579,10 +579,13 @@ def migrate(conn):
         ("last_run_job_id",      "TEXT"),
         ("last_run_started_at",  "TIMESTAMPTZ"),
     ]:
+        cur.execute("SAVEPOINT _css_col")
         try:
             cur.execute(f"ALTER TABLE connector_sync_state ADD COLUMN IF NOT EXISTS {col} {defn}")
+            cur.execute("RELEASE SAVEPOINT _css_col")
         except Exception:
-            conn.rollback()
+            cur.execute("ROLLBACK TO SAVEPOINT _css_col")
+            cur.execute("RELEASE SAVEPOINT _css_col")
     # Index must be created after columns exist (for existing DBs being migrated)
     cur.execute("""
         CREATE INDEX IF NOT EXISTS css_status_idx

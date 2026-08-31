@@ -1347,6 +1347,48 @@ def sso_provision(request: Request, identity: Identity = Depends(require_not_gue
         conn.close()
 
 
+class _ProvisionRequest(BaseModel):
+    user_id: str
+    account_type: str = "individual"
+    name: str = ""
+    password: str = ""
+
+
+@app.post("/api/provision")
+def dev_provision(body: _ProvisionRequest):
+    """Dev-only: create an account + membership row directly. Gated to BRAIN_ENV=development."""
+    import os as _os
+    if _os.getenv("BRAIN_ENV") != "development":
+        raise HTTPException(status_code=404, detail="Not Found")
+    import uuid as _uuid
+    from brain.core import db_pg as _pg
+    from brain.core.db_pg import ensure_free_subscription
+    conn = _pg.connect()
+    try:
+        _pg.migrate(conn)
+        account_id = str(_uuid.uuid4())
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO accounts (id, type, name) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+            (account_id, body.account_type, body.name or body.user_id),
+        )
+        cur.execute(
+            "INSERT INTO memberships (id, user_id, account_id, role, status) "
+            "VALUES (%s, %s, %s, %s, 'active') ON CONFLICT DO NOTHING",
+            (str(_uuid.uuid4()), body.user_id, account_id,
+             "owner" if body.account_type == "individual" else "admin"),
+        )
+        conn.commit()
+        cur.close()
+        ensure_free_subscription(account_id)
+        return {"ok": True, "account_id": account_id}
+    except Exception as _e:
+        conn.rollback()
+        raise HTTPException(500, str(_e))
+    finally:
+        conn.close()
+
+
 @app.get("/api/invite/{token}")
 def get_invite(token: str):
     """Validate an invite token. Public — no auth required."""
