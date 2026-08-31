@@ -15,6 +15,7 @@ The problem it solves: the answer to "why did we choose Postgres over DynamoDB?"
 - [Retrieval pipeline](#retrieval-pipeline)
 - [Security model](#security-model)
 - [Evaluation](#evaluation)
+- [Performance](#performance)
 - [Testing and CI](#testing-and-ci)
 - [Running locally](#running-locally)
 - [Project layout](#project-layout)
@@ -145,7 +146,78 @@ Retrieval quality is measured, not asserted. `evals/run.py` scores a fixed quest
 
 **Latency:** `mean_latency_s`, `p95_latency_s`.
 
-Each metric has a **tolerance** (how far it may drop below baseline before it's flagged a regression) and a **hard floor** that catches catastrophic collapse regardless of baseline — see `evals/thresholds.yaml`. Abstention accuracy is measured because a memory system that confidently invents answers is worse than one that admits ignorance.
+Each metric has a **tolerance** (how far it may drop below baseline before it's flagged a regression) and a **hard floor** that catches catastrophic collapse regardless of baseline. Abstention accuracy is measured because a memory system that confidently invents answers is worse than one that admits ignorance.
+
+### Quality floors
+
+These are the enforced thresholds from `evals/thresholds.yaml` — a run is flagged if a metric falls below its floor, or drops more than its tolerance below the recorded baseline.
+
+| Metric | Hard floor | Tolerance |
+|---|---|---|
+| `hit_at_k` | 0.50 | 0.10 |
+| `precision_at_k` | 0.20 | 0.10 |
+| `recall_at_k` | 0.30 | 0.10 |
+| `mrr` | 0.30 | 0.10 |
+| `ndcg_at_k` | 0.30 | 0.10 |
+| `answer_correct_rate` | 0.50 | 0.10 |
+| `keyword_hit_rate` | 0.50 | 0.10 |
+| `faithfulness_rate` | 0.70 | 0.08 |
+| `abstention_accuracy` | 0.60 | 0.10 |
+| `mean_latency_s` | — | +2.0 s |
+| `p95_latency_s` | — | +5.0 s |
+
+Faithfulness carries the tightest tolerance (0.08) because hallucination is the failure mode that most damages trust in the product.
+
+> **Note on numbers.** This repository does not ship a recorded baseline — scores depend on the corpus a deployment is run against, so publishing a figure from one dataset would be misleading. Run `python evals/run.py` against your own data to produce one, then `python scripts/bench_snapshot.py` to store it as the regression baseline.
+
+---
+
+## Performance
+
+### What is instrumented
+
+The `/metrics` endpoint exposes Prometheus metrics, updated live by `brain/core/metrics.py`:
+
+| Metric | Type | What it tracks |
+|---|---|---|
+| `brain_request_latency_seconds` | histogram | Request latency, bucketed at 0.05 / 0.1 / 0.25 / 0.5 / 1.0 / 2.5 / 5.0 / 10.0 s |
+| `brain_request_count_total` | counter | Requests served |
+| `brain_error_count_total` | counter | Failed requests |
+| `brain_cache_hits_total` / `brain_cache_misses_total` | counter | Retrieval cache effectiveness |
+| `brain_llm_tokens_total` | counter | Prompt + completion tokens |
+| `brain_llm_cost_usd_total` | counter | Cumulative LLM spend |
+| `brain_extraction_throughput_total` | counter | Facts extracted |
+
+Because every LLM call passes through `llm.py`, token and cost accounting covers the whole system rather than whichever call sites remembered to record.
+
+### Latency budget
+
+The design target is **p95 < 300 ms for retrieval**, excluding LLM synthesis. The stages are separated because only the first group is under the system's control:
+
+| Stage | Under our control | Notes |
+|---|---|---|
+| Redis cache hit | yes | Skips embedding and both DB queries entirely |
+| Vector search (HNSW) | yes | Sub-linear; degrades to sequential scan if the index is missing |
+| Full-text search (GIN) | yes | Scales logarithmically |
+| RRF merge | yes | Pure Python over two short lists |
+| Query embedding | no | Network call to the embedding provider |
+| LLM synthesis | no | External API — **excluded from the retrieval budget** |
+
+Synthesis dominates end-to-end latency and is bounded by the provider, which is why retrieval is measured separately and why the pipeline degrades to returning ranked facts without prose when the LLM is slow or unavailable.
+
+### Measuring it
+
+```bash
+k6 run tests/load/k6_load_test.js                    # reports search_latency p(95)
+locust -f tests/load/locust_load_test.py --headless -u 20 -r 5 --run-time 2m \
+       --host http://localhost:7070
+python scripts/explain_queries.py                    # fails if a hot query seq-scans facts
+curl http://localhost:7070/metrics | grep brain_request_latency
+```
+
+`scripts/explain_queries.py` exits non-zero if any hot query falls back to a sequential scan on `facts`, which is the usual sign the HNSW index is missing or unused.
+
+> **Note on numbers.** No measured throughput or latency figures are published here. Results depend on hardware, corpus size, network distance to the model provider, and cache warmth — a number from one environment would not predict another. `docs/performance.md` gives the per-stage budget and tuning guidance; the commands above produce figures for your own deployment.
 
 ---
 

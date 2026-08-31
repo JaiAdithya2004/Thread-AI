@@ -8,7 +8,7 @@
 
 | Step | Typical Latency | Notes |
 |---|---|---|
-| Embed query text | ~5 ms | fastembed runs locally; first call loads model (~500 ms), cached after |
+| Embed query text | network-bound | Gemini `gemini-embedding-001` (768-dim) over HTTP; an in-process cache skips the round-trip for repeated queries |
 | Redis cache lookup | ~1 ms | Full cache hit skips embed + DB entirely |
 | Vector similarity (HNSW) | 10–30 ms | Scales with dataset size; HNSW avoids full scan |
 | FTS search (GIN) | 5–20 ms | GIN index on `fts_vec`; scales logarithmically |
@@ -110,8 +110,10 @@ Cache hit rate will be low for a diverse query set; high for repeated queries
 
 ## When to Scale Out
 
-1. **CPU-bound on embedding**: fastembed is single-threaded. Add more uvicorn
-   workers (`uvicorn ... --workers 4`) before scaling horizontally.
+1. **Blocked on embedding**: embedding is a network call to Gemini, not local
+   CPU, so more workers help only if requests are queueing behind the event
+   loop. Check the in-process embed cache hit rate first — repeated queries
+   should not be re-embedding at all.
 2. **DB connection saturation**: increase `default_pool_size` in pgbouncer.ini,
    or switch to Supabase's managed pooler.
 3. **p95 > 300 ms consistently**: profile with `scripts/explain_queries.py` to

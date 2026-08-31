@@ -20,6 +20,21 @@ depends_on = None
 
 
 def upgrade():
+    # Accounts created before this fix may have NO subscription row at all:
+    # ensure_free_subscription swallowed its errors, and get_plan_for_account
+    # falls back to a hardcoded 1-seat free plan when no row exists. Backfill
+    # the missing rows first, then correct any company left on plan_free.
+    op.execute("""
+        INSERT INTO subscriptions (account_id, plan_id, status)
+        SELECT a.id,
+               CASE WHEN a.type = 'company' THEN 'plan_team' ELSE 'plan_free' END,
+               'active'
+          FROM accounts a
+         WHERE NOT EXISTS (
+               SELECT 1 FROM subscriptions s WHERE s.account_id = a.id
+         )
+        ON CONFLICT (account_id) DO NOTHING
+    """)
     op.execute("""
         UPDATE subscriptions s
            SET plan_id = 'plan_team'
