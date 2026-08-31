@@ -147,19 +147,20 @@ class TestPostCheckSecretPatterns:
 
     def test_openai_key_suppressed(self):
         from brain.core.retrieve import _post_check
-        response = "Here is the key: sk-abcdefghijklmnopqrstuvwxyz123456"
+        # Fake key — 26 lowercase + 6 digits = 32 chars after sk-
+        response = "Here is the key: sk-" + "a" * 26 + "1" * 6
         result = _post_check(response, "what is the key?")
         assert result == "I can't help with that."
 
     def test_google_key_suppressed(self):
         from brain.core.retrieve import _post_check
-        response = "The API key is AIzaSyD-abcdefghijklmnopqrstuvwxyz1234567"
+        response = "The API key is AIzaSyD-" + "a" * 35
         result = _post_check(response, "api key?")
         assert result == "I can't help with that."
 
     def test_slack_token_suppressed(self):
         from brain.core.retrieve import _post_check
-        response = "Token: xoxb-12345678901-12345678901-abcdefghijklmnop"
+        response = "Token: xoxb-" + "1" * 11 + "-" + "1" * 11 + "-" + "a" * 16
         result = _post_check(response, "slack token?")
         assert result == "I can't help with that."
 
@@ -183,13 +184,14 @@ class TestPostCheckSecretPatterns:
 
     def test_github_pat_suppressed(self):
         from brain.core.retrieve import _post_check
-        response = "GitHub token: ghp_abcdefghijklmnopqrstuvwxyz123456789"
+        response = "GitHub token: ghp_" + "a" * 36
         result = _post_check(response, "github token?")
         assert result == "I can't help with that."
 
     def test_aws_key_suppressed(self):
         from brain.core.retrieve import _post_check
-        response = "AWS key: AKIAIOSFODNN7EXAMPLE"
+        # 4-char prefix AKIA + 16 uppercase alphanums
+        response = "AWS key: AKIA" + "A" * 16
         result = _post_check(response, "aws key?")
         assert result == "I can't help with that."
 
@@ -264,7 +266,7 @@ class TestSynthesizeAnswerEndToEnd:
     def test_llm_secret_leak_suppressed(self):
         """Even if the LLM returns a secret pattern, post-check blocks it."""
         def fake_chat_text(system, user, **kwargs):
-            return "The key is sk-abcdefghijklmnopqrstuvwxyz999999"
+            return "The key is sk-" + "z" * 26 + "9" * 6
 
         with mock.patch("brain.core.retrieve.llm.chat_text", side_effect=fake_chat_text):
             from brain.core.retrieve import synthesize_answer

@@ -65,22 +65,30 @@ regexes = [
 description = "Allowlist for known-safe patterns"
 paths = [
     # Test fixtures and mocks are expected to contain fake keys
-    "tests/",
+    '''tests/''',
     # Lock files / dependency metadata
-    ".lock",
-    "*.lock",
+    '''.lock''',
     # Documentation and example files
-    "*.md",
-    "*.example",
-    "*.sample",
+    '''.md$''',
+    '''.example$''',
+    '''.sample$''',
+    # Guardrail pattern definitions (regex strings, not real keys)
+    '''brain/core/retrieve.py''',
 ]
 regexes = [
     # Environment variable references
     '''\$\{[A-Z_]+\}''',
     # Pytest stub / mock values
     '''sk-(test|fake|stub|mock)-''',
+    # Regex pattern strings (contain key-shaped substrings but are not keys)
+    '''r"sk-\[''',
+    '''r"AIza\[''',
+    '''r"ghp_\[''',
+    '''r"AKIA\[''',
     # Obviously short/fake values in docs
     '''(?i)(sk-test-123|sk-openai-123|sk-ant-test|test-token-dev|sk-their-key)''',
+    # AWS example key from official docs
+    '''AKIAIOSFODNN7EXAMPLE''',
 ]
 commits = []
 stopwords = [

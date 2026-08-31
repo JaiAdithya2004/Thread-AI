@@ -354,7 +354,7 @@ def embed(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list[list[
     if not texts:
         return []
 
-    from brain.core.embed import embed_texts as _embed_texts, _zero_vec, EMBED_BATCH_SIZE
+    from brain.core.embed import embed_texts as _embed_texts
 
     all_vectors = _embed_texts(texts, task_type=task_type)
 
