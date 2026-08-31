@@ -1233,6 +1233,16 @@ def ensure_free_subscription(account_id: str):
                 ON CONFLICT (account_id) DO NOTHING
             """, (account_id, plan_id))
             conn.commit()
+            # Confirm the row landed: this function swallows errors, and a missing
+            # subscription silently degrades to the 1-seat free plan downstream.
+            cur.execute(
+                "SELECT plan_id FROM subscriptions WHERE account_id=%s AND status='active'",
+                (account_id,))
+            _got = (cur.fetchone() or {}).get("plan_id")
+            if _got != plan_id:
+                import sys as _s
+                print(f"[Thread] subscription for {account_id}: wanted {plan_id}, "
+                      f"found {_got!r}", file=_s.stderr)
             cur.close()
         finally:
             conn.close()
