@@ -14,10 +14,7 @@ Mark: @pytest.mark.regression
 Run:  pytest tests/test_regression.py -v
 """
 import json
-import math
 import os
-import time
-import uuid
 from pathlib import Path
 
 import pytest

@@ -8,10 +8,10 @@ Tests:
 - format_answer graceful degradation (LLM down → returns facts without synthesis)
 - format_history returns correct structure
 """
+import os
 import pytest
-import unittest.mock as mock
 
-from tests.conftest import POSTGRES_AVAILABLE
+POSTGRES_AVAILABLE = bool(os.getenv("DATABASE_URL"))
 
 
 # ── RRF ──────────────────────────────────────────────────────────────────────
@@ -89,8 +89,7 @@ def test_allowed_blocks_no_overlap():
 @pytest.mark.skipif(not POSTGRES_AVAILABLE, reason="requires Postgres DATABASE_URL")
 def test_retrieve_run_acl_filter(pg_conn, ws_id):
     """Facts with a restricted ACL must not appear in retrieve.run results for wrong principal."""
-    from brain.core import ingest, retrieve, db, extract
-    import uuid as _uuid
+    from brain.core import retrieve, db, extract
 
     db.migrate(pg_conn)
 
@@ -151,7 +150,6 @@ def test_format_answer_empty_facts_returns_not_sure():
 def test_format_answer_all_stale_returns_not_sure():
     """format_answer when all facts are invalidated returns the 'not sure' path."""
     from brain.core.retrieve import format_answer
-    from brain.config import CONFIDENCE_THRESHOLD
 
     stale_facts = [
         {

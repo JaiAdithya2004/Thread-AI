@@ -6,7 +6,10 @@ Unit tests for brain/auth.py
 - require_admin raises 403 for non-admin
 - dev-bypass sentinel token returns 401 in non-bypass mode
 """
-import os, sys, importlib, pytest
+import os
+import sys
+import importlib
+import pytest
 import unittest.mock as mock
 
 

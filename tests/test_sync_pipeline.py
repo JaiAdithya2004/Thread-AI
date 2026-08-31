@@ -5,7 +5,9 @@ external-id supersession, reconcile job, ingest trigger tagging.
 DB-backed tests are skipped when DATABASE_URL is not set.
 Webhook endpoint tests use the FastAPI TestClient and don't need a live DB.
 """
-import hashlib, json, os, uuid
+import hashlib
+import os
+import uuid
 import pytest
 import unittest.mock as mock
 
@@ -136,7 +138,6 @@ class TestSyncStateBackoff:
     """Backoff formula: min(2^failures * 60, 3600)."""
 
     def test_backoff_increases(self):
-        import datetime
         # Simulate the backoff formula from set_sync_state_failed
         def backoff(failures):
             return min(2 ** failures * 60, 3600)
@@ -191,13 +192,14 @@ class TestWebhookEndpoint:
         monkeypatch.setenv("BRAIN_DEV_BYPASS", "true")
         from fastapi.testclient import TestClient
         # Reload config so new env var is picked up
-        import importlib, brain.config
+        import importlib
+        import brain.config
         importlib.reload(brain.config)
         from brain.wrappers.api import app
         return TestClient(app, raise_server_exceptions=False)
 
     def _sign(self, body: bytes, secret: str) -> str:
-        import hmac, hashlib
+        import hmac
         return "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 
     def test_rejects_missing_secret_config(self, api_client):
@@ -216,7 +218,8 @@ class TestWebhookEndpoint:
 
     def test_rejects_bad_signature(self, monkeypatch):
         monkeypatch.setenv("COMPOSIO_WEBHOOK_SECRET", "test-secret-32chars-padded-here!")
-        import importlib, brain.config
+        import importlib
+        import brain.config
         importlib.reload(brain.config)
         from fastapi.testclient import TestClient
         from brain.wrappers.api import app
@@ -234,7 +237,8 @@ class TestWebhookEndpoint:
     def test_accepts_valid_signature(self, monkeypatch):
         secret = "test-secret-32chars-padded-here!"
         monkeypatch.setenv("COMPOSIO_WEBHOOK_SECRET", secret)
-        import importlib, brain.config
+        import importlib
+        import brain.config
         importlib.reload(brain.config)
 
         # Mock arq so we don't need Redis
@@ -266,7 +270,8 @@ class TestWebhookEndpoint:
         """Same delivery ID with Redis available returns 'duplicate' without enqueuing."""
         secret = "test-secret-32chars-padded-here!"
         monkeypatch.setenv("COMPOSIO_WEBHOOK_SECRET", secret)
-        import importlib, brain.config
+        import importlib
+        import brain.config
         importlib.reload(brain.config)
 
         mock_redis = mock.MagicMock()

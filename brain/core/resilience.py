@@ -115,7 +115,7 @@ def retry(
             for attempt in range(1, max_attempts + 1):
                 try:
                     return fn(*args, **kwargs)
-                except reraise_on as e:
+                except reraise_on:
                     raise
                 except retryable as e:
                     last_exc = e

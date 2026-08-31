@@ -3,8 +3,10 @@ Integration connector — 1,047+ app integrations.
 
 Internal implementation detail. Never expose vendor name to users.
 """
-import os, datetime
+import os
+import datetime
 from .base import Connector
+from brain.core.resilience import retry, get_breaker
 
 # Thread-local billing context set by the API layer
 _billing_ctx: dict = {}
@@ -55,9 +57,6 @@ _APP_ACTIONS = {
         ("HUBSPOT_LIST_CONTACTS", {"limit": 50}),
     ],
 }
-
-
-from brain.core.resilience import retry, get_breaker
 
 _composio_breaker = get_breaker("composio", failure_threshold=5, recovery_timeout=60.0)
 
@@ -372,7 +371,8 @@ def _normalize_result(app, action, raw_result) -> list:
 
     else:
         # Generic fallback — dump raw JSON as body so it still gets extracted
-        import json, hashlib
+        import json
+        import hashlib
         body_text = json.dumps(data, indent=2)[:3000] if data else ""
         if body_text:
             stable_hash = hashlib.sha256(

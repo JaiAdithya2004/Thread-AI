@@ -1,4 +1,5 @@
-import json, typer
+import json
+import typer
 from brain.engine import Brain
 
 app = typer.Typer(help="Horizontal company brain (Hyper-style).")
@@ -88,10 +89,10 @@ def eval_providers(
     Run the eval set against both primary and fallback providers for each task.
     Prints a quality comparison table. Use this to validate your primary model choice.
     """
-    import time, yaml
+    import time
+    import yaml
     from pathlib import Path
     from brain import config as _cfg
-    from brain.core import llm as _llm
 
     # Load questions
     with open(questions_file) as f:
@@ -106,7 +107,6 @@ def eval_providers(
 
     def _run_q(brain, q, forced_model):
         """Run a single question forcing a specific model, return pass/fail result."""
-        from brain.core import llm as _llm
         # Temporarily override: use chat_text directly with model forced
         start = time.perf_counter()
         result = brain.search(q["question"], surface="eval")

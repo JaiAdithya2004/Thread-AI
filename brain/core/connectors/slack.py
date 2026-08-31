@@ -3,7 +3,8 @@ Real Slack connector — requires SLACK_BOT_TOKEN in .env
 Scopes needed: channels:history, channels:read, groups:history,
                groups:read, users:read, im:history (optional)
 """
-import os, datetime
+import os
+import datetime
 from .base import Connector
 from brain.core.resilience import get_breaker
 

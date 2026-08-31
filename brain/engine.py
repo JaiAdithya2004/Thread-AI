@@ -89,7 +89,8 @@ class Brain:
         Never raises — caller always gets a bool indicating whether work was queued.
         """
         try:
-            import asyncio, arq
+            import asyncio
+            import arq
             from arq.connections import RedisSettings
 
             async def _enqueue():

@@ -203,7 +203,7 @@ def test_conversation_list_returns_created_conversation(api_client, auth_headers
 
 def test_team_isolation_in_retrieve(pg_conn, ws_id):
     """Fact ingested for team-A must NOT be returned for team-B queries."""
-    from brain.core import ingest, retrieve, db, extract
+    from brain.core import retrieve, db, extract
 
     db.migrate(pg_conn)
     db.ensure_team(pg_conn, ws_id, "team-alpha", "Alpha")

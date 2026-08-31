@@ -191,7 +191,10 @@ def _decode_guest_token(token: str) -> Identity:
     """Decode and verify a guest token issued by /api/guest-session."""
     if not _GUEST_TOKEN_SECRET:
         raise ValueError("Guest sessions are not configured on this server.")
-    import hmac, hashlib, base64, json as _json
+    import hmac
+    import hashlib
+    import base64
+    import json as _json
 
     # Format: "guest.<b64-payload>.<hex-sig>"
     try:

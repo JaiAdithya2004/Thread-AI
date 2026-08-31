@@ -5,7 +5,6 @@ Phase 4 test suite — covers:
   3. MCP correct_fact ownership enforcement
 """
 import uuid
-import pytest
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -308,7 +307,8 @@ class TestMcpCorrectFactOwnership:
 
     def test_fact_not_found_returns_error(self, monkeypatch):
         """If the fact_id does not exist in the workspace, return an error."""
-        import unittest.mock as mock, json as _json
+        import unittest.mock as mock
+        import json as _json
         from brain.wrappers import mcp_server
 
         brain_mock, _ = self._make_brain_mock(

@@ -14,10 +14,8 @@ Latency samples stored in a bounded deque (max 10 000); percentiles computed on 
 """
 
 import math
-import os
 import threading
 from collections import deque
-from typing import Optional
 
 # ── Histogram bucket boundaries ────────────────────────────────────────────────
 _BUCKETS = [0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]

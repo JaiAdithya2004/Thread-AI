@@ -7,17 +7,6 @@ from pydantic import ValidationError
 
 # ── Request model validation ──────────────────────────────────────────────────
 
-def _import():
-    from brain.wrappers.api import (
-        SearchRequest, RecordRequest, CorrectRequest,
-        CreateTeamRequest, BackfillRequest, SyncRequest,
-        ComposioConnectRequest, SignupRequest, InviteRequest,
-        MemberPatchRequest, InviteAcceptRequest,
-        ConversationRequest, MessageRequest,
-    )
-    return locals()
-
-
 def test_search_request_valid():
     from brain.wrappers.api import SearchRequest
     r = SearchRequest(query="what is our pricing?")

@@ -32,7 +32,8 @@ _wlog = _get_logger("brain.worker")
 # ---------------------------------------------------------------------------
 
 def _dlq_conn():
-    import psycopg2, psycopg2.extras
+    import psycopg2
+    import psycopg2.extras
     url = os.getenv("DATABASE_URL", "postgresql://brain:brain_local@localhost:5432/brain")
     conn = psycopg2.connect(url, cursor_factory=psycopg2.extras.RealDictCursor)
     conn.autocommit = True

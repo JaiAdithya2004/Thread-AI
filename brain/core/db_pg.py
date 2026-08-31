@@ -468,12 +468,16 @@ def migrate(conn):
 
     # Grant DML to Supabase's non-bypassrls roles so SET LOCAL ROLE authenticated works
     for table in ("conversations", "messages"):
+        cur.execute(f"SAVEPOINT _grant_{table}")
         try:
             cur.execute(
                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO authenticated;"
             )
+            cur.execute(f"RELEASE SAVEPOINT _grant_{table}")
         except Exception:
-            pass  # role may not exist on local Postgres installs
+            cur.execute(f"ROLLBACK TO SAVEPOINT _grant_{table}")
+            cur.execute(f"RELEASE SAVEPOINT _grant_{table}")
+            # role may not exist on local Postgres installs — non-fatal
 
     # Dead-letter queue — poison jobs that exhausted all retries land here
     cur.execute("""

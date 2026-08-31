@@ -11,7 +11,6 @@ Usage:
     # then open http://localhost:8089
 """
 from locust import HttpUser, task, between
-import json
 
 
 class BrainUser(HttpUser):
