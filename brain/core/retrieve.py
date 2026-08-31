@@ -1,5 +1,4 @@
-import json, hashlib, sys
-import hashlib as _hashlib
+import json, hashlib, sys, re
 from brain.core import db, llm
 from brain.core.resilience import get_breaker, CircuitOpen
 from brain.config import (
@@ -15,7 +14,7 @@ _EMBED_CACHE_MAX = 256
 
 def _cached_embed(text: str) -> list:
     """Return the embedding for *text*, hitting the in-process LRU dict first."""
-    key = _hashlib.md5(text.lower().strip().encode()).hexdigest()
+    key = hashlib.md5(text.lower().strip().encode()).hexdigest()
     if key in _embed_cache:
         return _embed_cache[key]
     from brain.core.embed import embed_texts as _embed_texts
@@ -197,10 +196,8 @@ _JAILBREAK_QUERIES = [
     r"(?i)(print|show|dump|list)\s+all\s+credentials?",
 ]
 
-import re as _re
-
-_SECRET_RES = [_re.compile(p) for p in _SECRET_PATTERNS]
-_JAILBREAK_RES = [_re.compile(p) for p in _JAILBREAK_QUERIES]
+_SECRET_RES = [re.compile(p) for p in _SECRET_PATTERNS]
+_JAILBREAK_RES = [re.compile(p) for p in _JAILBREAK_QUERIES]
 
 _SAFE_REFUSAL = "I can't help with that."
 

@@ -576,10 +576,6 @@ def migrate(conn):
             PRIMARY KEY (workspace_id, source)
         );
     """)
-    cur.execute("""
-        CREATE INDEX IF NOT EXISTS css_status_idx
-            ON connector_sync_state(status, locked_until);
-    """)
     # Migrate existing rows: add new columns if the table already existed
     for col, defn in [
         ("status",               "TEXT NOT NULL DEFAULT 'idle'"),
@@ -593,6 +589,11 @@ def migrate(conn):
             cur.execute(f"ALTER TABLE connector_sync_state ADD COLUMN IF NOT EXISTS {col} {defn}")
         except Exception:
             conn.rollback()
+    # Index must be created after columns exist (for existing DBs being migrated)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS css_status_idx
+            ON connector_sync_state(status, locked_until);
+    """)
 
     # ── External-id supersession on episodes ──────────────────────────────────
     cur.execute("""

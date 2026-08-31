@@ -106,10 +106,34 @@ def _trace_end(gen, output, error=False):
 
 _ctx: dict = {}
 
+def _load_byo_key(account_id: str):
+    """Load the BYO API key for this account and stash it in _ctx."""
+    try:
+        from brain.core.db_pg import get_byo_key
+        for provider in ("openai", "anthropic", "gemini"):
+            key = get_byo_key(account_id, provider)
+            if key:
+                _ctx["byo_provider"] = provider
+                _ctx["byo_key"]      = key
+                return
+    except Exception as e:
+        print(f"[thread] BYO key load failed (non-fatal): {e}", file=sys.stderr)
+
+
+def _effective_api_key() -> tuple:
+    """Return (provider, key) for the active BYO key, or (None, None)."""
+    provider = _ctx.get("byo_provider")
+    key      = _ctx.get("byo_key")
+    if provider and key:
+        return provider, key
+    return None, None
+
+
 def set_billing_context(account_id: str, user_id: str, team_id: str = None):
     _ctx["account_id"] = account_id
     _ctx["user_id"]    = user_id
     _ctx["team_id"]    = team_id
+    _load_byo_key(account_id)
 
 
 def clear_billing_context():
@@ -119,6 +143,9 @@ def clear_billing_context():
 def _check_credit_allowance():
     account_id = _ctx.get("account_id")
     if not account_id:
+        return
+    # BYO-key accounts are never credit-capped
+    if _ctx.get("byo_key"):
         return
     try:
         from brain.core.db_pg import get_plan_for_account, get_credits_used_this_month

@@ -34,4 +34,5 @@ jobs:
       - name: Deploy to production
         run: echo "Deploy production — wire up your deploy command here"
       - name: Rollback procedure
-        run: echo "Rollback: docker pull thread-brain:<previous-tag> && restart service"
+        run: |
+          echo "Rollback: docker pull thread-brain:<previous-tag> && restart service"
