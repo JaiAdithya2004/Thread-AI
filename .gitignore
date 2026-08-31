@@ -18,6 +18,9 @@ brain.db
 .env
 token_*.json
 
+# Personal notes — never publish
+INTERVIEW_PREP.md
+
 # Evals output
 evals/results.json
 
