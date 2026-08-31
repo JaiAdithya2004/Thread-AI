@@ -906,15 +906,15 @@
             <rect x="270" y="100" width="70" height="20" rx="10" fill="#fff" stroke="#e9d5ff" stroke-width="1"/>
             <circle cx="284" cy="110" r="5" fill="#fca5a5"/>
             <text x="293" y="114" font-size="8" fill="#374151" font-family="sans-serif">Guest</text>
-            <!-- no-train badge -->
+            <!-- isolation badge -->
             <rect x="108" y="152" width="144" height="20" rx="10" fill="#fdf4ff" stroke="#e9d5ff" stroke-width="1"/>
-            <text x="122" y="165" font-size="8" fill="#7c3aed" font-family="sans-serif" font-weight="600">🚫 Never trains AI models</text>
+            <text x="122" y="165" font-size="8" fill="#7c3aed" font-family="sans-serif" font-weight="600">🔒 Workspace isolated</text>
           </svg>
         </div>
         <div class="feat-body">
           <h3>Private by design</h3>
-          <p>Your data never trains AI models. Each workspace is fully isolated - teams only see facts scoped to them.</p>
-          <span class="feat-tag" style="background:#fdf4ff;color:#7e22ce">Enterprise Ready</span>
+          <p>Each workspace is isolated at the database level - teams only see facts scoped to them.</p>
+          <span class="feat-tag" style="background:#fdf4ff;color:#7e22ce">Role-based access</span>
         </div>
       </div>
 
@@ -1144,20 +1144,20 @@ function copyMcpConfig() {
     <div class="security-split">
       <div class="sec-dark">
         <div class="section-label">Security</div>
-        <h2 class="section-title">Enterprise security,<br/>built in from day one</h2>
-        <p class="section-sub">Your company's knowledge is sensitive. Thread is built with security as a first principle, not an afterthought.</p>
+        <h2 class="section-title">Isolation enforced<br/>at the database</h2>
+        <p class="section-sub">Your company's knowledge is sensitive. Access rules live in Postgres itself, not just in application code.</p>
         <div class="sec-points">
           <div class="sec-pt">
             <div class="sec-pt-icon dark"><svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
-            <div><h4>End-to-end encryption</h4><p>All data encrypted at rest and in transit. Your data is yours - we never read it.</p></div>
+            <div><h4>Row-level security</h4><p>Every tenant table carries a Postgres RLS policy. A query for the wrong workspace returns nothing, even if application code asks for it.</p></div>
           </div>
           <div class="sec-pt">
             <div class="sec-pt-icon dark"><svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></div>
-            <div><h4>Zero training on your data</h4><p>Your company's information never trains AI models. Full stop.</p></div>
+            <div><h4>Private chat threads</h4><p>Conversations are scoped to the individual with FORCE row-level security, so admins cannot read an employee's threads.</p></div>
           </div>
           <div class="sec-pt">
-            <div class="sec-pt-icon dark"><svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
-            <div><h4>Data residency controls</h4><p>Choose where your data lives. US, EU, or your own cloud infrastructure.</p></div>
+            <div class="sec-pt-icon dark"><svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+            <div><h4>Encrypted in transit</h4><p>All traffic runs over TLS, and secrets are loaded from the environment — never stored in the database or returned to a client.</p></div>
           </div>
         </div>
       </div>
@@ -1167,15 +1167,11 @@ function copyMcpConfig() {
         <div class="sec-points">
           <div class="sec-pt">
             <div class="sec-pt-icon light"><svg viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
-            <div><h4>Granular permissions</h4><p>Control access at the workspace, team, or document level. SSO and directory sync supported.</p></div>
+            <div><h4>Granular permissions</h4><p>Facts carry an access list and a team. Mark something shared and the whole company sees it; leave it scoped and only that team can.</p></div>
           </div>
           <div class="sec-pt">
             <div class="sec-pt-icon light"><svg viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg></div>
-            <div><h4>Full audit logs</h4><p>Every search, every access, fully logged. Compliance and security teams love us.</p></div>
-          </div>
-          <div class="sec-pt">
-            <div class="sec-pt-icon light"><svg viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-            <div><h4>SOC 2 ready</h4><p>Built to meet enterprise compliance requirements from day one. Reports available on request.</p></div>
+            <div><h4>Query audit trail</h4><p>Every search is written to an append-only ledger — who asked, what they asked, and which facts were returned.</p></div>
           </div>
         </div>
       </div>
@@ -1231,7 +1227,7 @@ function copyMcpConfig() {
           <div class="pf"><span class="pf-check">✓</span><span>Everything in Pro</span></div>
           <div class="pf"><span class="pf-check">✓</span><span>Unlimited users</span></div>
           <div class="pf"><span class="pf-check">✓</span><span>Unlimited data history</span></div>
-          <div class="pf"><span class="pf-check">✓</span><span>SSO + SCIM provisioning</span></div>
+          <div class="pf"><span class="pf-check">✓</span><span>Full query audit trail</span></div>
           <div class="pf"><span class="pf-check">✓</span><span>Role-based access control</span></div>
           <div class="pf"><span class="pf-check">✓</span><span>Dedicated success manager</span></div>
         </div>
@@ -1263,7 +1259,7 @@ function copyMcpConfig() {
           <span class="faq-q">Is my company's data kept private?</span>
           <span class="faq-chevron"><svg viewBox="0 0 10 6" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l4 4 4-4"/></svg></span>
         </button>
-        <div class="faq-body"><div class="faq-body-inner"><p class="faq-a">Absolutely. Your data is encrypted at rest and in transit, never shared with third parties, and never used to train AI models. Each workspace is fully isolated from every other customer.</p></div></div>
+        <div class="faq-body"><div class="faq-body-inner"><p class="faq-a">Each workspace is isolated from every other customer by row-level security in the database, and your chat threads are private to you — an admin cannot read them. Traffic is encrypted in transit over TLS. Answers are generated by third-party model providers, so your queries are sent to them to be processed.</p></div></div>
       </div>
 
       <div class="faq-item">
