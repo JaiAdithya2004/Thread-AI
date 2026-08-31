@@ -1,0 +1,33 @@
+{
+  "label": "initial-baseline",
+  "captured_at": "2026-08-31",
+  "workspace": "ws_demo",
+  "k": 5,
+  "n_questions": 28,
+  "n_errored": 0,
+  "fact_count": 69,
+  "vec_count": 69,
+  "caveat": "25/28 answers had no LLM synthesis (SYNTH_MODEL was rate-limited), so answer_correct_rate and citation metrics reflect that outage, not answer quality. Retrieval metrics are valid.",
+  "aggregate": {
+    "k": 5,
+    "n_total": 28,
+    "n_answerable": 17,
+    "n_unanswerable": 11,
+    "hit_at_5": 0.4118,
+    "precision_at_5": 0.2706,
+    "recall_at_5": 0.2788,
+    "mrr": 0.3088,
+    "ndcg_at_5": 0.3048,
+    "answer_correct_rate": 0.0,
+    "fact_correct_rate": 0.7059,
+    "keyword_hit_rate": 0.4118,
+    "faithfulness_rate": 0.8235,
+    "hallucination_rate": 0.1765,
+    "mean_citation_precision": null,
+    "total_citations": 0,
+    "citation_correct_rate": null,
+    "abstention_accuracy": 0.6071,
+    "mean_latency_s": 19.8952,
+    "p95_latency_s": 32.198
+  }
+}

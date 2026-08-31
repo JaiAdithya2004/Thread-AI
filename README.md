@@ -168,7 +168,33 @@ These are the enforced thresholds from `evals/thresholds.yaml` — a run is flag
 
 Faithfulness carries the tightest tolerance (0.08) because hallucination is the failure mode that most damages trust in the product.
 
-> **Note on numbers.** This repository does not ship a recorded baseline — scores depend on the corpus a deployment is run against, so publishing a figure from one dataset would be misleading. Run `python evals/run.py` against your own data to produce one, then `python scripts/bench_snapshot.py` to store it as the regression baseline.
+### Measured results
+
+A real run, reported as-is. **Conditions:** workspace `ws_demo`, 69 facts (all vectorised), 28 questions (17 answerable / 11 deliberately unanswerable), K=5, 0 questions errored.
+
+| Metric | Measured | Floor | |
+|---|---|---|---|
+| `precision_at_5` | **0.271** | 0.20 | ✅ |
+| `mrr` | **0.309** | 0.30 | ✅ |
+| `ndcg_at_5` | **0.305** | 0.30 | ✅ |
+| `faithfulness_rate` | **0.824** | 0.70 | ✅ |
+| `abstention_accuracy` | **0.607** | 0.60 | ✅ |
+| `hit_at_5` | **0.412** | 0.50 | ❌ below floor |
+| `recall_at_5` | **0.279** | 0.30 | ❌ below floor |
+| `keyword_hit_rate` | **0.412** | 0.50 | ❌ below floor |
+| `fact_correct_rate` | 0.706 | — | |
+| `hallucination_rate` | 0.176 | — | |
+| `mean_latency_s` | 19.90 | — | |
+| `p95_latency_s` | 32.20 | — | |
+
+**Read these honestly:**
+
+- **Retrieval is the weak point.** `hit@5` of 0.41 means that for well over half of answerable questions, no relevant fact reached the top 5. On this corpus the demo workspace is dominated by GitHub repository descriptions and calendar invitations, which crowd out the handful of facts the questions actually target. Retrieval quality is the clearest place this system needs work.
+- **Answer-quality metrics from this run are not meaningful.** 25 of 28 answers were produced with **no LLM synthesis** — the configured free model (`gemma-4-31b-it:free`) was rate-limited throughout, so the pipeline degraded to returning ranked facts without prose. That is the intended graceful-degradation path, but it means `answer_correct_rate` (0.0) and `citation_precision` (no citations emitted) measure the outage, not the system. They are omitted above rather than reported as scores.
+- **Latency reflects that same outage.** ~20 s mean is dominated by LLM calls retrying against a rate-limited provider; it is not a measurement of retrieval latency, which is budgeted separately below.
+- **Faithfulness (0.82) is measured over the degraded answers**, where the "answer" is largely the retrieved facts themselves — so it is easier to be faithful than it would be with real synthesis. Treat it as a floor, not a result.
+
+The honest summary: **retrieval metrics here are real and mediocre; answer-quality metrics await a run on a non-rate-limited model.** Re-run with `python -m evals.run --ws <workspace>` and store a baseline with `python scripts/bench_snapshot.py`.
 
 ---
 
