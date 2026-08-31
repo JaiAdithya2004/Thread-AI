@@ -78,21 +78,35 @@ class _PooledConn:
 
 
 def connect():
-    """Get a connection from the pool. conn.close() returns it to the pool."""
+    """Get a connection from the pool. conn.close() returns it to the pool.
+
+    A pooled connection can be dead on arrival (closed out-of-band, or dropped
+    server-side), so validate before handing it out and discard bad ones.
+    """
+    import psycopg2
     pool = _get_pool()
-    raw  = pool.getconn()
-    raw.autocommit = False
-
-    # Clear any statement timeout the pooler may have left on this connection
-    try:
-        cur = raw.cursor()
-        cur.execute("SET statement_timeout = 0")
-        raw.commit()
-        cur.close()
-    except Exception:
-        pass
-
-    return _PooledConn(raw, pool)
+    last_err = None
+    for _ in range(3):
+        raw = pool.getconn()
+        try:
+            if raw.closed:
+                raise psycopg2.InterfaceError("connection already closed")
+            raw.autocommit = False
+            # Clear any statement timeout the pooler may have left, and prove the
+            # socket is actually usable before returning the connection.
+            cur = raw.cursor()
+            cur.execute("SET statement_timeout = 0")
+            raw.commit()
+            cur.close()
+            return _PooledConn(raw, pool)
+        except psycopg2.Error as _e:
+            last_err = _e
+            # Drop it from the pool entirely — putconn() would recycle the corpse.
+            try:
+                pool.putconn(raw, close=True)
+            except Exception:
+                pass
+    raise last_err or psycopg2.InterfaceError("could not obtain a live connection")
 
 
 # Guard so migrate() runs once per process, not once per request
@@ -395,29 +409,29 @@ def migrate(conn):
     # Use DO blocks with EXISTS checks — ADD CONSTRAINT IF NOT EXISTS is not
     # valid Postgres syntax. Savepoints ensure a failed check doesn't roll
     # back the entire migration transaction.
+    # Allowed value lists must match what the code actually writes:
+    #   visibility — extract.py/api.py/cli.py emit only 'team' or 'shared'
+    #   surface    — every call site that reaches db.log(), plus 'test' for the suite
     _constraints = [
         ("facts", "facts_confidence_range",
          "CHECK (confidence >= 0.0 AND confidence <= 1.0)"),
         ("facts", "facts_source_kind_check",
          "CHECK (source_kind IN ('llm', 'human', 'agent', 'ai-tool'))"),
         ("facts", "facts_visibility_check",
-         "CHECK (visibility IN ('team', 'org', 'private'))"),
+         "CHECK (visibility IN ('team', 'shared'))"),
         ("ledger", "ledger_surface_check",
          "CHECK (surface IS NULL OR surface IN "
-         "('mcp', 'web', 'hook-inject', 'history', 'api', 'hook-harvest'))"),
+         "('mcp', 'web', 'api', 'slack', 'eval', 'test', "
+         "'history', 'hook-inject', 'hook-harvest'))"),
     ]
     _stderr = sys.stderr
     for _tbl, _cname, _cdef in _constraints:
+        # Drop first, then re-add: a DB migrated by an older build may carry an
+        # outdated definition, and ADD-if-missing would silently keep the stale one.
         cur.execute("SAVEPOINT _add_constraint")
         try:
-            _sql = (
-                "DO $do$ BEGIN "
-                "IF NOT EXISTS (SELECT 1 FROM pg_constraint "
-                "WHERE conname = %s AND conrelid = %s::regclass) "
-                "THEN EXECUTE 'ALTER TABLE ' || %s || ' ADD CONSTRAINT ' || %s || ' ' || %s; "
-                "END IF; END $do$;"
-            )
-            cur.execute(_sql, (_cname, _tbl, _tbl, _cname, _cdef))
+            cur.execute(f"ALTER TABLE {_tbl} DROP CONSTRAINT IF EXISTS {_cname}")
+            cur.execute(f"ALTER TABLE {_tbl} ADD CONSTRAINT {_cname} {_cdef}")
             cur.execute("RELEASE SAVEPOINT _add_constraint")
         except Exception as _e:
             cur.execute("ROLLBACK TO SAVEPOINT _add_constraint")
@@ -464,6 +478,25 @@ def migrate(conn):
                 )
             );
     """)
+
+    # Supabase ships an 'authenticated' role; plain Postgres (CI, local) does not.
+    # Create it when missing so SET LOCAL ROLE actually sheds BYPASSRLS — without
+    # it queries keep running as the owner and FORCE RLS is silently ineffective.
+    cur.execute("SAVEPOINT _mk_authenticated")
+    try:
+        cur.execute("""
+            DO $do$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated')
+                THEN CREATE ROLE authenticated NOLOGIN NOBYPASSRLS;
+                END IF;
+            END $do$;
+        """)
+        cur.execute("RELEASE SAVEPOINT _mk_authenticated")
+    except Exception as _e:
+        cur.execute("ROLLBACK TO SAVEPOINT _mk_authenticated")
+        cur.execute("RELEASE SAVEPOINT _mk_authenticated")
+        # insufficient privilege to create roles — RLS still enforced for app roles
+        print(f"[migrate] authenticated role: {_e}", file=sys.stderr)
 
     # Grant DML to Supabase's non-bypassrls roles so SET LOCAL ROLE authenticated works
     for table in ("conversations", "messages"):

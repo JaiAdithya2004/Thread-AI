@@ -420,11 +420,10 @@ def test_admin_cannot_read_employee_chat(pg_conn):
     """, (conv_id, employee_id, account_id))
     pg_conn.commit()
 
-    # Now switch session var to admin — admin must NOT see employee's conversation
-    try:
-        cur.execute("SET ROLE authenticated")
-    except Exception:
-        pg_conn.rollback()
+    # Now switch session var to admin — admin must NOT see employee's conversation.
+    # SET ROLE must succeed: as the table owner/superuser, BYPASSRLS would defeat
+    # FORCE RLS and turn this security check into a false pass.
+    cur.execute("SET ROLE authenticated")
     try:
         cur.execute("SELECT set_config('brain.user_id', %s, false)", (admin_id,))
         cur.execute(

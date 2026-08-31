@@ -47,8 +47,8 @@ def test_ingest_stores_episode(brain):
     n = ingest.run(brain.conn, brain.ws, [ep], team_id="test-team")
     assert n == 1
     cur = brain.conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM episodes")
-    count = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) AS n FROM episodes")
+    count = cur.fetchone()["n"]   # pool uses RealDictCursor — rows are dicts, not tuples
     assert count >= 1
 
 

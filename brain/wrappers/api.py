@@ -1161,7 +1161,11 @@ def create_conversation(
             WHERE user_id = %s AND status = 'active' LIMIT 1
         """, (identity.user_id,))
         row = cur.fetchone()
-        account_id = row["account_id"] if row else identity.workspace_id
+        if not row:
+            # No membership → no account to attach the thread to. Never fall back to
+            # workspace_id: it is not an accounts.id and violates the FK.
+            raise HTTPException(status_code=403, detail="No active account membership")
+        account_id = row["account_id"]
         conv_id = str(_uuid.uuid4())
         cur.execute("""
             INSERT INTO conversations (id, user_id, account_id, team_id, title)
@@ -1171,6 +1175,8 @@ def create_conversation(
         conn.commit()
         cur.execute("SELECT * FROM conversations WHERE id=%s", (conv_id,))
         return dict(cur.fetchone())
+    except HTTPException:
+        raise
     except Exception as e:
         conn.rollback()
         raise HTTPException(500, str(e))
@@ -1347,6 +1353,24 @@ def sso_provision(request: Request, identity: Identity = Depends(require_not_gue
         conn.close()
 
 
+@app.get("/api/byo-key")
+def get_byo_key_status(identity: Identity = Depends(require_admin)):
+    """Report which providers have a BYO key configured.
+
+    Returns booleans only — the stored key is never echoed back to any client.
+    """
+    from brain.core import db_pg as _pg
+    account_id = _resolve_account_id(identity.user_id)
+    providers = ("openai", "anthropic", "gemini")
+    configured = {}
+    for _prov in providers:
+        try:
+            configured[_prov] = bool(_pg.get_byo_key(account_id, _prov))
+        except Exception:
+            configured[_prov] = False
+    return {"configured": configured}
+
+
 class _ProvisionRequest(BaseModel):
     user_id: str
     account_type: str = "individual"
@@ -1372,12 +1396,15 @@ def dev_provision(body: _ProvisionRequest):
             "INSERT INTO accounts (id, type, name) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
             (account_id, body.account_type, body.name or body.user_id),
         )
-        cur.execute(
-            "INSERT INTO memberships (id, user_id, account_id, role, status) "
-            "VALUES (%s, %s, %s, %s, 'active') ON CONFLICT DO NOTHING",
-            (str(_uuid.uuid4()), body.user_id, account_id,
-             "owner" if body.account_type == "individual" else "admin"),
-        )
+        role = "owner" if body.account_type == "individual" else "admin"
+        # Also enrol the caller's own identity: in dev-bypass every request arrives
+        # as config.CALLER, so without this row follow-up calls find no membership.
+        for _uid in {body.user_id, config.CALLER}:
+            cur.execute(
+                "INSERT INTO memberships (id, user_id, account_id, role, status) "
+                "VALUES (%s, %s, %s, %s, 'active') ON CONFLICT DO NOTHING",
+                (str(_uuid.uuid4()), _uid, account_id, role),
+            )
         conn.commit()
         cur.close()
         ensure_free_subscription(account_id)
@@ -1608,7 +1635,10 @@ def invite_member(
         cur.close()
 
         invite_url = f"{base_url}/?invite={token}"
-        return {"email": req.email, "role": req.role, "invite_url": invite_url}
+        # `token` is already embedded in invite_url; returning it separately saves
+        # callers from parsing the URL and exposes nothing extra.
+        return {"email": req.email, "role": req.role,
+                "invite_url": invite_url, "token": token}
     except HTTPException:
         raise
     except Exception as e:
