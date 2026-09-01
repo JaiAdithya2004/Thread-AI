@@ -1,0 +1,673 @@
+{
+  "aggregate": {
+    "workspace": "ws_local",
+    "k": 5,
+    "n_questions": 28,
+    "n_answerable": 17,
+    "n_unanswerable": 11,
+    "hit_at_5": 0.7647,
+    "precision_at_5": 0.2794,
+    "recall_at_5": 0.598,
+    "mrr": 0.6127,
+    "ndcg_at_5": 0.534,
+    "abstention_rate": 0.0,
+    "excluded_fact": "e1ee7b50"
+  },
+  "results": [
+    {
+      "id": "q001",
+      "question": "What database are we using?",
+      "answerable": true,
+      "retrieved": [
+        "dd118d48",
+        "474b73b7",
+        "f76c58d8",
+        "799f0425"
+      ],
+      "relevant": [
+        "dd118d48",
+        "474b73b7"
+      ],
+      "ranks": {
+        "dd118d48": 1,
+        "474b73b7": 2
+      },
+      "n_retrieved": 4,
+      "hit": 1.0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q002",
+      "question": "Which database did the team decide to use?",
+      "answerable": true,
+      "retrieved": [
+        "474b73b7",
+        "f76c58d8",
+        "f4f8c2e8",
+        "2cbec819",
+        "dd118d48"
+      ],
+      "relevant": [
+        "474b73b7",
+        "dd118d48"
+      ],
+      "ranks": {
+        "474b73b7": 1,
+        "dd118d48": 5
+      },
+      "n_retrieved": 5,
+      "hit": 1.0,
+      "precision": 0.4,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 0.8503449055347546
+    },
+    {
+      "id": "q003",
+      "question": "What mobile framework did we choose?",
+      "answerable": true,
+      "retrieved": [
+        "474b73b7",
+        "f76c58d8",
+        "f4f8c2e8",
+        "2cbec819",
+        "dd118d48"
+      ],
+      "relevant": [
+        "e1ee7b50"
+      ],
+      "ranks": {
+        "e1ee7b50": null
+      },
+      "n_retrieved": 5,
+      "hit": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "mrr": 0.0,
+      "ndcg": 0.0
+    },
+    {
+      "id": "q004",
+      "question": "Did we decide to build the mobile app with Flutter or React Native?",
+      "answerable": true,
+      "retrieved": [
+        "474b73b7",
+        "f76c58d8",
+        "f4f8c2e8",
+        "2cbec819",
+        "dd118d48"
+      ],
+      "relevant": [
+        "e1ee7b50"
+      ],
+      "ranks": {
+        "e1ee7b50": null
+      },
+      "n_retrieved": 5,
+      "hit": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "mrr": 0.0,
+      "ndcg": 0.0
+    },
+    {
+      "id": "q005",
+      "question": "What did the team decide about AI agents for productivity?",
+      "answerable": true,
+      "retrieved": [
+        "474b73b7",
+        "f76c58d8",
+        "f4f8c2e8",
+        "2cbec819",
+        "dd118d48"
+      ],
+      "relevant": [
+        "2cbec819"
+      ],
+      "ranks": {
+        "2cbec819": 4
+      },
+      "n_retrieved": 5,
+      "hit": 1.0,
+      "precision": 0.2,
+      "recall": 1.0,
+      "mrr": 0.25,
+      "ndcg": 0.43067655807339306
+    },
+    {
+      "id": "q006",
+      "question": "Who owns the onboarding flow?",
+      "answerable": true,
+      "retrieved": [
+        "f4f8c2e8",
+        "b574f565",
+        "474b73b7",
+        "f76c58d8",
+        "2cbec819"
+      ],
+      "relevant": [
+        "b574f565",
+        "f4f8c2e8"
+      ],
+      "ranks": {
+        "b574f565": 2,
+        "f4f8c2e8": 1
+      },
+      "n_retrieved": 5,
+      "hit": 1.0,
+      "precision": 0.4,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q007",
+      "question": "Who is responsible for onboarding?",
+      "answerable": true,
+      "retrieved": [
+        "474b73b7",
+        "f76c58d8",
+        "f4f8c2e8",
+        "2cbec819",
+        "dd118d48"
+      ],
+      "relevant": [
+        "b574f565",
+        "f4f8c2e8"
+      ],
+      "ranks": {
+        "b574f565": null,
+        "f4f8c2e8": 3
+      },
+      "n_retrieved": 5,
+      "hit": 1.0,
+      "precision": 0.2,
+      "recall": 0.5,
+      "mrr": 0.3333333333333333,
+      "ndcg": 0.3065735963827292
+    },
+    {
+      "id": "q008",
+      "question": "Who owns the payments integration?",
+      "answerable": false,
+      "retrieved": [
+        "474b73b7",
+        "f76c58d8",
+        "f4f8c2e8",
+        "2cbec819",
+        "dd118d48"
+      ],
+      "relevant": [],
+      "ranks": {},
+      "n_retrieved": 5,
+      "hit": null,
+      "precision": null,
+      "recall": null,
+      "mrr": null,
+      "ndcg": null
+    },
+    {
+      "id": "q009",
+      "question": "Who is the engineering lead?",
+      "answerable": false,
+      "retrieved": [
+        "474b73b7",
+        "f76c58d8",
+        "f4f8c2e8",
+        "2cbec819",
+        "dd118d48"
+      ],
+      "relevant": [],
+      "ranks": {},
+      "n_retrieved": 5,
+      "hit": null,
+      "precision": null,
+      "recall": null,
+      "mrr": null,
+      "ndcg": null
+    },
+    {
+      "id": "q010",
+      "question": "When is the launch scheduled?",
+      "answerable": true,
+      "retrieved": [
+        "799f0425",
+        "474b73b7",
+        "f76c58d8",
+        "f4f8c2e8",
+        "2cbec819"
+      ],
+      "relevant": [
+        "799f0425",
+        "f76c58d8"
+      ],
+      "ranks": {
+        "799f0425": 1,
+        "f76c58d8": 3
+      },
+      "n_retrieved": 5,
+      "hit": 1.0,
+      "precision": 0.4,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 0.9197207891481876
+    },
+    {
+      "id": "q011",
+      "question": "What is the launch date?",
+      "answerable": true,
+      "retrieved": [
+        "f76c58d8",
+        "474b73b7",
+        "f4f8c2e8",
+        "2cbec819",
+        "dd118d48"
+      ],
+      "relevant": [
+        "f76c58d8",
+        "799f0425"
+      ],
+      "ranks": {
+        "f76c58d8": 1,
+        "799f0425": null
+      },
+      "n_retrieved": 5,
+      "hit": 1.0,
+      "precision": 0.2,
+      "recall": 0.5,
+      "mrr": 1.0,
+      "ndcg": 0.6131471927654584
+    },
+    {
+      "id": "q012",
+      "question": "Has the launch date changed?",
+      "answerable": true,
+      "retrieved": [
+        "474b73b7",
+        "f76c58d8",
+        "f4f8c2e8",
+        "2cbec819",
+        "dd118d48"
+      ],
+      "relevant": [
+        "f76c58d8",
+        "799f0425"
+      ],
+      "ranks": {
+        "f76c58d8": 2,
+        "799f0425": null
+      },
+      "n_retrieved": 5,
+      "hit": 1.0,
+      "precision": 0.2,
+      "recall": 0.5,
+      "mrr": 0.5,
+      "ndcg": 0.38685280723454163
+    },
+    {
+      "id": "q013",
+      "question": "What is the current state of the mobile app?",
+      "answerable": true,
+      "retrieved": [
+        "474b73b7",
+        "f76c58d8",
+        "f4f8c2e8",
+        "2cbec819",
+        "dd118d48"
+      ],
+      "relevant": [
+        "e1ee7b50"
+      ],
+      "ranks": {
+        "e1ee7b50": null
+      },
+      "n_retrieved": 5,
+      "hit": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "mrr": 0.0,
+      "ndcg": 0.0
+    },
+    {
+      "id": "q014",
+      "question": "What was the Slack channel renamed from?",
+      "answerable": false,
+      "retrieved": [
+        "474b73b7",
+        "f76c58d8",
+        "f4f8c2e8",
+        "2cbec819",
+        "dd118d48"
+      ],
+      "relevant": [],
+      "ranks": {},
+      "n_retrieved": 5,
+      "hit": null,
+      "precision": null,
+      "recall": null,
+      "mrr": null,
+      "ndcg": null
+    },
+    {
+      "id": "q015",
+      "question": "What backend database are we using in production?",
+      "answerable": true,
+      "retrieved": [
+        "474b73b7",
+        "f76c58d8",
+        "f4f8c2e8",
+        "2cbec819",
+        "dd118d48"
+      ],
+      "relevant": [
+        "dd118d48",
+        "474b73b7"
+      ],
+      "ranks": {
+        "dd118d48": 5,
+        "474b73b7": 1
+      },
+      "n_retrieved": 5,
+      "hit": 1.0,
+      "precision": 0.4,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 0.8503449055347546
+    },
+    {
+      "id": "q016",
+      "question": "Are we using React Native or a web view for mobile?",
+      "answerable": true,
+      "retrieved": [
+        "dd118d48",
+        "474b73b7",
+        "f76c58d8",
+        "799f0425"
+      ],
+      "relevant": [
+        "e1ee7b50"
+      ],
+      "ranks": {
+        "e1ee7b50": null
+      },
+      "n_retrieved": 4,
+      "hit": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "mrr": 0.0,
+      "ndcg": 0.0
+    },
+    {
+      "id": "q017",
+      "question": "What is our approach to handling deadline pressure?",
+      "answerable": true,
+      "retrieved": [
+        "2cbec819",
+        "dd118d48",
+        "f76c58d8",
+        "799f0425"
+      ],
+      "relevant": [
+        "2cbec819"
+      ],
+      "ranks": {
+        "2cbec819": 1
+      },
+      "n_retrieved": 4,
+      "hit": 1.0,
+      "precision": 0.25,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q018",
+      "question": "What is the salary of our CEO?",
+      "answerable": false,
+      "retrieved": [
+        "b574f565",
+        "f4f8c2e8",
+        "f76c58d8",
+        "dd118d48",
+        "2cbec819"
+      ],
+      "relevant": [],
+      "ranks": {},
+      "n_retrieved": 5,
+      "hit": null,
+      "precision": null,
+      "recall": null,
+      "mrr": null,
+      "ndcg": null
+    },
+    {
+      "id": "q019",
+      "question": "Which cloud provider do we use for production?",
+      "answerable": false,
+      "retrieved": [
+        "dd118d48",
+        "474b73b7",
+        "f76c58d8",
+        "799f0425"
+      ],
+      "relevant": [],
+      "ranks": {},
+      "n_retrieved": 4,
+      "hit": null,
+      "precision": null,
+      "recall": null,
+      "mrr": null,
+      "ndcg": null
+    },
+    {
+      "id": "q020",
+      "question": "What is our monthly burn rate?",
+      "answerable": false,
+      "retrieved": [
+        "dd118d48",
+        "474b73b7",
+        "f76c58d8",
+        "f4f8c2e8",
+        "b574f565"
+      ],
+      "relevant": [],
+      "ranks": {},
+      "n_retrieved": 5,
+      "hit": null,
+      "precision": null,
+      "recall": null,
+      "mrr": null,
+      "ndcg": null
+    },
+    {
+      "id": "q021",
+      "question": "How many employees does the company have?",
+      "answerable": false,
+      "retrieved": [
+        "2cbec819",
+        "dd118d48",
+        "b574f565",
+        "f4f8c2e8",
+        "f76c58d8"
+      ],
+      "relevant": [],
+      "ranks": {},
+      "n_retrieved": 5,
+      "hit": null,
+      "precision": null,
+      "recall": null,
+      "mrr": null,
+      "ndcg": null
+    },
+    {
+      "id": "q022",
+      "question": "What is our marketing budget?",
+      "answerable": false,
+      "retrieved": [
+        "f76c58d8",
+        "dd118d48",
+        "799f0425",
+        "474b73b7"
+      ],
+      "relevant": [],
+      "ranks": {},
+      "n_retrieved": 4,
+      "hit": null,
+      "precision": null,
+      "recall": null,
+      "mrr": null,
+      "ndcg": null
+    },
+    {
+      "id": "q023",
+      "question": "What stack are we using: backend database and mobile framework?",
+      "answerable": true,
+      "retrieved": [
+        "dd118d48",
+        "474b73b7",
+        "f76c58d8",
+        "799f0425"
+      ],
+      "relevant": [
+        "dd118d48",
+        "474b73b7",
+        "e1ee7b50"
+      ],
+      "ranks": {
+        "dd118d48": 1,
+        "474b73b7": 2,
+        "e1ee7b50": null
+      },
+      "n_retrieved": 4,
+      "hit": 1.0,
+      "precision": 0.5,
+      "recall": 0.6666666666666666,
+      "mrr": 1.0,
+      "ndcg": 0.7653606369886217
+    },
+    {
+      "id": "q024",
+      "question": "Summarise what was decided in engineering this week.",
+      "answerable": true,
+      "retrieved": [
+        "474b73b7",
+        "dd118d48",
+        "2cbec819",
+        "799f0425"
+      ],
+      "relevant": [
+        "474b73b7",
+        "e1ee7b50",
+        "b574f565",
+        "f4f8c2e8",
+        "2cbec819"
+      ],
+      "ranks": {
+        "474b73b7": 1,
+        "e1ee7b50": null,
+        "b574f565": null,
+        "f4f8c2e8": null,
+        "2cbec819": 3
+      },
+      "n_retrieved": 4,
+      "hit": 1.0,
+      "precision": 0.5,
+      "recall": 0.4,
+      "mrr": 1.0,
+      "ndcg": 0.5087403079104241
+    },
+    {
+      "id": "q025",
+      "question": "What are the team's key commitments right now?",
+      "answerable": true,
+      "retrieved": [
+        "dd118d48",
+        "474b73b7",
+        "799f0425",
+        "2cbec819",
+        "f76c58d8"
+      ],
+      "relevant": [
+        "2cbec819",
+        "b574f565",
+        "f4f8c2e8",
+        "799f0425",
+        "f76c58d8"
+      ],
+      "ranks": {
+        "2cbec819": 4,
+        "b574f565": null,
+        "f4f8c2e8": null,
+        "799f0425": 3,
+        "f76c58d8": 5
+      },
+      "n_retrieved": 5,
+      "hit": 1.0,
+      "precision": 0.6,
+      "recall": 0.6,
+      "mrr": 0.3333333333333333,
+      "ndcg": 0.4468535299918563
+    },
+    {
+      "id": "q026",
+      "question": "Why did we drop Redis?",
+      "answerable": false,
+      "retrieved": [
+        "474b73b7",
+        "dd118d48",
+        "799f0425",
+        "f76c58d8"
+      ],
+      "relevant": [],
+      "ranks": {},
+      "n_retrieved": 4,
+      "hit": null,
+      "precision": null,
+      "recall": null,
+      "mrr": null,
+      "ndcg": null
+    },
+    {
+      "id": "q027",
+      "question": "Who proposed using Redis for the payments service?",
+      "answerable": false,
+      "retrieved": [
+        "474b73b7",
+        "dd118d48",
+        "f4f8c2e8",
+        "b574f565"
+      ],
+      "relevant": [],
+      "ranks": {},
+      "n_retrieved": 4,
+      "hit": null,
+      "precision": null,
+      "recall": null,
+      "mrr": null,
+      "ndcg": null
+    },
+    {
+      "id": "q028",
+      "question": "When do refunds ship?",
+      "answerable": false,
+      "retrieved": [
+        "f76c58d8",
+        "799f0425",
+        "2cbec819",
+        "b574f565",
+        "f4f8c2e8"
+      ],
+      "relevant": [],
+      "ranks": {},
+      "n_retrieved": 5,
+      "hit": null,
+      "precision": null,
+      "recall": null,
+      "mrr": null,
+      "ndcg": null
+    }
+  ]
+}
