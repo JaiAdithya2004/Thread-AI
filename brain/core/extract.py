@@ -351,14 +351,33 @@ def _supersede(conn, ws, subject: str, new_fid: str):
 
 def _detect_conflicts(conn, ws, f: dict, new_fid: str, workspace_id: str):
     """
-    If another valid fact shares subject+predicate with high confidence,
-    add an in_tension_with edge (so the conflict is visible without deleting either).
+    If another valid fact makes a DIFFERENT claim about the same subject and
+    predicate, add an in_tension_with edge (so the conflict is visible without
+    deleting either).
+
+    Facts asserting the *same* object are duplicates, not contradictions —
+    "Jai owns the onboarding flow" does not conflict with itself. Matching on
+    subject+predicate alone flagged every duplicate as a conflict, which filled
+    fact_edges with false positives and made genuine conflicts unfindable
+    among them.
+
+    KNOWN LIMITATION: string equality on subject+predicate still misfires when
+    the extractor emits generic subjects. "The team / decided to use / Supabase"
+    and "The team / decided to use / React Native" are recorded as a conflict
+    although they concern unrelated topics, while "Launch / is pushed to /
+    July 5th" and "The launch / is scheduled / July 10th" — a real
+    contradiction — never compare because their subjects differ by one word.
+    Resolving this needs semantic comparison of subject and predicate rather
+    than exact match; it is not attempted here.
     """
+    obj = (f.get("object") or "").strip()
     cur = conn.cursor()
     cur.execute(
         "SELECT id FROM facts WHERE workspace_id=%s AND subject=%s "
-        "AND predicate=%s AND invalidated_at IS NULL AND id!=%s AND confidence > 0.5",
-        (workspace_id, f.get("subject"), f.get("predicate"), new_fid)
+        "AND predicate=%s AND invalidated_at IS NULL AND id!=%s AND confidence > 0.5 "
+        # A differing object is what makes two facts contradictory.
+        "AND btrim(coalesce(object,'')) IS DISTINCT FROM %s",
+        (workspace_id, f.get("subject"), f.get("predicate"), new_fid, obj)
     )
     rivals = cur.fetchall()
     cur.close()

@@ -952,7 +952,7 @@ async function doGuestDemo() {
       if (r.status === 503) {
         document.getElementById('authErr').textContent = 'Demo is not enabled on this server.';
       } else {
-        document.getElementById('authErr').textContent = body.detail || 'Could not start demo session.';
+        document.getElementById('authErr').textContent = body.error || body.detail || 'Could not start demo session.';
       }
       return;
     }
@@ -2622,7 +2622,7 @@ async function checkInviteToken(){
 
   try {
     const data = await fetch(`/api/invite/${encodeURIComponent(token)}`).then(r=>{
-      if(!r.ok) return r.json().then(b=>{ throw new Error(b.detail||'Invalid invite'); });
+      if(!r.ok) return r.json().then(b=>{ throw new Error(b.error||b.detail||'Invalid invite'); });
       return r.json();
     });
     _inviteData = data;
@@ -2660,7 +2660,7 @@ async function acceptInvite(){
     });
     if(!res.ok){
       const b = await res.json().catch(()=>({detail:'Failed to accept invite'}));
-      throw new Error(b.detail || 'Failed to accept invite');
+      throw new Error(b.error || b.detail || 'Failed to accept invite');
     }
     const data = await res.json();
 

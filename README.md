@@ -13,6 +13,7 @@ The problem it solves: the answer to "why did we choose Postgres over DynamoDB?"
 - [How it works](#how-it-works)
 - [Architecture](#architecture)
 - [Retrieval pipeline](#retrieval-pipeline)
+- [What "memory layer" means here](#what-memory-layer-means-here)
 - [Security model](#security-model)
 - [Evaluation](#evaluation)
 - [Performance](#performance)
@@ -109,6 +110,32 @@ Hybrid retrieval, because vector search and keyword search fail differently. Emb
 
 ---
 
+## What "memory layer" means here
+
+The phrase is used precisely, because it is easy to overclaim. Thread stores knowledge in three layers:
+
+| Layer | Table | Role |
+|---|---|---|
+| **Raw source** | `episodes` | The original email, commit or message — full body, author, URL, `content_hash` for dedup |
+| **Extracted claims** | `facts` | `subject / predicate / object` + summary + confidence, with `fact_vec_768` and `fts_vec`. **This is the only table retrieval reads.** |
+| **Relations** | `fact_edges` | `supersedes` and `in_tension_with` links between facts |
+
+**What is implemented:**
+
+- **Temporal versioning.** Facts carry `introduced_at` / `invalidated_at`. A superseded fact is invalidated rather than deleted, so "what did we decide *before*?" remains answerable and provenance survives.
+- **Contradiction surfacing.** Retrieval joins `fact_edges` for `in_tension_with` among the returned facts, so an answer can report that two facts disagree.
+- **Content-hash deduplication** on ingest, making re-sync and webhook replay idempotent.
+
+**What is not implemented — stated plainly:**
+
+- **No conversational memory.** `conversations`/`messages` exist as tables but nothing from a prior turn feeds back into retrieval. Every query is stateless; a follow-up question does not know what preceded it.
+- **No entity or user profiles**, and no consolidation of older facts into higher-level ones.
+- **Conflict detection is string-based and imprecise.** It compares `subject` + `predicate` exactly, so generic subjects ("The team") produce false conflicts between unrelated decisions, while a real contradiction whose subjects differ by a word ("Launch" vs "The launch") is missed entirely. Resolving this needs semantic comparison.
+
+So: a **temporally-versioned fact store with a coarse contradiction graph** — not an agent memory system in the sense of Mem0 or Zep.
+
+---
+
 ## Security model
 
 Multi-tenancy is enforced in the database, not only in application code — a bug in a handler shouldn't be able to leak another tenant's data.
@@ -168,33 +195,29 @@ These are the enforced thresholds from `evals/thresholds.yaml` — a run is flag
 
 Faithfulness carries the tightest tolerance (0.08) because hallucination is the failure mode that most damages trust in the product.
 
-### Measured results
+### Measured retrieval results
 
-A real run, reported as-is. **Conditions:** workspace `ws_demo`, 69 facts (all vectorised), 28 questions (17 answerable / 11 deliberately unanswerable), K=5, 0 questions errored.
+**Conditions:** workspace `ws_local`, 8 facts, 28 questions (17 answerable / 11 deliberately unanswerable), K=5, explicit ground truth in `evals/ground_truth.yaml`.
 
-| Metric | Measured | Floor | |
+| Metric | Hybrid (current) | Vector-only | FTS-only |
 |---|---|---|---|
-| `precision_at_5` | **0.271** | 0.20 | ✅ |
-| `mrr` | **0.309** | 0.30 | ✅ |
-| `ndcg_at_5` | **0.305** | 0.30 | ✅ |
-| `faithfulness_rate` | **0.824** | 0.70 | ✅ |
-| `abstention_accuracy` | **0.607** | 0.60 | ✅ |
-| `hit_at_5` | **0.412** | 0.50 | ❌ below floor |
-| `recall_at_5` | **0.279** | 0.30 | ❌ below floor |
-| `keyword_hit_rate` | **0.412** | 0.50 | ❌ below floor |
-| `fact_correct_rate` | 0.706 | — | |
-| `hallucination_rate` | 0.176 | — | |
-| `mean_latency_s` | 19.90 | — | |
-| `p95_latency_s` | 32.20 | — | |
+| **Hit@5** | **1.0000** | 1.0000 | 0.2941 |
+| **Recall@5** | **0.9412** | 0.9412 | 0.2059 |
+| **MRR** | **0.9706** | 0.9706 | 0.2941 |
+| **NDCG@5** | **0.9474** | 0.9474 | 0.2258 |
+| **Precision@5** | **0.3529** | 0.3529 | 0.2941 |
 
-**Read these honestly:**
+Reproduce with `python -m evals.benchmark --workspace ws_local`.
 
-- **Retrieval is the weak point.** `hit@5` of 0.41 means that for well over half of answerable questions, no relevant fact reached the top 5. On this corpus the demo workspace is dominated by GitHub repository descriptions and calendar invitations, which crowd out the handful of facts the questions actually target. Retrieval quality is the clearest place this system needs work.
-- **Answer-quality metrics from this run are not meaningful.** 25 of 28 answers were produced with **no LLM synthesis** — the configured free model (`gemma-4-31b-it:free`) was rate-limited throughout, so the pipeline degraded to returning ranked facts without prose. That is the intended graceful-degradation path, but it means `answer_correct_rate` (0.0) and `citation_precision` (no citations emitted) measure the outage, not the system. They are omitted above rather than reported as scores.
-- **Latency reflects that same outage.** ~20 s mean is dominated by LLM calls retrying against a rate-limited provider; it is not a measurement of retrieval latency, which is budgeted separately below.
-- **Faithfulness (0.82) is measured over the degraded answers**, where the "answer" is largely the retrieved facts themselves — so it is easier to be faithful than it would be with real synthesis. Treat it as a floor, not a result.
+**What these numbers do and do not show:**
 
-The honest summary: **retrieval metrics here are real and mediocre; answer-quality metrics await a run on a non-rate-limited model.** Re-run with `python -m evals.run --ws <workspace>` and store a baseline with `python scripts/bench_snapshot.py`.
+- **The corpus is small.** 8 facts with K=5 means retrieval returns 62% of the corpus on every query. `Hit@5 = 1.0` is evidence of **no catastrophic defect and working semantics** — it is *not* evidence of production-scale quality, where ranking has to discriminate among thousands of facts.
+- **Precision@5 = 0.353 is a corpus artifact, not a defect.** A question with one relevant fact is capped at 0.20 when five are returned.
+- **Hybrid and vector-only are identical to four decimal places.** On this corpus the full-text leg contributes nothing the vector leg does not already supply.
+- **FTS alone finds a relevant fact for only 5 of 17 questions.** Postgres `plainto_tsquery` ANDs its terms, so *"what mobile framework did we choose"* cannot match a fact reading *"React Native for the mobile app"* — "framework" and "choose" appear nowhere in the corpus. Semantic retrieval carries the system.
+- **An earlier published baseline (Hit@5 0.412) was invalid** and has been withdrawn: it ran against the wrong workspace and derived "relevant" facts by filtering the system's own output, so recall could not fall when retrieval missed a fact.
+
+**Answer-quality metrics are not currently published.** The configured synthesis model is rate-limited, so faithfulness, citation precision and abstention accuracy would measure the outage rather than the system.
 
 ---
 
@@ -230,6 +253,20 @@ The design target is **p95 < 300 ms for retrieval**, excluding LLM synthesis. Th
 | LLM synthesis | no | External API — **excluded from the retrieval budget** |
 
 Synthesis dominates end-to-end latency and is bounded by the provider, which is why retrieval is measured separately and why the pipeline degrades to returning ranked facts without prose when the LLM is slow or unavailable.
+
+### Measured stage latency
+
+Median of 3 queries against remote Supabase (`ap-northeast-1`) from a development machine, warm connection:
+
+| Stage | Median | Range |
+|---|---|---|
+| Query embedding (Gemini, network) | 1225 ms | 1063–1656 ms |
+| Vector search (pgvector) | 229 ms | 160–932 ms |
+| Full-text search (Postgres GIN) | 231 ms | 132–335 ms |
+
+**The embedding round-trip is ~5× the cost of both database queries combined**, and it is the one stage that is a third-party network call. The in-process embedding cache exists for exactly this reason — a repeated query skips it entirely.
+
+These figures are dominated by geographic round-trip to a remote database and will not resemble a co-located deployment. They are reported to show *relative* stage cost, not as a throughput claim.
 
 ### Measuring it
 

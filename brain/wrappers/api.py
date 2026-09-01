@@ -1619,43 +1619,45 @@ def invite_member(
         """, (identity.user_id,))
         row = cur.fetchone()
         if not row:
-            # In dev/bypass mode there may be no memberships row — use workspace as account
-            account_id = identity.workspace_id or "dev-workspace"
-        else:
-            account_id = row["account_id"]
+            # No membership means no account to attach the invitation to. Returning
+            # a token here would hand the caller a link that was never stored, so
+            # every recipient would hit "invalid or expired" on a fresh invite.
+            raise HTTPException(
+                status_code=403,
+                detail="You are not a member of any account, so you cannot invite others.",
+            )
+        account_id = row["account_id"]
 
-        # Enforce seat limit before issuing invite (skip in dev/bypass when no real account)
-        if row:
-            from brain.core.db_pg import get_plan_for_account, get_seat_count
-            plan = get_plan_for_account(account_id)
-            seats = get_seat_count(account_id)
-            if seats >= plan.get("max_seats", 1):
-                _detail = (f"Seat limit reached ({seats}/{plan['max_seats']}). "
-                           "Upgrade your plan to add more members.")
-                from brain.auth import _IS_PRODUCTION as _in_prod
-                if not _in_prod:
-                    # Non-production only: name the account the limit was read from,
-                    # so a wrong-account resolution is visible instead of silent.
-                    cur.execute("SELECT type FROM accounts WHERE id=%s", (account_id,))
-                    _acct = cur.fetchone() or {}
-                    _detail += (f" [account={account_id} type={_acct.get('type')} "
-                                f"plan={plan.get('name')}]")
-                raise HTTPException(402, _detail)
+        # Enforce seat limit before issuing invite
+        from brain.core.db_pg import get_plan_for_account, get_seat_count
+        plan = get_plan_for_account(account_id)
+        seats = get_seat_count(account_id)
+        if seats >= plan.get("max_seats", 1):
+            _detail = (f"Seat limit reached ({seats}/{plan['max_seats']}). "
+                       "Upgrade your plan to add more members.")
+            from brain.auth import _IS_PRODUCTION as _in_prod
+            if not _in_prod:
+                # Non-production only: name the account the limit was read from,
+                # so a wrong-account resolution is visible instead of silent.
+                cur.execute("SELECT type FROM accounts WHERE id=%s", (account_id,))
+                _acct = cur.fetchone() or {}
+                _detail += (f" [account={account_id} type={_acct.get('type')} "
+                            f"plan={plan.get('name')}]")
+            raise HTTPException(402, _detail)
 
         token = secrets.token_urlsafe(32)
         base_url = os.getenv("APP_BASE_URL", "http://localhost:7070").rstrip("/")
-        if row:
-            expires = datetime.datetime.utcnow() + datetime.timedelta(days=7)
-            # Serialize properly: interpolating the value would let a quote in
-            # team_id corrupt the stored JSON that accept-invite later parses.
-            team_ids_json = json.dumps([req.team_id] if req.team_id else [])
-            cur.execute("""
-                INSERT INTO invitations
-                    (id, account_id, email, team_ids, role, token, invited_by, expires_at, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending')
-            """, (str(_uuid.uuid4()), account_id, req.email, team_ids_json,
-                  req.role, token, identity.user_id, expires.isoformat()))
-            conn.commit()
+        expires = datetime.datetime.utcnow() + datetime.timedelta(days=7)
+        # Serialize properly: interpolating the value would let a quote in
+        # team_id corrupt the stored JSON that accept-invite later parses.
+        team_ids_json = json.dumps([req.team_id] if req.team_id else [])
+        cur.execute("""
+            INSERT INTO invitations
+                (id, account_id, email, team_ids, role, token, invited_by, expires_at, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending')
+        """, (str(_uuid.uuid4()), account_id, req.email, team_ids_json,
+              req.role, token, identity.user_id, expires.isoformat()))
+        conn.commit()
         cur.close()
 
         invite_url = f"{base_url}/?invite={token}"

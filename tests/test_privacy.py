@@ -145,3 +145,46 @@ def test_status_endpoint_no_composio_key_name(api_client):
     keys = data.get("keys", {})
     assert "composio" not in keys, \
         "Vendor name 'composio' should not appear in /api/status response"
+
+
+# ── Invite link must be usable the moment it is issued ────────────────────────
+
+def test_invite_endpoint_never_returns_an_unstored_token(api_client, auth_headers):
+    """A returned invite token must exist in the database.
+
+    Regression: the INSERT was wrapped in `if row:`, so a caller with no
+    membership received a freshly generated token that was never stored. The
+    link 404'd for every recipient — the endpoint reported success while
+    silently doing nothing.
+    """
+    resp = api_client.post(
+        "/api/members/invite",
+        json={"email": "regression@example.com", "role": "employee"},
+        headers=auth_headers,
+    )
+    # Either refuse outright, or issue a token that actually resolves.
+    if resp.status_code == 200:
+        token = resp.json().get("token")
+        assert token, "200 response must include the token"
+        lookup = api_client.get(f"/api/invite/{token}")
+        assert lookup.status_code == 200, (
+            f"freshly issued invite token did not resolve "
+            f"({lookup.status_code}) — the link is dead on arrival"
+        )
+    else:
+        # A refusal is acceptable; silently returning a dead link is not.
+        assert resp.status_code in (402, 403), resp.text
+
+
+def test_api_errors_use_the_error_key(api_client):
+    """The frontend reads `.error`; the handler must emit it.
+
+    Regression: handlers raise HTTPException(detail=...) but the exception
+    handler serialises it as {"error": ...}. The UI read `.detail`, so every
+    invite failure showed a generic fallback instead of the real reason.
+    """
+    resp = api_client.get("/api/invite/definitely-not-a-real-token")
+    assert resp.status_code == 404
+    body = resp.json()
+    assert "error" in body, f"expected an 'error' key, got {list(body)}"
+    assert body["error"], "error message must not be empty"
