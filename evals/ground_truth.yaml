@@ -1,0 +1,126 @@
+# Explicit retrieval ground truth for the ws_local benchmark.
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# The previous harness derived "relevant" facts by filtering the facts that
+# retrieval had *already returned* for keyword matches. That made ground truth
+# a function of the system's own output: relevant_ids was always a subset of
+# retrieved_ids, so Recall could never fall when retrieval missed a fact, and
+# Hit@k collapsed to a binary "did any returned text contain a keyword".
+#
+# Ground truth here is independent of retrieval. Each entry lists the fact IDs
+# that a correct system MUST return, decided by reading the corpus, not by
+# running a query.
+#
+# WORKSPACE: ws_local  (the only workspace containing the Slack #engineering
+# facts these questions were written against). The full corpus is 8 facts.
+#
+# Every ID below was verified present in ws_local, active (invalidated_at IS
+# NULL), ACL-visible ('everyone'), and carrying a fact_vec_768 embedding.
+#
+# answerable: false  => intentionally unanswerable. Scored on abstention only;
+#                       retrieval metrics are not applicable and are recorded
+#                       as null rather than as a zero.
+
+workspace: ws_local
+
+facts:
+  supabase_decision:   474b73b7-6a3c-43cb-b132-726412b46abe  # "The team decided to use Supabase for the database."
+  supabase_current:    dd118d48-d5ee-4dce-a1c6-50cb3c071c31  # "The team is using Supabase for the database."
+  react_native:        e1ee7b50-c17c-4f5f-b6ae-f1b934682514  # "The team decided to use React Native for the mobile app."
+  launch_july10:       799f0425-68b7-4c06-ba9d-86e8766fd2c0  # "The launch is scheduled for July 10th."
+  launch_july5:        f76c58d8-7b32-4675-8c6c-0ef182087200  # "The launch date is July 5th."
+  jai_onboarding_a:    b574f565-08f0-48d3-97a1-c8a4aa65c130  # "Jai owns the onboarding flow."
+  jai_onboarding_b:    f4f8c2e8-6a34-48e0-859f-6079c2de93bb  # "Jai owns the onboarding flow." (duplicate content)
+  ai_agents_deadlines: 2cbec819-55cf-4c09-9891-2413c25beff2  # "Employees must create and use AI Agents to avoid deadline slips."
+
+questions:
+
+  # ── Database ───────────────────────────────────────────────────────────────
+  q001:
+    answerable: true
+    relevant: [supabase_current, supabase_decision]
+    note: "Present tense — both the decision and the current-state fact answer it."
+  q002:
+    answerable: true
+    relevant: [supabase_decision, supabase_current]
+    note: "'did the team decide' — decision fact is primary, current state also valid."
+  q015:
+    answerable: true
+    relevant: [supabase_current, supabase_decision]
+    note: "'in production' — same two facts; corpus draws no prod/non-prod distinction."
+
+  # ── Mobile framework ───────────────────────────────────────────────────────
+  q003:
+    answerable: true
+    relevant: [react_native]
+  q004:
+    answerable: true
+    relevant: [react_native]
+    note: "Flutter-vs-React-Native: only the React Native fact exists."
+  q016:
+    answerable: true
+    relevant: [react_native]
+  q013:
+    answerable: true
+    relevant: [react_native]
+    note: "'current state of the mobile app' — React Native is the only mobile fact."
+
+  # ── Launch date (the genuine temporal pair) ────────────────────────────────
+  q010:
+    answerable: true
+    relevant: [launch_july10, launch_july5]
+    note: "Both launch facts are active; neither is marked superseded in the corpus."
+  q011:
+    answerable: true
+    relevant: [launch_july5, launch_july10]
+  q012:
+    answerable: true
+    relevant: [launch_july5, launch_july10]
+    note: "'has it changed' requires BOTH dates to be retrievable to answer at all."
+
+  # ── Ownership ──────────────────────────────────────────────────────────────
+  q006:
+    answerable: true
+    relevant: [jai_onboarding_a, jai_onboarding_b]
+    note: "Two facts with identical text — a corpus duplicate, both count as relevant."
+  q007:
+    answerable: true
+    relevant: [jai_onboarding_a, jai_onboarding_b]
+
+  # ── AI agents / deadlines ──────────────────────────────────────────────────
+  q005:
+    answerable: true
+    relevant: [ai_agents_deadlines]
+  q017:
+    answerable: true
+    relevant: [ai_agents_deadlines]
+
+  # ── Multi-fact synthesis ───────────────────────────────────────────────────
+  q023:
+    answerable: true
+    relevant: [supabase_current, supabase_decision, react_native]
+    note: "Explicitly asks for database AND mobile framework."
+  q024:
+    answerable: true
+    relevant: [supabase_decision, react_native, jai_onboarding_a, jai_onboarding_b, ai_agents_deadlines]
+    note: "'summarise what was decided' — all decision-bearing facts are relevant."
+  q025:
+    answerable: true
+    relevant: [ai_agents_deadlines, jai_onboarding_a, jai_onboarding_b, launch_july10, launch_july5]
+    note: "'key commitments' — ownership, deadlines and launch dates."
+
+  # ── Intentionally unanswerable ─────────────────────────────────────────────
+  # No fact in the ws_local corpus supports these. They test abstention, and
+  # carry NO relevant ids by design — not because retrieval failed.
+  q008: {answerable: false, relevant: [], note: "payments integration owner — absent"}
+  q009: {answerable: false, relevant: [], note: "engineering lead — absent"}
+  q014: {answerable: false, relevant: [], note: "channel rename — not extracted into ws_local"}
+  q018: {answerable: false, relevant: [], note: "CEO salary — absent"}
+  q019: {answerable: false, relevant: [], note: "cloud provider — absent"}
+  q020: {answerable: false, relevant: [], note: "burn rate — absent"}
+  q021: {answerable: false, relevant: [], note: "headcount — absent"}
+  q022: {answerable: false, relevant: [], note: "marketing budget — absent"}
+  q026: {answerable: false, relevant: [], note: "dropping Redis — absent"}
+  q027: {answerable: false, relevant: [], note: "Redis proposal — absent"}
+  q028: {answerable: false, relevant: [], note: "refund shipping — absent"}
