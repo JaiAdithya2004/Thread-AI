@@ -14,6 +14,7 @@ The problem it solves: the answer to "why did we choose Postgres over DynamoDB?"
 - [Architecture](#architecture)
 - [Retrieval pipeline](#retrieval-pipeline)
 - [What "memory layer" means here](#what-memory-layer-means-here)
+- [Keeping connector data fresh](#keeping-connector-data-fresh)
 - [Security model](#security-model)
 - [Evaluation](#evaluation)
 - [Performance](#performance)
@@ -122,17 +123,37 @@ The phrase is used precisely, because it is easy to overclaim. Thread stores kno
 
 **What is implemented:**
 
-- **Temporal versioning.** Facts carry `introduced_at` / `invalidated_at`. A superseded fact is invalidated rather than deleted, so "what did we decide *before*?" remains answerable and provenance survives.
-- **Contradiction surfacing.** Retrieval joins `fact_edges` for `in_tension_with` among the returned facts, so an answer can report that two facts disagree.
+- **Temporal versioning (schema).** Facts carry `introduced_at` / `invalidated_at`. A superseded fact is invalidated rather than deleted, so "what did we decide *before*?" stays answerable and provenance survives.
+- **Contradiction surfacing (query path).** Retrieval joins `fact_edges` for `in_tension_with` among the returned facts, so an answer can report that two facts disagree.
 - **Content-hash deduplication** on ingest, making re-sync and webhook replay idempotent.
+- **Referential integrity.** `fact_edges` cascades on fact deletion, so the graph cannot drift out of sync with the facts it describes.
 
 **What is not implemented — stated plainly:**
 
-- **No conversational memory.** `conversations`/`messages` exist as tables but nothing from a prior turn feeds back into retrieval. Every query is stateless; a follow-up question does not know what preceded it.
+- **Supersession does not fire in practice.** The mechanism is sound but unreachable: `_supersede` runs only when the extraction LLM returns a non-null `supersedes` field, which asks the model to recall a fact it was never shown — the prompt receives the episode text, not the existing corpus. Even when triggered it matches on *exact* subject string, and subjects are near-unique in practice (51 distinct across 69 facts), so there is almost nothing to match. The live workspace has **0 superseded facts**.
+- **No conversational memory.** `conversations`/`messages` exist as tables but nothing from a prior turn feeds back into retrieval. Every query is stateless; a follow-up does not know what preceded it.
 - **No entity or user profiles**, and no consolidation of older facts into higher-level ones.
-- **Conflict detection is string-based and imprecise.** It compares `subject` + `predicate` exactly, so generic subjects ("The team") produce false conflicts between unrelated decisions, while a real contradiction whose subjects differ by a word ("Launch" vs "The launch") is missed entirely. Resolving this needs semantic comparison.
+- **Conflict detection is string-based and imprecise.** It compares `subject` + `predicate` exactly, so generic subjects ("The team") produce false conflicts between unrelated decisions, while a real contradiction whose subjects differ by a word ("Launch" vs "The launch") is missed. Resolving this needs semantic comparison.
 
-So: a **temporally-versioned fact store with a coarse contradiction graph** — not an agent memory system in the sense of Mem0 or Zep.
+So: **a versioned fact store whose versioning is currently dormant** — not an agent memory system in the sense of Mem0 or Zep. The schema and query paths are in place; what is missing is the step that decides *this fact replaces that one*, which needs semantic matching rather than exact strings.
+
+---
+
+## Keeping connector data fresh
+
+Ingestion is designed around three paths, all converging on the same idempotent write:
+
+| Path | Trigger | Purpose |
+|---|---|---|
+| **Polling** | arq cron, every `BRAIN_POLL_INTERVAL_MINUTES` (default 10) | Steady-state incremental sync |
+| **Webhooks** | Provider push → `connector_webhook_routes` | Low-latency updates |
+| **Reconciliation** | arq cron, every `BRAIN_RECONCILE_INTERVAL_MINUTES` (default 60) | Catches anything the first two missed |
+
+**Incremental, not full re-sync.** `connector_sync_state` holds a `last_synced_at` watermark per `(workspace, source)`. Each run passes it as `since` and advances it *only on success*, so a failed run re-fetches rather than skipping a window. Failures increment `consecutive_failures` for backoff, `locked_until` prevents overlapping runs of the same source, and jobs exhausting `BRAIN_JOB_MAX_RETRIES` land in `dead_letter_jobs` for inspection rather than vanishing.
+
+Reconciliation deliberately overlaps its window by `job_timeout × max_tries × 2`, on the assumption that a missed episode is worse than a duplicate one — content-hash dedup makes the duplicate free.
+
+> **Status: the loop is not currently running.** It requires a separate arq worker process (`arq brain.worker.WorkerSettings`) **and** `REDIS_URL`, neither of which is active in this deployment. `connector_sync_state` holds no row for the live workspace, and the newest episodes are from the date connectors were last synced by hand. Data is therefore **static until the worker is started** — the architecture is built and the code paths exist, but nothing is scheduling them.
 
 ---
 
