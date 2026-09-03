@@ -13,8 +13,6 @@ new metrics respond to a fact being withheld.
 No database rows are modified: exclusion is applied to the retrieved list,
 never to the corpus.
 """
-import math
-
 import pytest
 
 from evals.benchmark import hit_at_k, precision_at_k, recall_at_k, mrr, ndcg_at_k

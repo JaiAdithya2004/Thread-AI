@@ -119,21 +119,30 @@ def test_journey_company_signup_invite_flow(live_server, db_conn):
     invite_token = r3.json().get("token") or r3.json().get("invite_token") or ""
     assert invite_token, f"No token in response: {r3.text}"
 
-    # 4. Accept the invite (simulate employee clicking link)
+    # 4. Accept the invite (simulate employee clicking link).
+    # The token is in the path and the body carries only the password — posting
+    # to /api/members/accept-invite instead matched /api/members/{user_id} with
+    # user_id="accept-invite", which failed the ownership check rather than
+    # accepting anything.
     r4 = httpx.post(
-        f"{BASE_URL}/api/members/accept-invite",
-        json={"token": invite_token, "user_id": f"emp_{uuid.uuid4().hex[:8]}",
-              "password": "secret"},
+        f"{BASE_URL}/api/invite/{invite_token}/accept",
+        json={"password": "secret-pw-12345"},
         headers=AUTH,
     )
     assert r4.status_code == 200, f"Accept invite failed: {r4.text}"
 
-    # 5. Verify member appears in the list
+    # 5. Verify member appears in the list.
+    # /api/members returns membership rows (user_id, role, team_id, status) and
+    # deliberately does not expose email, so match on the user_id that
+    # accept-invite reported creating.
+    new_user_id = r4.json().get("user_id")
+    assert new_user_id, f"accept-invite returned no user_id: {r4.text}"
+
     r5 = httpx.get(f"{BASE_URL}/api/members", headers=AUTH)
     assert r5.status_code == 200, r5.text
-    emails = [m.get("email", "") for m in r5.json()]
-    assert any(employee_email in e for e in emails), \
-        f"Employee not found in members: {emails}"
+    member_ids = [m.get("user_id", "") for m in r5.json()]
+    assert new_user_id in member_ids, \
+        f"Accepted member {new_user_id} not in members: {member_ids}"
 
 
 # ────────────────────────────────────────────────────────────────────────────
