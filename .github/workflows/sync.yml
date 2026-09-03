@@ -1,0 +1,67 @@
+name: Connector sync
+
+# Keeps the knowledge base current without a long-running worker.
+#
+# The arq worker in brain/worker.py needs Redis and a process that stays alive,
+# which serverless hosts cannot provide. This workflow drives the same
+# incremental sync on a schedule instead: GitHub runs the job, the script does
+# one pass against the same connector_sync_state watermark, and exits.
+#
+# Interoperates with the worker rather than replacing it — if a worker is ever
+# deployed, whichever runs last simply advances the watermark.
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub queues scheduled runs under load, so treat this
+    # as "at least every 15 minutes", not an exact clock.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:        # allow manual runs from the Actions tab
+
+concurrency:
+  # Never let two syncs overlap: both would read the same watermark and refetch
+  # the same window.
+  group: connector-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      DATABASE_URL:      ${{ secrets.DATABASE_URL }}
+      COMPOSIO_API_KEY:  ${{ secrets.COMPOSIO_API_KEY }}
+      GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      BRAIN_WORKSPACE:   ${{ secrets.BRAIN_WORKSPACE }}
+      BRAIN_KEY_ENCRYPTION_KEY: ${{ secrets.BRAIN_KEY_ENCRYPTION_KEY }}
+      BRAIN_ENV:         production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Fail fast if required secrets are missing
+        run: |
+          missing=""
+          [ -z "$DATABASE_URL" ]     && missing="$missing DATABASE_URL"
+          [ -z "$COMPOSIO_API_KEY" ] && missing="$missing COMPOSIO_API_KEY"
+          [ -z "$GEMINI_API_KEY" ]   && missing="$missing GEMINI_API_KEY"
+          if [ -n "$missing" ]; then
+            echo "Missing required secrets:$missing" >&2
+            echo "Add them under Settings → Secrets and variables → Actions." >&2
+            exit 1
+          fi
+          echo "all required secrets present"
+
+      - name: Sync connectors
+        run: python scripts/sync_once.py

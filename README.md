@@ -153,7 +153,23 @@ Ingestion is designed around three paths, all converging on the same idempotent 
 
 Reconciliation deliberately overlaps its window by `job_timeout × max_tries × 2`, on the assumption that a missed episode is worse than a duplicate one — content-hash dedup makes the duplicate free.
 
-> **Status: the loop is not currently running.** It requires a separate arq worker process (`arq brain.worker.WorkerSettings`) **and** `REDIS_URL`, neither of which is active in this deployment. `connector_sync_state` holds no row for the live workspace, and the newest episodes are from the date connectors were last synced by hand. Data is therefore **static until the worker is started** — the architecture is built and the code paths exist, but nothing is scheduling them.
+### Two ways to drive it
+
+The sync logic is the same either way; what differs is what schedules it.
+
+**Scheduled one-shot (default, no infrastructure).** `scripts/sync_once.py` performs a single incremental pass and exits — no queue, no daemon, no Redis. `.github/workflows/sync.yml` runs it every 15 minutes on GitHub Actions. This is the deployed configuration, because it needs no always-on host and works alongside a serverless web tier.
+
+```bash
+python scripts/sync_once.py                    # every workspace
+python scripts/sync_once.py --workspace ws_demo
+python scripts/sync_once.py --dry-run
+```
+
+**Long-running worker (optional).** `arq brain.worker.WorkerSettings` adds webhook ingestion and per-job retry backoff, and needs Redis plus a host that keeps a process alive. Use it when second-level freshness matters more than deployment simplicity.
+
+Both read and advance the same `connector_sync_state` watermark, so they interoperate — whichever runs last moves the mark forward. Running both is safe but redundant.
+
+**Required environment:** `DATABASE_URL`, `COMPOSIO_API_KEY`, `GEMINI_API_KEY`, and `BRAIN_WORKSPACE`. For GitHub Actions, add these under *Settings → Secrets and variables → Actions*; the workflow fails fast with a named list if any are missing.
 
 ---
 
