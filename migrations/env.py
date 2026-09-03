@@ -35,7 +35,10 @@ if not database_url:
         "found in alembic.ini. Set DATABASE_URL before running Alembic."
     )
 
-config.set_main_option("sqlalchemy.url", database_url)
+# configparser treats '%' as interpolation syntax, so a URL-encoded password
+# (e.g. %40 for '@') raises "invalid interpolation syntax" here. Escaping the
+# percent signs makes configparser emit the original value unchanged.
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 # Set up Python logging from alembic.ini if the file is present
 if config.config_file_name is not None:
