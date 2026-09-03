@@ -28,6 +28,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    # The secrets live on the Production environment, not at repository level.
+    # Without this, secrets.* resolves to empty strings and every run syncs
+    # nothing — which is what the missing-secrets guard below exists to catch.
+    environment: Production
+
     env:
       DATABASE_URL:      ${{ secrets.DATABASE_URL }}
       COMPOSIO_API_KEY:  ${{ secrets.COMPOSIO_API_KEY }}
