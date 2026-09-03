@@ -1568,10 +1568,13 @@ def get_members(
     conn = _pg.connect()
     try:
         cur = conn.cursor()
-        # Find account for this user
+        # Newest membership first: a user can belong to several accounts, and an
+        # unordered LIMIT 1 would list members of an arbitrary one — matching the
+        # ordering used by every other account resolver.
         cur.execute("""
             SELECT account_id FROM memberships
-            WHERE user_id = %s AND status = 'active' LIMIT 1
+            WHERE user_id = %s AND status = 'active'
+            ORDER BY created_at DESC LIMIT 1
         """, (identity.user_id,))
         row = cur.fetchone()
         if not row:
@@ -1681,9 +1684,12 @@ def list_invites(identity: Identity = Depends(require_admin)):
     conn = _pg.connect()
     try:
         cur = conn.cursor()
+        # Newest membership first, matching the other account resolvers — an
+        # unordered LIMIT 1 would list invitations from an arbitrary account.
         cur.execute("""
             SELECT account_id FROM memberships
-            WHERE user_id = %s AND status = 'active' LIMIT 1
+            WHERE user_id = %s AND status = 'active'
+            ORDER BY created_at DESC LIMIT 1
         """, (identity.user_id,))
         row = cur.fetchone()
         if not row:
