@@ -216,6 +216,39 @@ def migrate(conn):
         );
     """)
 
+    # fact_edges predates the FK convention used elsewhere, so deleting a fact
+    # left its edges pointing at rows that no longer exist. Orphaned edges are
+    # invisible to the conflict-surfacing join (it inner-joins facts), so they
+    # accumulate silently. Clean up any strays, then add cascading FKs.
+    cur.execute("SAVEPOINT _fe_fk")
+    try:
+        cur.execute("""
+            DELETE FROM fact_edges fe
+             WHERE NOT EXISTS (SELECT 1 FROM facts f WHERE f.id = fe.src_fact)
+                OR NOT EXISTS (SELECT 1 FROM facts f WHERE f.id = fe.dst_fact)
+        """)
+        cur.execute("""
+            DO $do$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                               WHERE conname = 'fact_edges_src_fk') THEN
+                    ALTER TABLE fact_edges
+                        ADD CONSTRAINT fact_edges_src_fk
+                        FOREIGN KEY (src_fact) REFERENCES facts(id) ON DELETE CASCADE;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                               WHERE conname = 'fact_edges_dst_fk') THEN
+                    ALTER TABLE fact_edges
+                        ADD CONSTRAINT fact_edges_dst_fk
+                        FOREIGN KEY (dst_fact) REFERENCES facts(id) ON DELETE CASCADE;
+                END IF;
+            END $do$;
+        """)
+        cur.execute("RELEASE SAVEPOINT _fe_fk")
+    except Exception as _e:
+        cur.execute("ROLLBACK TO SAVEPOINT _fe_fk")
+        cur.execute("RELEASE SAVEPOINT _fe_fk")
+        print(f"[migrate] fact_edges FK: {_e}", file=sys.stderr)
+
     # Ledger
     cur.execute("""
         CREATE TABLE IF NOT EXISTS ledger (
