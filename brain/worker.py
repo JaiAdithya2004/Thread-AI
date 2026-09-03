@@ -331,11 +331,15 @@ async def reconcile_watermarks(ctx):
 
 
 def _discover_sources() -> list:
-    """Return list of source names to poll. Composio covers all connected apps."""
-    sources = ["composio"]
-    if os.getenv("SLACK_BOT_TOKEN"):
-        sources.append("slack")
-    return sources
+    """Return list of source names to poll.
+
+    Ingestion goes through the integration provider only — it already covers
+    every connected app, Slack included. The direct Slack connector used to be
+    added here whenever SLACK_BOT_TOKEN happened to be set, which meant a
+    workspace could receive Slack episodes from a second, parallel ingestion
+    path that nothing else in the product expected.
+    """
+    return ["composio"]
 
 
 # ---------------------------------------------------------------------------
