@@ -416,8 +416,11 @@ def migrate(conn):
     _constraints = [
         ("facts", "facts_confidence_range",
          "CHECK (confidence >= 0.0 AND confidence <= 1.0)"),
+        # 'integration' is written by connector-sourced facts. Omitting it made
+        # this constraint fail to apply on every startup, so source_kind was
+        # silently unvalidated — the failure was logged and swallowed.
         ("facts", "facts_source_kind_check",
-         "CHECK (source_kind IN ('llm', 'human', 'agent', 'ai-tool'))"),
+         "CHECK (source_kind IN ('llm', 'human', 'agent', 'ai-tool', 'integration'))"),
         ("facts", "facts_visibility_check",
          "CHECK (visibility IN ('team', 'shared'))"),
         ("ledger", "ledger_surface_check",

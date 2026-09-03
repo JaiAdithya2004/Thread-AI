@@ -1,3 +1,15 @@
+# ⚠️ INVALID — DO NOT RUN WITHOUT REWRITING.
+#
+# Every fact id below was deleted when Slack ingestion was dropped. ws_local is
+# now empty and the product serves ws_demo, which holds the Composio-connected
+# data (Gmail / GitHub / Calendar). This file is kept only as the worked example
+# of ground truth that is independent of retrieval output; the ids no longer
+# resolve, so a run against it would score zero for reasons unrelated to
+# retrieval quality — exactly the failure mode this file was written to prevent.
+#
+# To restore the benchmark: pick facts that exist in ws_demo, verify each is
+# active, ACL-visible and embedded, and rewrite the questions around them.
+#
 # Explicit retrieval ground truth for the ws_local benchmark.
 #
 # WHY THIS FILE EXISTS

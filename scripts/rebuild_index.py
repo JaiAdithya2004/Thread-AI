@@ -14,6 +14,14 @@ import sys
 def main():
     import psycopg2
 
+    # Load .env so the script targets the configured database rather than
+    # silently falling back to localhost and failing with "connection refused".
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+
     url = os.getenv("DATABASE_URL", "postgresql://brain:brain_local@localhost:5432/brain")
 
     # 1. Connect in normal mode to run the null-check query.

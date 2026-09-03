@@ -197,7 +197,9 @@ Faithfulness carries the tightest tolerance (0.08) because hallucination is the 
 
 ### Measured retrieval results
 
-**Conditions:** workspace `ws_local`, 8 facts, 28 questions (17 answerable / 11 deliberately unanswerable), K=5, explicit ground truth in `evals/ground_truth.yaml`.
+**⚠️ These figures are historical.** They were measured against `ws_local`, an 8-fact Slack-derived corpus that has since been removed — the product now serves `ws_demo` (Composio-connected Gmail / GitHub / Calendar). The benchmark needs rewriting against the current corpus before it produces comparable numbers again.
+
+**Conditions at time of measurement:** workspace `ws_local`, 8 facts, 28 questions (17 answerable / 11 deliberately unanswerable), K=5, explicit ground truth.
 
 | Metric | Hybrid (current) | Vector-only | FTS-only |
 |---|---|---|---|
