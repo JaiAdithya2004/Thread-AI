@@ -398,10 +398,20 @@ class TestArchitecturalGuards:
         )
 
     def test_mcp_correct_fact_checks_ownership(self):
-        """correct_fact MCP tool must contain ownership check logic."""
-        import inspect
-        from brain.wrappers import mcp_server
-        src = inspect.getsource(mcp_server.correct_fact)
+        """correct_fact MCP tool must contain ownership check logic.
+
+        Read the source from disk rather than importing the module: importing
+        it constructs a module-level Brain(), which opens a database connection
+        at import time. This guard only inspects text, so it must not require a
+        live database to run.
+        """
+        source = Path("brain/wrappers/mcp_server.py").read_text(encoding="utf-8")
+        start = source.find("def correct_fact")
+        assert start != -1, "correct_fact() not found in mcp_server.py"
+        # Bound the slice at the next top-level def so the assertion cannot be
+        # satisfied by ownership logic belonging to some other tool.
+        end = source.find("\ndef ", start + 1)
+        src = source[start:end if end != -1 else len(source)]
         assert "not authorized" in src or "caller_allowed" in src, (
             "correct_fact() no longer contains ownership check. "
             "Any MCP caller can now invalidate any fact — security regression."

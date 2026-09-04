@@ -55,17 +55,29 @@ import sys
 from mcp.server.fastmcp import FastMCP
 from brain.engine import Brain
 
-# One Brain instance per MCP process (long-lived DB connection).
-# Override per-call with team_id to scope to a different team.
-_brain = Brain()
+# One Brain instance per MCP process (long-lived DB connection), created on
+# first use rather than at import. Constructing it at module scope opened a
+# database connection as a side effect of importing this file, so anything that
+# merely inspected the module — tooling, tests, `--help` — failed without a
+# reachable database.
+_brain_instance = None
 mcp = FastMCP("thread")
+
+
+def _default_brain() -> Brain:
+    """The process-wide Brain, constructed on first use."""
+    global _brain_instance
+    if _brain_instance is None:
+        _brain_instance = Brain()
+    return _brain_instance
 
 
 def _b(team_id: str = None) -> Brain:
     """Return a Brain scoped to team_id if given, else the default."""
-    if team_id and team_id != _brain.team_id:
+    base = _default_brain()
+    if team_id and team_id != base.team_id:
         return Brain(team_id=team_id)
-    return _brain
+    return base
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -252,19 +264,20 @@ def correct_fact(
         # Ownership check: fact must exist in this workspace and the caller must
         # appear in its ACL (or the ACL must be "everyone").
         from brain.core import db as _db
-        fact = _db.get_fact(_brain.conn, _brain.ws, fact_id)
+        brain = _default_brain()
+        fact = _db.get_fact(brain.conn, brain.ws, fact_id)
         if not fact:
             return json.dumps({"error": "fact not found"})
         acl = set((fact.get("acl") or "everyone").split(","))
         caller_allowed = (
             "everyone" in acl
-            or _brain.caller in acl
-            or any(p in acl for p in _brain.principals)
+            or brain.caller in acl
+            or any(p in acl for p in brain.principals)
         )
         if not caller_allowed:
             return json.dumps({"error": "not authorized to correct this fact"})
 
-        result = _brain.correct(fact_id, correction)
+        result = brain.correct(fact_id, correction)
         return json.dumps(result)
     except Exception as e:
         print(f"[thread-mcp] correct error: {e}", file=sys.stderr)
@@ -331,7 +344,7 @@ def list_teams() -> str:
     Use to discover valid team_id values for scoping other tool calls.
     """
     try:
-        return json.dumps(_brain.list_teams())
+        return json.dumps(_default_brain().list_teams())
     except Exception as e:
         print(f"[thread-mcp] list_teams error: {e}", file=sys.stderr)
         return json.dumps({"error": str(e)})
