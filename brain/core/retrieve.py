@@ -230,13 +230,26 @@ def _recency_key(fact: dict):
     return _dt.datetime.min.replace(tzinfo=_dt.timezone.utc)
 
 
-def _team_visible(row, team_id, cross_team):
+def _team_visible(row, team_id, cross_team, caller=None):
+    """Whether `row` is visible to this caller.
+
+    Private facts belong to one person: connector data is that user's mailbox
+    or repository, not their team's. They are returned to their owner alone,
+    and cross_team does not override that — an admin widening their search
+    must not thereby read a colleague's email.
+    """
+    vis = row.get("visibility") or "team"
+
+    if vis == "private":
+        owner = row.get("owner_id")
+        # An unowned private fact is unattributable, so nobody can claim it.
+        return bool(owner) and owner == caller
+
     if cross_team:
         return True
-    vis = row["visibility"] or "team"
     if vis == "shared":
         return True
-    return (row["team_id"] or "shared") == (team_id or "shared")
+    return (row.get("team_id") or "shared") == (team_id or "shared")
 
 
 def _get_reranker():
@@ -423,7 +436,7 @@ def run(conn, ws, query, principals, caller, surface,
                 continue
             if not _allowed(row["acl"], principals):
                 continue
-            if not _team_visible(row, team_id, cross_team):
+            if not _team_visible(row, team_id, cross_team, caller=caller):
                 continue
             if row["invalidated_at"] and not include_invalid:
                 continue

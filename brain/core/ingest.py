@@ -108,14 +108,18 @@ def run(conn, ws, episodes, team_id="shared", trigger="poll"):
             ep.get("title", ""), body, ep.get("author", ""),
             ep.get("url", ""), ep.get("occurred_at", ""), h,
             acl, ep.get("team_id", team_id), supersedes_id, trigger,
+            # Ownership travels with the episode so extraction can mark the
+            # resulting facts private to whoever connected the source.
+            ep.get("owner_id"), ep.get("visibility", "team"),
         )
 
         cur = conn.cursor()
         cur.execute(
             """INSERT INTO episodes
                (id,workspace_id,source,external_id,title,body,author,url,
-                occurred_at,content_hash,acl,team_id,supersedes_episode_id,ingest_trigger)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                occurred_at,content_hash,acl,team_id,supersedes_episode_id,
+                ingest_trigger,owner_id,visibility)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                ON CONFLICT (workspace_id,content_hash) DO NOTHING""",
             params,
         )

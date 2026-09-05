@@ -267,9 +267,18 @@ def _save(conn, ws, f: dict, ep: dict, embedding: list):
     """
     fid = str(uuid.uuid4())
     team_id = (ep.get("team_id") or "shared")
-    visibility = f.get("visibility", "team")
-    if visibility not in ("team", "shared"):
-        visibility = "team"
+
+    # The episode decides privacy, not the model. A fact extracted from someone's
+    # mailbox stays private to them however the LLM labelled it — otherwise a
+    # model returning visibility="shared" would publish personal mail to the
+    # whole workspace.
+    owner_id = ep.get("owner_id")
+    if ep.get("visibility") == "private":
+        visibility = "private"
+    else:
+        visibility = f.get("visibility", "team")
+        if visibility not in ("team", "shared"):
+            visibility = "team"
 
     fact_dict = {
         "id":           fid,
@@ -284,6 +293,7 @@ def _save(conn, ws, f: dict, ep: dict, embedding: list):
         "source_kind":  f.get("source_kind", "llm"),
         "team_id":      team_id,
         "visibility":   visibility,
+        "owner_id":     owner_id,
     }
 
     _save_atomic(conn, ws, fact_dict, f, embedding)

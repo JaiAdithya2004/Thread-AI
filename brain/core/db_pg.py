@@ -191,6 +191,28 @@ def migrate(conn):
         ALTER TABLE facts
         ADD COLUMN IF NOT EXISTS fact_vec_768 vector(768)
     """)
+    # owner_id records who a private fact belongs to. Connector data is personal
+    # — one person's mailbox is not their team's — so it is scoped to the user
+    # who connected the account rather than shared with everyone.
+    cur.execute("""
+        ALTER TABLE facts
+        ADD COLUMN IF NOT EXISTS owner_id TEXT
+    """)
+    # Episodes carry the same pair so extraction can inherit ownership rather
+    # than re-deriving it from the connector.
+    cur.execute("""
+        ALTER TABLE episodes
+        ADD COLUMN IF NOT EXISTS owner_id TEXT
+    """)
+    cur.execute("""
+        ALTER TABLE episodes
+        ADD COLUMN IF NOT EXISTS visibility TEXT DEFAULT 'team'
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS facts_owner_idx
+            ON facts(workspace_id, owner_id)
+            WHERE owner_id IS NOT NULL
+    """)
     # NOTE: The HNSW index (facts_vec_768_idx) is NOT created here — building it
     # on app startup blocks all requests. Run scripts/rebuild_index.py once after
     # reembed_gemini.py finishes to create it. Search still works without the index
@@ -454,8 +476,10 @@ def migrate(conn):
         # silently unvalidated — the failure was logged and swallowed.
         ("facts", "facts_source_kind_check",
          "CHECK (source_kind IN ('llm', 'human', 'agent', 'ai-tool', 'integration'))"),
+        # 'private' scopes a fact to owner_id alone: connector data belongs to
+        # the person who connected the account, not to their team.
         ("facts", "facts_visibility_check",
-         "CHECK (visibility IN ('team', 'shared'))"),
+         "CHECK (visibility IN ('private', 'team', 'shared'))"),
         ("ledger", "ledger_surface_check",
          "CHECK (surface IS NULL OR surface IN "
          "('mcp', 'web', 'api', 'slack', 'eval', 'test', "
@@ -494,6 +518,18 @@ def migrate(conn):
             CREATE POLICY ws_isolation ON {table}
                 USING (workspace_id = current_setting('brain.workspace_id', true));
         """)
+
+    # Private facts are readable only by their owner — enforced here rather than
+    # only in application code, so a handler that forgets to filter cannot leak
+    # one person's connector data to their teammates or to an admin.
+    cur.execute("DROP POLICY IF EXISTS private_owner_only ON facts;")
+    cur.execute("""
+        CREATE POLICY private_owner_only ON facts
+            USING (
+                visibility IS DISTINCT FROM 'private'
+                OR owner_id = current_setting('brain.user_id', true)
+            );
+    """)
 
     # RLS on conversations + messages: strictly user-scoped, NO admin override
     # FORCE RLS ensures even the table owner (postgres) cannot bypass policies
@@ -959,13 +995,14 @@ def save_fact(conn, ws, fact_dict, embedding: list) -> str:
         INSERT INTO facts
             (id, workspace_id, subject, predicate, object, summary,
              episode_id, acl, confidence, introduced_at, invalidated_at,
-             source_kind, team_id, visibility, fact_vec_768)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+             source_kind, team_id, visibility, fact_vec_768, owner_id)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         ON CONFLICT (id) DO UPDATE SET
             subject=EXCLUDED.subject, predicate=EXCLUDED.predicate,
             object=EXCLUDED.object, summary=EXCLUDED.summary,
             confidence=EXCLUDED.confidence, fact_vec_768=EXCLUDED.fact_vec_768,
-            invalidated_at=EXCLUDED.invalidated_at, visibility=EXCLUDED.visibility
+            invalidated_at=EXCLUDED.invalidated_at, visibility=EXCLUDED.visibility,
+            owner_id=EXCLUDED.owner_id
     """, (
         fact_id, ws,
         fact_dict.get("subject"), fact_dict.get("predicate"),
@@ -978,6 +1015,7 @@ def save_fact(conn, ws, fact_dict, embedding: list) -> str:
         fact_dict.get("team_id", "shared"),
         fact_dict.get("visibility", "team"),
         emb_str,
+        fact_dict.get("owner_id"),
     ))
     conn.commit()
     cur.close()

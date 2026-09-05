@@ -460,8 +460,16 @@ class ComposioConnector(Connector):
         total_calls = 0
         total_items = 0
 
-        # ACL: "everyone" for shared apps; caller's user_id for personal connections
-        acl_owner = self.user_id if self.user_id != "default" else "everyone"
+        # Connector data is personal: one person's mailbox, calendar or
+        # repositories are not their team's to read. Episodes are scoped to the
+        # user who connected the account, and the facts extracted from them are
+        # marked private to that owner.
+        #
+        # "default" means no caller identity reached the connector. Falling back
+        # to "everyone" there would publish a mailbox to the whole workspace, so
+        # the data stays owned by that sentinel and remains private rather than
+        # becoming visible to all.
+        acl_owner = self.user_id or "default"
 
         for account in connected:
             app = account["app"]
@@ -483,6 +491,10 @@ class ComposioConnector(Connector):
                     total_items += len(eps)
                     for ep in eps:
                         ep["acl"] = acl_owner
+                        # Carried through ingestion so extracted facts inherit
+                        # ownership and stay private to the connecting user.
+                        ep["owner_id"] = acl_owner
+                        ep["visibility"] = "private"
                         yield ep
                 except Exception as e:
                     import sys
