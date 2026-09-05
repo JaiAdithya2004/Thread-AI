@@ -145,6 +145,81 @@ def _allowed(acl_str, principals):
     return "everyone" in acl or any(p in acl for p in principals)
 
 
+# Words that make a query about *when* rather than only *what*. Kept explicit
+# rather than inferred: a false positive re-sorts by date and buries the most
+# relevant answer, so the trigger should be obvious from the query text.
+_RECENCY_TERMS = (
+    "latest", "recent", "recently", "newest", "last", "today", "yesterday",
+    "this week", "this month", "current", "just now", "so far", "up to now",
+    "new ", "any new",
+)
+
+
+# How many of the newest facts to pull in for a recency query. Enough that the
+# genuinely-latest items are present even when similarity ranked them poorly,
+# small enough that they do not crowd out topical matches.
+RECENCY_CANDIDATES = 20
+
+
+def _wants_recency(query: str) -> bool:
+    """True when the query asks for the newest items, not merely relevant ones."""
+    q = (query or "").lower()
+    return any(term in q for term in _RECENCY_TERMS)
+
+
+def _merge_recent(conn, ws: str, fused: list, limit: int = RECENCY_CANDIDATES) -> list:
+    """Add the workspace's newest fact ids to the candidate list.
+
+    Similarity search decides what is *about* the query; it cannot know what is
+    newest. Without this, a fact from today is invisible to "latest emails"
+    whenever an older fact phrases the topic better — the newest rows simply
+    never enter the pool that gets ranked.
+    """
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT f.id FROM facts f
+                 LEFT JOIN episodes e ON e.id = f.episode_id
+                WHERE f.workspace_id = %s AND f.invalidated_at IS NULL
+                ORDER BY COALESCE(e.occurred_at, f.introduced_at) DESC
+                LIMIT %s""",
+            (ws, limit),
+        )
+        recent = [r["id"] for r in cur.fetchall()]
+        cur.close()
+    except Exception as exc:
+        print(f"[retrieve] recent-candidate fetch failed: {exc}", file=sys.stderr)
+        return fused
+
+    # Preserve fusion order for anything already ranked; append the rest.
+    seen = set(fused)
+    return fused + [fid for fid in recent if fid not in seen]
+
+
+def _recency_key(fact: dict):
+    """Sort key ordering facts newest-first.
+
+    Prefers the source event's own timestamp (when the email was sent) over the
+    row's ingest time, so a backfill that pulls old mail today does not present
+    it as new. Facts with no timestamp sort last rather than raising.
+    """
+    import datetime as _dt
+    for field in ("ep_occurred_at", "introduced_at"):
+        value = fact.get(field)
+        if not value:
+            continue
+        if isinstance(value, str):
+            try:
+                value = _dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+        # Compare naive and aware timestamps on the same footing.
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=_dt.timezone.utc)
+        return value
+    return _dt.datetime.min.replace(tzinfo=_dt.timezone.utc)
+
+
 def _team_visible(row, team_id, cross_team):
     if cross_team:
         return True
@@ -303,10 +378,26 @@ def run(conn, ws, query, principals, caller, surface,
     fts_hits = _fts(conn, query)
     fused = _rrf(vec_hits, fts_hits)
 
+    # A recency question needs the newest facts to be *candidates* before they
+    # can be ranked. Similarity search alone will not surface them: a fact is
+    # retrieved for matching the topic, and the most recent item is often not
+    # the best topical match, so it never enters the pool at all. Fetch the
+    # newest rows directly and merge them in.
+    if _wants_recency(query):
+        fused = _merge_recent(conn, ws, fused, limit=RECENCY_CANDIDATES)
+
     facts = []
     for fid in fused:
         cur = conn.cursor()
-        cur.execute("SELECT * FROM facts WHERE id=%s AND workspace_id=%s", (fid, ws))
+        # Carry the episode's timestamp so recency-seeking queries can rank on
+        # it: embeddings encode topic, not time, so "latest" is otherwise
+        # indistinguishable from any other word in the query.
+        cur.execute(
+            """SELECT f.*, e.occurred_at AS ep_occurred_at, e.source AS ep_source
+                 FROM facts f LEFT JOIN episodes e ON e.id = f.episode_id
+                WHERE f.id = %s AND f.workspace_id = %s""",
+            (fid, ws),
+        )
         row = cur.fetchone()
         cur.close()
         if not row:
@@ -320,8 +411,24 @@ def run(conn, ws, query, principals, caller, surface,
             continue
         facts.append(row)
 
-    facts.sort(key=lambda f: (f["invalidated_at"] is not None, fused.index(f["id"])))
-    facts = _rerank(query, facts[:30])[:top]
+    # "What are the latest emails?" is a recency question wearing a topic
+    # question's clothes. Similarity ranking answers the topic half and ignores
+    # the time half entirely, so the newest items lose to older ones that phrase
+    # the topic better.
+    #
+    # Order by time *before* the candidate list is truncated: the merged recent
+    # facts are appended after the fused hits, so trimming first would discard
+    # exactly the rows this branch exists to surface.
+    if _wants_recency(query):
+        facts.sort(key=_recency_key, reverse=True)
+        # Superseded facts still rank last, as they do in the default path.
+        facts = [f for f in facts if not f["invalidated_at"]] + \
+                [f for f in facts if f["invalidated_at"]]
+    else:
+        facts.sort(key=lambda f: (f["invalidated_at"] is not None, fused.index(f["id"])))
+        facts = _rerank(query, facts[:30])
+
+    facts = facts[:top]
 
     db.log(conn, ws, caller, query, surface, [f["id"] for f in facts],
            "\n".join(f["summary"] for f in facts), team_id=team_id)

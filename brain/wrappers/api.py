@@ -53,14 +53,34 @@ app.include_router(slack_router, prefix="/slack")
 
 @app.on_event("startup")
 def _startup_migrate():
-    """Run DB schema migration once at server startup."""
-    try:
-        from brain.core import db_pg as _pg
-        _conn = _pg.connect()
-        _pg.migrate(_conn)
-        _conn.close()
-    except Exception as _e:
-        print(f"[thread] startup migration failed (non-fatal): {_e}")
+    """Run DB schema migration at startup, off the critical path.
+
+    migrate() issues dozens of DDL statements, each a network round-trip. Against
+    a remote database that is minutes of work, and running it inline meant the
+    process could not serve traffic — including health checks — until it
+    finished. On a serverless host that cost is paid again on every cold start.
+
+    It runs on a background thread instead: the schema is created by whichever
+    boot gets there first, and requests are served immediately. Set
+    BRAIN_SKIP_STARTUP_MIGRATE=true where the schema is managed out of band.
+    """
+    import os as _os
+    import threading as _threading
+
+    if _os.getenv("BRAIN_SKIP_STARTUP_MIGRATE", "").lower() in ("1", "true", "yes"):
+        print("[thread] startup migration skipped (BRAIN_SKIP_STARTUP_MIGRATE)")
+        return
+
+    def _run():
+        try:
+            from brain.core import db_pg as _pg
+            _conn = _pg.connect()
+            _pg.migrate(_conn)
+            _conn.close()
+        except Exception as _e:
+            print(f"[thread] startup migration failed (non-fatal): {_e}")
+
+    _threading.Thread(target=_run, name="startup-migrate", daemon=True).start()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,

@@ -310,3 +310,41 @@ def test_team_visible_cross_team_flag_allows_all():
     from brain.core.retrieve import _team_visible
     row = {"visibility": "team", "team_id": "team-a"}
     assert _team_visible(row, "team-b", cross_team=True)
+
+
+# ── Recency-seeking queries ───────────────────────────────────────────────────
+
+def test_recency_intent_detected():
+    """Queries asking for the newest items must be recognised as such."""
+    from brain.core.retrieve import _wants_recency
+    for q in ("what are the latest emails i received", "recent updates",
+              "any new messages today", "show me the newest docs"):
+        assert _wants_recency(q), f"should detect recency intent: {q!r}"
+
+
+def test_topic_queries_are_not_treated_as_recency():
+    """A topic question must keep relevance ranking, not be sorted by date."""
+    from brain.core.retrieve import _wants_recency
+    for q in ("what did we decide about the database",
+              "who owns the onboarding flow",
+              "which mobile framework did we choose"):
+        assert not _wants_recency(q), f"should NOT detect recency intent: {q!r}"
+
+
+def test_recency_key_orders_newest_first():
+    """Sort key must order by event time, falling back when it is absent."""
+    import datetime as dt
+    from brain.core.retrieve import _recency_key
+
+    newer = {"ep_occurred_at": dt.datetime(2026, 9, 3, tzinfo=dt.timezone.utc)}
+    older = {"ep_occurred_at": dt.datetime(2026, 8, 29, tzinfo=dt.timezone.utc)}
+    # Falls back to introduced_at when the episode has no timestamp
+    fallback = {"ep_occurred_at": None, "introduced_at": "2026-09-01T00:00:00Z"}
+    undated = {"ep_occurred_at": None, "introduced_at": None}
+
+    ordered = sorted([older, undated, newer, fallback],
+                     key=_recency_key, reverse=True)
+    assert ordered[0] is newer
+    assert ordered[1] is fallback
+    assert ordered[2] is older
+    assert ordered[3] is undated, "undated facts must sort last, not raise"
