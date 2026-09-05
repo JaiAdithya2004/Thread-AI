@@ -571,10 +571,55 @@ def readyz():
                 return "ok"
         return "error: no LLM API key configured"
 
-    with _cf.ThreadPoolExecutor(max_workers=3) as pool:
-        db_fut    = pool.submit(_check_db)
-        redis_fut = pool.submit(_check_redis)
-        llm_fut   = pool.submit(_check_llm)
+    def _check_config():
+        """Catch configuration that is absent rather than wrong.
+
+        Every one of these has silently degraded the product at least once: an
+        unset BRAIN_WORKSPACE points retrieval at an empty workspace, a missing
+        GEMINI_API_KEY disables embeddings so only full-text search runs, and an
+        unset BRAIN_KEY_ENCRYPTION_KEY stores customer keys as plaintext. None
+        of them raise — they just quietly do nothing useful.
+        """
+        problems = []
+        # Report the resolved value, not the raw variable: config.py calls
+        # load_dotenv(), so a local .env masks what a real deployment would see.
+        if config.WORKSPACE_ID == "ws_local":
+            problems.append(
+                "BRAIN_WORKSPACE unset — serving the 'ws_local' default, which is "
+                "not where connectors sync")
+        if not os.getenv("GEMINI_API_KEY"):
+            problems.append("GEMINI_API_KEY unset (no embeddings; vector search disabled)")
+        if not os.getenv("BRAIN_KEY_ENCRYPTION_KEY"):
+            problems.append("BRAIN_KEY_ENCRYPTION_KEY unset (customer keys stored in plaintext)")
+        from brain.auth import _IS_PRODUCTION, _BYPASS
+        if _IS_PRODUCTION and _BYPASS:
+            problems.append("auth bypass active in production")
+        return "ok" if not problems else "error: " + "; ".join(problems)
+
+    def _check_index():
+        """The HNSW index is built out-of-band, so its absence is silent."""
+        try:
+            from brain.core import db_pg as _pg
+            conn = _pg.connect()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT 1 FROM pg_indexes "
+                "WHERE tablename='facts' AND indexname='facts_vec_768_idx'")
+            found = cur.fetchone() is not None
+            cur.close()
+            conn.close()
+            return "ok" if found else (
+                "error: facts_vec_768_idx missing — vector search is a sequential "
+                "scan; run scripts/rebuild_index.py")
+        except Exception as e:
+            return f"error: {e}"
+
+    with _cf.ThreadPoolExecutor(max_workers=5) as pool:
+        db_fut     = pool.submit(_check_db)
+        redis_fut  = pool.submit(_check_redis)
+        llm_fut    = pool.submit(_check_llm)
+        cfg_fut    = pool.submit(_check_config)
+        index_fut  = pool.submit(_check_index)
 
         try:
             checks["db"]    = db_fut.result(timeout=2)
@@ -588,6 +633,14 @@ def readyz():
             checks["llm"]   = llm_fut.result(timeout=2)
         except _cf.TimeoutError:
             checks["llm"]   = "error: timeout"
+        try:
+            checks["config"] = cfg_fut.result(timeout=2)
+        except _cf.TimeoutError:
+            checks["config"] = "error: timeout"
+        try:
+            checks["vector_index"] = index_fut.result(timeout=2)
+        except _cf.TimeoutError:
+            checks["vector_index"] = "error: timeout"
 
     all_ok = all(v == "ok" for v in checks.values())
     status_code = 200 if all_ok else 503
