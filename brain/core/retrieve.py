@@ -396,30 +396,38 @@ def run(conn, ws, query, principals, caller, surface,
     if _wants_recency(query):
         fused = _merge_recent(conn, ws, fused, limit=RECENCY_CANDIDATES)
 
+    # Hydrate every candidate in one round-trip. Fetching them individually cost
+    # a network round-trip per fact — ~7s for 37 candidates against a remote
+    # database, dwarfing the searches that produced them.
+    #
+    # The episode timestamp comes along so recency-seeking queries can rank on
+    # it: embeddings encode topic, not time, so "latest" is otherwise
+    # indistinguishable from any other word in the query.
     facts = []
-    for fid in fused:
+    if fused:
         cur = conn.cursor()
-        # Carry the episode's timestamp so recency-seeking queries can rank on
-        # it: embeddings encode topic, not time, so "latest" is otherwise
-        # indistinguishable from any other word in the query.
         cur.execute(
             """SELECT f.*, e.occurred_at AS ep_occurred_at, e.source AS ep_source
                  FROM facts f LEFT JOIN episodes e ON e.id = f.episode_id
-                WHERE f.id = %s AND f.workspace_id = %s""",
-            (fid, ws),
+                WHERE f.workspace_id = %s AND f.id = ANY(%s)""",
+            (ws, list(fused)),
         )
-        row = cur.fetchone()
+        by_id = {r["id"]: dict(r) for r in cur.fetchall()}
         cur.close()
-        if not row:
-            continue
-        row = dict(row)
-        if not _allowed(row["acl"], principals):
-            continue
-        if not _team_visible(row, team_id, cross_team):
-            continue
-        if row["invalidated_at"] and not include_invalid:
-            continue
-        facts.append(row)
+
+        # Iterate `fused` rather than the result set: fusion order is the
+        # relevance ranking, and a dict from the database does not preserve it.
+        for fid in fused:
+            row = by_id.get(fid)
+            if not row:
+                continue
+            if not _allowed(row["acl"], principals):
+                continue
+            if not _team_visible(row, team_id, cross_team):
+                continue
+            if row["invalidated_at"] and not include_invalid:
+                continue
+            facts.append(row)
 
     # "What are the latest emails?" is a recency question wearing a topic
     # question's clothes. Similarity ranking answers the topic half and ignores
