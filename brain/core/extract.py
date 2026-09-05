@@ -144,21 +144,29 @@ def run(conn, ws, incremental=False, limit=20):
             ok, result, err = llm.validate_llm_output(raw, ExtractionResult)
             if not ok:
                 print(f"[extract] validation failed for episode {ep['id']}: {err}", file=sys.stderr)
-            else:
-                facts = result.facts
-                if facts:
-                    summaries = [f.summary for f in facts]
-                    embeddings = embed.embed_batch(summaries)
-                    for fact, emb in zip(facts, embeddings):
-                        existing = _find_near_duplicate(conn, ws, fact.subject, emb)
-                        if existing:
-                            print(f"[extract] dedup: merged with {existing}", file=sys.stderr)
-                            continue
-                        _save(conn, ws, fact.model_dump(), ep, emb)
-                        n += 1
+                # Leave extracted=0 so the next run retries: a transient LLM or
+                # schema failure must not permanently hide the episode.
+                continue
+            facts = result.facts
+            if facts:
+                summaries = [f.summary for f in facts]
+                embeddings = embed.embed_batch(summaries)
+                for fact, emb in zip(facts, embeddings):
+                    existing = _find_near_duplicate(conn, ws, fact.subject, emb)
+                    if existing:
+                        print(f"[extract] dedup: merged with {existing}", file=sys.stderr)
+                        continue
+                    _save(conn, ws, fact.model_dump(), ep, emb)
+                    n += 1
         except Exception as e:
             print(f"[extract] error processing episode {ep['id']}: {e}", file=sys.stderr)
+            # Same reasoning: an episode that errored is not extracted, and
+            # marking it done would make the failure permanent and silent.
+            continue
 
+        # Only reached when extraction genuinely completed. An episode yielding
+        # zero facts is still complete — the model saw the content and found
+        # nothing worth keeping — but a failure above leaves extracted=0.
         cur2 = conn.cursor()
         cur2.execute("UPDATE episodes SET extracted=1 WHERE id=%s", (ep["id"],))
         conn.commit()
