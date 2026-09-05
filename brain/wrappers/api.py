@@ -807,6 +807,78 @@ def create_team(
     return _brain(identity).create_team(req.team_id, req.name, req.description)
 
 
+# ── Team goals: mission + KPIs ────────────────────────────────────────────────
+# Readable by any member of the workspace, writable by admins only. The write
+# guard is Depends(require_admin), so a non-admin cannot reach the handler at
+# all rather than being filtered inside it.
+
+class TeamMissionRequest(BaseModel):
+    mission: str = ""
+
+
+class TeamKpiRequest(BaseModel):
+    id:      str = None          # present when updating an existing KPI
+    name:    str
+    target:  str = None
+    current: str = None
+    unit:    str = ""
+    period:  str = ""
+
+
+@app.get("/api/teams/{team_id}/goals")
+def get_team_goals(team_id: str, identity: Identity = Depends(require_not_guest)):
+    """Return a team's mission and KPIs. Any member may read."""
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        return _pg.get_team_goals(conn, identity.workspace_id, team_id)
+    finally:
+        conn.close()
+
+
+@app.put("/api/teams/{team_id}/mission")
+def set_team_mission(team_id: str, req: TeamMissionRequest,
+                     identity: Identity = Depends(require_admin)):
+    """Replace a team's mission statement. Admin-only."""
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        _pg.set_team_mission(conn, identity.workspace_id, team_id, req.mission)
+        return {"ok": True, "team_id": team_id, "mission": req.mission}
+    finally:
+        conn.close()
+
+
+@app.post("/api/teams/{team_id}/kpis")
+def upsert_team_kpi(team_id: str, req: TeamKpiRequest,
+                    identity: Identity = Depends(require_admin)):
+    """Create or update one KPI. Admin-only."""
+    if not req.name.strip():
+        raise HTTPException(400, "KPI name is required")
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        kpi_id = _pg.upsert_team_kpi(
+            conn, identity.workspace_id, team_id, req.model_dump())
+        return {"ok": True, "id": kpi_id}
+    finally:
+        conn.close()
+
+
+@app.delete("/api/teams/{team_id}/kpis/{kpi_id}")
+def delete_team_kpi(team_id: str, kpi_id: str,
+                    identity: Identity = Depends(require_admin)):
+    """Delete one KPI. Admin-only."""
+    from brain.core import db_pg as _pg
+    conn = _pg.connect()
+    try:
+        if not _pg.delete_team_kpi(conn, identity.workspace_id, team_id, kpi_id):
+            raise HTTPException(404, "KPI not found in this team")
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
 @app.post("/api/search")
 def search(
     req: SearchRequest,

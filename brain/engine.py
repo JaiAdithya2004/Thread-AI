@@ -202,7 +202,8 @@ class Brain:
         facts = retrieve.run(self.conn, self.ws, query, self.principals,
                              self.caller, surface, team_id=self.team_id,
                              cross_team=cross_team)
-        return retrieve.format_answer(query, facts, conn=self.conn, ws=self.ws)
+        return retrieve.format_answer(query, facts, conn=self.conn, ws=self.ws,
+                                      team_id=self.team_id)
 
     def decision_history(self, subject: str, cross_team: bool = False) -> dict:
         facts = retrieve.run(self.conn, self.ws, f"decisions about {subject}",

@@ -173,7 +173,7 @@ def test_format_answer_degrades_gracefully_when_llm_returns_empty(monkeypatch):
     from brain.core import retrieve
     from brain.config import CONFIDENCE_THRESHOLD
 
-    monkeypatch.setattr(retrieve, "synthesize_answer", lambda q, facts: "")
+    monkeypatch.setattr(retrieve, "synthesize_answer", lambda q, facts, goals=None: "")
 
     good_facts = [
         {
@@ -200,7 +200,7 @@ def test_format_answer_with_synthesis(monkeypatch):
 
     monkeypatch.setattr(
         retrieve, "synthesize_answer",
-        lambda q, facts: "Python is the primary backend language."
+        lambda q, facts, goals=None: "Python is the primary backend language."
     )
 
     good_facts = [

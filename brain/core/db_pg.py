@@ -135,6 +135,33 @@ def migrate(conn):
             PRIMARY KEY (id, workspace_id)
         );
     """)
+    # What the team is trying to achieve, in prose. Injected into synthesis as
+    # goal context so answers are framed around the team's objective rather
+    # than merely retrieved.
+    cur.execute("ALTER TABLE teams ADD COLUMN IF NOT EXISTS mission TEXT DEFAULT ''")
+
+    # Measurable targets behind the mission. Scoped by workspace_id to match
+    # teams and every other tenant table — the RLS policy keys on
+    # brain.workspace_id, so account_id scoping would sit outside the isolation
+    # model already enforced everywhere else.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS team_kpis (
+            id            TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+            workspace_id  TEXT NOT NULL,
+            team_id       TEXT NOT NULL,
+            name          TEXT NOT NULL,
+            target        TEXT,
+            current       TEXT,
+            unit          TEXT DEFAULT '',
+            period        TEXT DEFAULT '',
+            created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS team_kpis_team
+            ON team_kpis(workspace_id, team_id);
+    """)
 
     # Episodes
     cur.execute("""
@@ -511,7 +538,7 @@ def migrate(conn):
         print(f"[migrate] episodes.source default: {_e}", file=sys.stderr)
 
     # Row-Level Security — defense in depth, workspace isolation
-    for table in ("episodes", "facts", "fact_edges", "ledger", "teams"):
+    for table in ("episodes", "facts", "fact_edges", "ledger", "teams", "team_kpis"):
         cur.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
         cur.execute(f"DROP POLICY IF EXISTS ws_isolation ON {table};")
         cur.execute(f"""
@@ -1114,6 +1141,80 @@ def list_teams(conn, ws):
     rows = cur.fetchall()
     cur.close()
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Team mission + KPIs
+#
+# Goal context for a team: what it is trying to achieve and how that is
+# measured. Read by any team member, written only by admins — the API layer
+# enforces the role, these functions assume it has already been checked.
+# ---------------------------------------------------------------------------
+
+def get_team_goals(conn, ws: str, team_id: str) -> dict:
+    """Return {"mission": str, "kpis": [...]} for one team."""
+    _set_ws(conn, ws)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT mission FROM teams WHERE workspace_id=%s AND id=%s", (ws, team_id))
+    row = cur.fetchone()
+    mission = (row or {}).get("mission") or ""
+    cur.execute(
+        """SELECT id, name, target, current, unit, period, updated_at
+             FROM team_kpis WHERE workspace_id=%s AND team_id=%s
+            ORDER BY created_at""",
+        (ws, team_id),
+    )
+    kpis = [dict(r) for r in cur.fetchall()]
+    cur.close()
+    return {"mission": mission, "kpis": kpis}
+
+
+def set_team_mission(conn, ws: str, team_id: str, mission: str) -> None:
+    """Replace a team's mission statement. Admin-only — enforced by the caller."""
+    _set_ws(conn, ws)
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE teams SET mission=%s WHERE workspace_id=%s AND id=%s",
+        (mission or "", ws, team_id),
+    )
+    conn.commit()
+    cur.close()
+
+
+def upsert_team_kpi(conn, ws: str, team_id: str, kpi: dict) -> str:
+    """Create or update one KPI. Returns its id. Admin-only."""
+    _set_ws(conn, ws)
+    kpi_id = kpi.get("id") or str(uuid.uuid4())
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT INTO team_kpis (id, workspace_id, team_id, name, target,
+                                  current, unit, period)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+           ON CONFLICT (id) DO UPDATE SET
+               name=EXCLUDED.name, target=EXCLUDED.target,
+               current=EXCLUDED.current, unit=EXCLUDED.unit,
+               period=EXCLUDED.period, updated_at=now()""",
+        (kpi_id, ws, team_id, kpi.get("name", ""), kpi.get("target"),
+         kpi.get("current"), kpi.get("unit", ""), kpi.get("period", "")),
+    )
+    conn.commit()
+    cur.close()
+    return kpi_id
+
+
+def delete_team_kpi(conn, ws: str, team_id: str, kpi_id: str) -> bool:
+    """Remove one KPI. Scoped by team so an id alone cannot reach another team."""
+    _set_ws(conn, ws)
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM team_kpis WHERE workspace_id=%s AND team_id=%s AND id=%s",
+        (ws, team_id, kpi_id),
+    )
+    deleted = cur.rowcount > 0
+    conn.commit()
+    cur.close()
+    return deleted
 
 
 def log(conn, ws, user, query, surface, fact_ids, context_sent, team_id=None):
