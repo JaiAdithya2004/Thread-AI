@@ -1877,7 +1877,12 @@ async function sendQuery(q){
   if(convId) await _persistMsg(convId, 'user', q);
   const load=addMsg('a','<div class="loading"><span></span><span></span><span></span></div>');
   try{
-    const res=await api.post('/api/search',{query:q,team_id:S.currentTeam||null,cross_team:!S.currentTeam});
+    // Search the whole workspace regardless of the selected department. Scoping
+    // the query to a department silently dropped facts marked visibility='team'
+    // — a recent email would vanish from the results with nothing to explain
+    // why. The department selector still labels new facts; it no longer narrows
+    // what a question can find. ACL filtering is unaffected and still applies.
+    const res=await api.post('/api/search',{query:q,team_id:S.currentTeam||null,cross_team:true});
     load.innerHTML=buildAnswerCard(res);
     if(convId) await _persistMsg(convId, 'assistant', JSON.stringify(res));
     if(S.me?.is_guest){

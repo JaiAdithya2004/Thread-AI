@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import re
 import sys
 from brain.core import db, llm
@@ -43,10 +44,19 @@ _redis_breaker = get_breaker("redis", failure_threshold=3, recovery_timeout=60.0
 
 
 def _get_redis():
-    """Return a live Redis client or None if Redis is unavailable."""
+    """Return a live Redis client, or None when Redis is not in use.
+
+    The cache is optional: every caller treats None as "no cache" and proceeds.
+    When REDIS_URL is unset the deployment has deliberately not provisioned
+    Redis, so skip the probe entirely rather than dialling a default address,
+    failing, and tripping the circuit breaker on every boot — that logged an
+    error for a configuration that is intentional.
+    """
     global _redis, _redis_checked
     if _redis_checked and _redis is not None:
         return _redis
+    if not os.getenv("REDIS_URL"):
+        return None
     try:
         with _redis_breaker:
             import redis as _redis_lib
