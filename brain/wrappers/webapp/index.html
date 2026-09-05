@@ -717,6 +717,30 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
           </div>
           <div id="deptTable"><div style="padding:20px;color:var(--muted);font-size:13px">No departments yet. Click "+ Add Department" or load data from Connections.</div></div>
         </div>
+
+        <!-- Goals & KPIs — everyone reads, admins edit. Not .admin-only:
+             employees need to see what their team is working toward. -->
+        <div class="settings-card" id="settingsGoalsCard">
+          <div class="settings-card-head" style="justify-content:space-between">
+            <span>Goals &amp; KPIs</span>
+            <select id="goalsTeamSelect" style="background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:6px 10px;border-radius:8px;font-size:13px;font-family:inherit;outline:none"></select>
+          </div>
+          <div style="padding:16px">
+            <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px">Mission</label>
+            <textarea id="goalsMission" rows="2" placeholder="What is this team trying to achieve?"
+              style="width:100%;background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;resize:vertical"></textarea>
+            <div id="goalsMissionActions" style="margin-top:8px;display:none">
+              <button class="btn-sm btn-sync" id="goalsSaveMission">Save mission</button>
+              <span id="goalsMissionMsg" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
+            </div>
+
+            <div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between">
+              <label style="font-size:12px;color:var(--muted)">KPIs</label>
+              <button class="btn-sm btn-sync" id="goalsAddKpi" style="display:none">+ Add KPI</button>
+            </div>
+            <div id="goalsKpiList" style="margin-top:8px"></div>
+          </div>
+        </div>
         <!-- Usage & Credits — visible to admins -->
         <div class="settings-card admin-only" id="settingsCreditsCard">
           <div class="settings-card-head" style="justify-content:space-between">
@@ -1181,6 +1205,12 @@ const api = {
   },
   async post(p, b) {
     const r = await fetch(p, {method:'POST', headers:this._headers(), body:JSON.stringify(b)});
+    if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
+  async put(p, b) {
+    const r = await fetch(p, {method:'PUT', headers:this._headers(), body:JSON.stringify(b)});
     if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
     if (!r.ok) throw new Error(await r.text());
     return r.json();
@@ -2226,6 +2256,118 @@ function renderSettings(){
 
     _loadUsageCredits();
   }
+
+  // Goals & KPIs render for everyone; only admins get the edit controls.
+  _renderGoalsPanel();
+}
+
+// ── Goals & KPIs ─────────────────────────────────────────────────────────────
+// Admins edit the mission and KPIs; employees see the same values read-only.
+// The server enforces this independently — these controls are a convenience,
+// not the security boundary.
+
+let _goalsTeam = null;
+
+function _goalsIsAdmin(){ return S.me?.is_admin !== false; }
+
+function _renderGoalsPanel(){
+  const card = document.getElementById('settingsGoalsCard');
+  if(!card) return;
+  if(!S.teams.length){
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+
+  const sel = document.getElementById('goalsTeamSelect');
+  const keep = _goalsTeam || S.currentTeam || S.teams[0].id;
+  sel.innerHTML = S.teams
+    .map(t => `<option value="${escHtml(t.id)}">${escHtml(t.name)}</option>`)
+    .join('');
+  sel.value = S.teams.some(t => t.id === keep) ? keep : S.teams[0].id;
+  _goalsTeam = sel.value;
+
+  const admin = _goalsIsAdmin();
+  document.getElementById('goalsMission').readOnly = !admin;
+  document.getElementById('goalsMissionActions').style.display = admin ? '' : 'none';
+  document.getElementById('goalsAddKpi').style.display = admin ? '' : 'none';
+
+  _loadGoals(_goalsTeam);
+}
+
+async function _loadGoals(teamId){
+  const listEl = document.getElementById('goalsKpiList');
+  listEl.innerHTML = '<div style="font-size:12.5px;color:var(--muted);padding:8px 0">Loading…</div>';
+  try {
+    const g = await api.get(`/api/teams/${encodeURIComponent(teamId)}/goals`);
+    document.getElementById('goalsMission').value = g.mission || '';
+    _renderKpis(g.kpis || []);
+  } catch(e){
+    listEl.innerHTML = `<div style="font-size:12.5px;color:var(--error);padding:8px 0">${escHtml(e.message||'Could not load goals')}</div>`;
+  }
+}
+
+function _renderKpis(kpis){
+  const el = document.getElementById('goalsKpiList');
+  if(!kpis.length){
+    el.innerHTML = '<div style="font-size:12.5px;color:var(--muted);padding:8px 0">No KPIs set for this department yet.</div>';
+    return;
+  }
+  const admin = _goalsIsAdmin();
+  el.innerHTML = kpis.map(k => {
+    const cur = k.current ?? '—', tgt = k.target ?? '—';
+    const unit = k.unit ? ` ${escHtml(k.unit)}` : '';
+    const period = k.period ? `<span style="color:var(--muted);font-size:11.5px;margin-left:8px">${escHtml(k.period)}</span>` : '';
+    const del = admin
+      ? `<button class="btn-sm" data-kpi-del="${escHtml(k.id)}" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1">×</button>`
+      : '';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--hairline)">
+      <div><span style="font-size:13px;color:var(--ink)">${escHtml(k.name)}</span>${period}</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums">${escHtml(String(cur))}/${escHtml(String(tgt))}${unit}</span>
+        ${del}
+      </div>
+    </div>`;
+  }).join('');
+
+  el.querySelectorAll('[data-kpi-del]').forEach(b => {
+    b.addEventListener('click', () => _deleteKpi(b.getAttribute('data-kpi-del')));
+  });
+}
+
+async function _saveMission(){
+  const msg = document.getElementById('goalsMissionMsg');
+  const mission = document.getElementById('goalsMission').value;
+  msg.textContent = 'Saving…';
+  try {
+    await api.put(`/api/teams/${encodeURIComponent(_goalsTeam)}/mission`, {mission});
+    msg.textContent = 'Saved';
+    setTimeout(() => { msg.textContent = ''; }, 2000);
+  } catch(e){
+    msg.textContent = e.message || 'Save failed';
+  }
+}
+
+async function _addKpi(){
+  const name = prompt('KPI name (e.g. "Weekly active users")');
+  if(!name || !name.trim()) return;
+  const target = prompt('Target value (e.g. "500")') || '';
+  const current = prompt('Current value (e.g. "180")') || '';
+  const unit = prompt('Unit (optional, e.g. "users")') || '';
+  const period = prompt('Period (optional, e.g. "Q3")') || '';
+  try {
+    await api.post(`/api/teams/${encodeURIComponent(_goalsTeam)}/kpis`,
+                   {name: name.trim(), target, current, unit, period});
+    await _loadGoals(_goalsTeam);
+  } catch(e){ toast(e.message || 'Could not add KPI', 'err'); }
+}
+
+async function _deleteKpi(kpiId){
+  if(!confirm('Delete this KPI?')) return;
+  try {
+    await api._delete(`/api/teams/${encodeURIComponent(_goalsTeam)}/kpis/${encodeURIComponent(kpiId)}`);
+    await _loadGoals(_goalsTeam);
+  } catch(e){ toast(e.message || 'Could not delete KPI', 'err'); }
 }
 
 // ── Credits / Usage UI ───────────────────────────────────────────────────────
@@ -2284,6 +2426,14 @@ function _setText(id, val){
 }
 
 document.getElementById('settingsAddDept').addEventListener('click',()=>openModal());
+
+// Goals & KPIs controls
+document.getElementById('goalsTeamSelect').addEventListener('change', e => {
+  _goalsTeam = e.target.value;
+  _loadGoals(_goalsTeam);
+});
+document.getElementById('goalsSaveMission').addEventListener('click', _saveMission);
+document.getElementById('goalsAddKpi').addEventListener('click', _addKpi);
 
 // ── modal ─────────────────────────────────────────────────────────────────────
 function openModal(){
