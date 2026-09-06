@@ -141,6 +141,16 @@ def run(conn, ws, incremental=False, limit=20):
                 model=EXTRACT_MODEL,
                 task_name="extract",
             )
+            # An unreachable model returns empty rather than raising — the
+            # circuit breaker fails fast by design. Without this check that
+            # empty result validates cleanly as "no facts" and the episode is
+            # marked done, so an outage silently discards its content forever.
+            if not raw:
+                print(f"[extract] no LLM response for episode {ep['id']} "
+                      f"(provider down or circuit open) — leaving for retry",
+                      file=sys.stderr)
+                continue
+
             ok, result, err = llm.validate_llm_output(raw, ExtractionResult)
             if not ok:
                 print(f"[extract] validation failed for episode {ep['id']}: {err}", file=sys.stderr)
