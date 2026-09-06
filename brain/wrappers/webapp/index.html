@@ -455,7 +455,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
         <span class="brand-wordmark">Thread</span>
   </div>
 
-  <div class="dept-block">
+  <!-- Departments are hidden while the sharing model is being reworked.
+       Search already spans the whole workspace (cross_team), so the selector
+       changed nothing a user could see while implying it filtered results.
+       The markup and handlers stay in place so this is one line to reverse. -->
+  <div class="dept-block" style="display:none">
     <div class="block-label">Department</div>
     <!-- Admin view: dropdown + add button -->
     <div class="dept-row" id="deptAdminRow">
@@ -471,7 +475,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
           <div class="dept-dd-opt selected" data-value="" onclick="_selectDept('','All Departments','')">All Departments</div>
         </div>
       </div>
-      <button class="dept-add-btn" id="addDeptBtn" title="Add Department">+</button>
+      <button class="dept-add-btn" id="addDeptBtn" title="New team">+</button>
     </div>
     <!-- Member view: locked label (no switching) -->
     <div id="deptMemberRow" style="display:none">
@@ -712,10 +716,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
         <!-- admin-only: departments -->
         <div class="settings-card admin-only" id="settingsDeptCard">
           <div class="settings-card-head">
-            Departments
-            <button class="btn-sm btn-sync" id="settingsAddDept">+ Add Department</button>
+            Teams
+            <button class="btn-sm btn-sync" id="settingsAddDept">+ New team</button>
           </div>
-          <div id="deptTable"><div style="padding:20px;color:var(--muted);font-size:13px">No departments yet. Click "+ Add Department" or load data from Connections.</div></div>
+          <div id="deptTable"><div style="padding:20px;color:var(--muted);font-size:13px">No teams yet. Click "+ New team" to create one.</div></div>
         </div>
 
         <!-- Goals & KPIs — everyone reads, admins edit. Not .admin-only:
@@ -792,7 +796,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 <div class="overlay" id="deptModal">
   <div class="modal">
     <div class="modal-head">
-      <h2>Add Department</h2>
+      <h2>New team</h2>
       <button class="modal-close" id="modalClose">×</button>
     </div>
     <div class="modal-body">
@@ -810,7 +814,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
         </div>
       </div>
       <div class="fgroup">
-        <label>Department ID <span>(lowercase slug, no spaces)</span></label>
+        <label>Team ID <span>(lowercase slug, no spaces)</span></label>
         <input id="deptIdInput" placeholder="e.g. sales" autocomplete="off">
       </div>
       <div class="fgroup">
@@ -819,7 +823,24 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
       </div>
       <div class="fgroup">
         <label>Description <span>(optional)</span></label>
-        <input id="deptDescInput" placeholder="What this department is responsible for">
+        <input id="deptDescInput" placeholder="What this team is responsible for">
+      </div>
+
+      <!-- Goals captured at creation: a team that states what it is working
+           toward gets answers framed around that from its first question,
+           instead of waiting for someone to fill it in later. -->
+      <div class="fgroup">
+        <label>Mission <span>(optional)</span></label>
+        <input id="deptMissionInput" placeholder="What this team is trying to achieve">
+      </div>
+      <div class="fgroup">
+        <label>First KPI <span>(optional — add more in Settings)</span></label>
+        <div style="display:grid;grid-template-columns:1.6fr 0.8fr 0.8fr 0.9fr;gap:8px">
+          <input id="deptKpiName"    placeholder="Metric, e.g. Weekly active users">
+          <input id="deptKpiCurrent" placeholder="Now">
+          <input id="deptKpiTarget"  placeholder="Target">
+          <input id="deptKpiUnit"    placeholder="Unit">
+        </div>
       </div>
     </div>
     <div class="modal-foot">
@@ -2241,7 +2262,7 @@ function renderSettings(){
   if(isAdmin){
     const el=document.getElementById('deptTable');
     if(!S.teams.length){
-      el.innerHTML='<div style="padding:20px;color:var(--muted);font-size:13px">No departments yet. Use "+ Add Department" or load data from Connections first.</div>';
+      el.innerHTML='<div style="padding:20px;color:var(--muted);font-size:13px">No teams yet. Use "+ New team" to create one.</div>';
     } else {
       el.innerHTML=S.teams.map(t=>{
         const color=teamColor(t.id);
@@ -2437,7 +2458,7 @@ document.getElementById('goalsAddKpi').addEventListener('click', _addKpi);
 
 // ── modal ─────────────────────────────────────────────────────────────────────
 function openModal(){
-  ['deptIdInput','deptNameInput','deptDescInput'].forEach(id=>document.getElementById(id).value='');
+  ['deptIdInput','deptNameInput','deptDescInput','deptMissionInput','deptKpiName','deptKpiCurrent','deptKpiTarget','deptKpiUnit'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('deptModal').classList.add('show');
   setTimeout(()=>document.getElementById('deptIdInput').focus(),50);
 }
@@ -2464,14 +2485,36 @@ document.getElementById('modalCreate').addEventListener('click', async()=>{
   const id=document.getElementById('deptIdInput').value.trim();
   const name=document.getElementById('deptNameInput').value.trim();
   const desc=document.getElementById('deptDescInput').value.trim();
-  if(!id||!name){ toast('Department ID and Name are required','err'); return; }
+  const mission=document.getElementById('deptMissionInput').value.trim();
+  const kpiName=document.getElementById('deptKpiName').value.trim();
+  if(!id||!name){ toast('Team ID and Name are required','err'); return; }
   try{
     await api.post('/api/teams',{team_id:id,name,description:desc});
+
+    // Goals are saved after the team exists, and separately from it: a failure
+    // here must not lose the team the user just created, so each is reported
+    // on its own rather than rolling the whole action back.
+    if(mission){
+      try { await api.put(`/api/teams/${encodeURIComponent(id)}/mission`,{mission}); }
+      catch(e){ toast('Team created, but the mission did not save','err'); }
+    }
+    if(kpiName){
+      try {
+        await api.post(`/api/teams/${encodeURIComponent(id)}/kpis`,{
+          name: kpiName,
+          current: document.getElementById('deptKpiCurrent').value.trim(),
+          target:  document.getElementById('deptKpiTarget').value.trim(),
+          unit:    document.getElementById('deptKpiUnit').value.trim(),
+          period:  '',
+        });
+      } catch(e){ toast('Team created, but the KPI did not save','err'); }
+    }
+
     S.teams=await api.get('/api/teams');
     renderDeptSelect(); renderSettings();
     document.getElementById('deptSelect').value=id;
     S.currentTeam=id; updateDeptBadge(id);
-    closeModal(); toast(`✓ Department "${name}" created`,'ok');
+    closeModal(); toast(`✓ Team "${name}" created`,'ok');
   } catch(e){ toast('Error: '+e.message,'err'); }
 });
 

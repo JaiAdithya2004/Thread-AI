@@ -21,6 +21,7 @@ import re
 import traceback as _traceback
 import uuid as _uuid_mod
 from collections import defaultdict
+from typing import Optional
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi import Request as _Req
 from fastapi.responses import HTMLResponse, JSONResponse as _JSONResp, Response, PlainTextResponse, StreamingResponse
@@ -346,7 +347,7 @@ class SignupRequest(BaseModel):
 class InviteRequest(BaseModel):
     email: str
     role: str = "employee"
-    team_id: str = None
+    team_id: Optional[str] = None
 
     def model_post_init(self, __context):
         if len(self.email) > 254:
@@ -357,9 +358,9 @@ class InviteRequest(BaseModel):
             raise ValueError("team_id must be a valid slug")
 
 class MemberPatchRequest(BaseModel):
-    role: str = None
-    status: str = None
-    team_id: str = None
+    role: Optional[str] = None
+    status: Optional[str] = None
+    team_id: Optional[str] = None
 
     def model_post_init(self, __context):
         if self.role is not None and self.role not in ("employee", "admin"):
@@ -384,7 +385,11 @@ class SlackMappingRequest(BaseModel):
 
 class ConversationRequest(BaseModel):
     title: str = "New conversation"
-    team_id: str = None
+    # Optional, not merely defaulted: the UI sends team_id: null when no
+    # department is selected, and `str = None` rejects an explicit null with a
+    # 422. The frontend swallowed that error, so the conversation id was never
+    # set and every follow-up message opened a new chat.
+    team_id: Optional[str] = None
 
     def model_post_init(self, __context):
         if len(self.title) > 200:
@@ -819,8 +824,8 @@ class TeamMissionRequest(BaseModel):
 class TeamKpiRequest(BaseModel):
     id:      str = None          # present when updating an existing KPI
     name:    str
-    target:  str = None
-    current: str = None
+    target:  Optional[str] = None
+    current: Optional[str] = None
     unit:    str = ""
     period:  str = ""
 
