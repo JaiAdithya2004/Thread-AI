@@ -455,24 +455,23 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
         <span class="brand-wordmark">Thread</span>
   </div>
 
-  <!-- Departments are hidden while the sharing model is being reworked.
-       Search already spans the whole workspace (cross_team), so the selector
-       changed nothing a user could see while implying it filtered results.
-       The markup and handlers stay in place so this is one line to reverse. -->
-  <div class="dept-block" style="display:none">
-    <div class="block-label">Department</div>
+  <!-- Teams carry a mission and KPIs, which are injected into synthesis, so the
+       selector now changes what an answer is framed around even though search
+       itself still spans the whole workspace (cross_team). -->
+  <div class="dept-block">
+    <div class="block-label">Team</div>
     <!-- Admin view: dropdown + add button -->
     <div class="dept-row" id="deptAdminRow">
       <select class="dept-select" id="deptSelect">
-        <option value="">All Departments</option>
+        <option value="">All teams</option>
       </select>
       <div class="dept-dd" id="deptDd">
         <button class="dept-dd-btn" id="deptDdBtn" onclick="_toggleDeptDd(event)" type="button">
-          <span id="deptDdLabel">All Departments</span>
+          <span id="deptDdLabel">All teams</span>
           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
         </button>
         <div class="dept-dd-menu" id="deptDdMenu">
-          <div class="dept-dd-opt selected" data-value="" onclick="_selectDept('','All Departments','')">All Departments</div>
+          <div class="dept-dd-opt selected" data-value="" onclick="_selectDept('','All teams','')">All teams</div>
         </div>
       </div>
       <button class="dept-add-btn" id="addDeptBtn" title="New team">+</button>
@@ -636,7 +635,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
       <p>Every query logged here with department tag and source surface.</p>
     </div>
     <div class="act-filter">
-      <label>Department:</label>
+      <label>Team:</label>
       <select id="actTeamFilter"><option value="">All</option></select>
       <button class="act-refresh" id="actRefresh">↻ Refresh</button>
     </div>
@@ -647,7 +646,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
   <div class="tab" id="tab-members">
     <div class="tab-head">
       <h1>Members</h1>
-      <p>Manage who has access to your company brain, their roles, and departments.</p>
+      <p>Manage who has access to your company brain, their roles, and teams.</p>
     </div>
     <div class="tab-body">
       <div class="settings-wrap">
@@ -669,7 +668,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
                 <input type="email" id="inviteEmail" placeholder="colleague@company.com">
               </div>
               <div class="auth-field" style="margin:0">
-                <label>Department (optional)</label>
+                <label>Team (optional)</label>
                 <select id="inviteTeam" style="background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;outline:none">
                   <option value="">No department</option>
                 </select>
@@ -845,7 +844,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
     </div>
     <div class="modal-foot">
       <button class="btn-cancel" id="modalCancel">Cancel</button>
-      <button class="btn-create" id="modalCreate">Create Department</button>
+      <button class="btn-create" id="modalCreate">Create team</button>
     </div>
   </div>
 </div>
@@ -971,9 +970,19 @@ async function initAuth() {
   return false;
 }
 
+// Clerk session tokens are short-lived (~60s). getToken() returns the cached
+// token until it is close to expiry, then transparently mints a new one, so
+// calling this before every request is cheap and keeps the token fresh.
+// Guest and dev-bypass tokens are not Clerk-issued and must be left alone.
 async function _refreshToken() {
-  if (_clerk?.session) {
-    _authToken = await _clerk.session.getToken();
+  if (_clerk?.session && _authToken !== 'dev-bypass' &&
+      !String(_authToken || '').startsWith('guest.')) {
+    try {
+      _authToken = await _clerk.session.getToken();
+    } catch (e) {
+      // Leave the existing token in place; the request will 401 and the
+      // handler below will show the sign-in screen.
+    }
   }
 }
 
@@ -1219,24 +1228,28 @@ const api = {
     return h;
   },
   async get(p) {
+    await _refreshToken();
     const r = await fetch(p, {headers: this._headers({'Content-Type':undefined})});
     if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   },
   async post(p, b) {
+    await _refreshToken();
     const r = await fetch(p, {method:'POST', headers:this._headers(), body:JSON.stringify(b)});
     if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   },
   async put(p, b) {
+    await _refreshToken();
     const r = await fetch(p, {method:'PUT', headers:this._headers(), body:JSON.stringify(b)});
     if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   },
   async _delete(p) {
+    await _refreshToken();
     const r = await fetch(p, {method:'DELETE', headers:this._headers({'Content-Type':undefined})});
     if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
     if (!r.ok) throw new Error(await r.text());
@@ -1312,10 +1325,10 @@ function renderDeptSelect(){
     memberRow.style.display = 'none';
     const sel=document.getElementById('deptSelect');
     const cur=sel.value;
-    sel.innerHTML='<option value="">All Departments</option>';
+    sel.innerHTML='<option value="">All teams</option>';
     // Rebuild custom dropdown menu
     const menu=document.getElementById('deptDdMenu');
-    menu.innerHTML=`<div class="dept-dd-opt" data-value="" onclick="_selectDept('','All Departments','')">All Departments</div>`;
+    menu.innerHTML=`<div class="dept-dd-opt" data-value="" onclick="_selectDept('','All teams','')">All teams</div>`;
     S.teams.forEach(t=>{
       const o=document.createElement('option');
       o.value=t.id; o.textContent=t.name; sel.appendChild(o);
@@ -1330,7 +1343,7 @@ function renderDeptSelect(){
     sel.value=activeVal;
     // Sync label
     const activeTeam=S.teams.find(t=>t.id===activeVal);
-    document.getElementById('deptDdLabel').textContent=activeTeam?activeTeam.name:'All Departments';
+    document.getElementById('deptDdLabel').textContent=activeTeam?activeTeam.name:'All teams';
     menu.querySelectorAll('.dept-dd-opt').forEach(o=>o.classList.toggle('selected',o.dataset.value===activeVal));
     updateDeptBadge(activeVal);
   } else {
@@ -2566,7 +2579,7 @@ function applyRoleUI(){
 
   // Settings subhead
   document.getElementById('settingsSubhead').textContent = isAdmin
-    ? 'Manage your AI provider, departments, and workspace.'
+    ? 'Manage your AI provider, teams, and workspace.'
     : 'Your account details.';
 
   // Guest banner
@@ -2598,7 +2611,7 @@ async function loadMembersTable(){
           <tr style="border-bottom:1px solid var(--hairline)">
             <th style="text-align:left;padding:10px 20px;color:var(--muted);font-weight:500">Member</th>
             <th style="text-align:left;padding:10px 16px;color:var(--muted);font-weight:500">Role</th>
-            <th style="text-align:left;padding:10px 16px;color:var(--muted);font-weight:500">Department</th>
+            <th style="text-align:left;padding:10px 16px;color:var(--muted);font-weight:500">Team</th>
             <th style="text-align:left;padding:10px 16px;color:var(--muted);font-weight:500">Status</th>
             ${isAdmin ? '<th style="text-align:right;padding:10px 20px;color:var(--muted);font-weight:500">Actions</th>' : ''}
           </tr>
