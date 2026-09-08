@@ -916,20 +916,38 @@ async function initAuth() {
     return true;
   }
 
-  const st = await fetch('/api/status').then(r=>r.json()).catch(()=>({auth_mode:'bypass'}));
+  // /api/auth-config is public, so a failure here is a real outage rather than
+  // an unauthenticated request. Never assume bypass on error: that turned a
+  // misconfigured deployment into a silent login loop, because the app sent
+  // 'dev-bypass' to a server that rejects it.
+  let cfg;
+  try {
+    const r = await fetch('/api/auth-config');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    cfg = await r.json();
+  } catch (e) {
+    showAuthScreen();
+    document.getElementById('authErr').textContent =
+      'Cannot reach the server to start sign-in. Please retry in a moment.';
+    return false;
+  }
 
-  if (st.auth_mode === 'bypass') {
+  if (cfg.auth_mode === 'bypass') {
     _authToken = 'dev-bypass';
     showApp({ email: 'local@dev', user_metadata: { role: 'admin' } });
     await loadApp();
     return true;
   }
 
-  const pk = window.__CLERK_PUBLISHABLE_KEY__ || '';
-  if (!pk) {
-    document.getElementById('authBypassRow').style.display='block';
-    document.getElementById('authBypassRow').innerHTML =
-      '<span style="color:var(--muted)">Auth active. <a onclick="bypassAuth()">Dev bypass</a></span>';
+  // Prefer the value the server just reported over the injected global: if the
+  // key was pasted into a hosting dashboard with quotes, the server strips them
+  // and this is the cleaned copy.
+  const pk = cfg.publishable_key || window.__CLERK_PUBLISHABLE_KEY__ || '';
+  if (!pk || (cfg.problems && cfg.problems.length)) {
+    showAuthScreen();
+    document.getElementById('authErr').textContent =
+      'Sign-in is not configured on this server: ' +
+      ((cfg.problems && cfg.problems.join('; ')) || 'no publishable key');
     return false;
   }
 
@@ -1227,34 +1245,38 @@ const api = {
     if (_authToken) h['Authorization'] = 'Bearer ' + _authToken;
     return h;
   },
-  async get(p) {
-    await _refreshToken();
-    const r = await fetch(p, {headers: this._headers({'Content-Type':undefined})});
-    if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
+  // One 401 does not mean the session is gone. A token can lapse between being
+  // read and being received, and Clerk mints a replacement on demand -- so
+  // force a fresh one and retry once. Only if the retry also fails is the
+  // session really over, and only then is dropping the user to sign-in right.
+  // Doing that on the first 401 was what sent people back to the login screen
+  // mid-session while their Clerk session was still perfectly valid.
+  async _send(p, {method='GET', body=null, json=true}={}) {
+    const _once = async (force) => {
+      if (force && _clerk?.session && _authToken !== 'dev-bypass' &&
+          !String(_authToken || '').startsWith('guest.')) {
+        try { _authToken = await _clerk.session.getToken({ skipCache: true }); } catch (e) {}
+      } else {
+        await _refreshToken();
+      }
+      const init = {method, headers: this._headers(json ? {} : {'Content-Type':undefined})};
+      if (body !== null) init.body = JSON.stringify(body);
+      return fetch(p, init);
+    };
+
+    let r = await _once(false);
+    if (r.status === 401) r = await _once(true);
+    if (r.status === 401) {
+      showAuthScreen();
+      throw new Error('Session expired — please sign in again');
+    }
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   },
-  async post(p, b) {
-    await _refreshToken();
-    const r = await fetch(p, {method:'POST', headers:this._headers(), body:JSON.stringify(b)});
-    if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
-    if (!r.ok) throw new Error(await r.text());
-    return r.json();
-  },
-  async put(p, b) {
-    await _refreshToken();
-    const r = await fetch(p, {method:'PUT', headers:this._headers(), body:JSON.stringify(b)});
-    if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
-    if (!r.ok) throw new Error(await r.text());
-    return r.json();
-  },
-  async _delete(p) {
-    await _refreshToken();
-    const r = await fetch(p, {method:'DELETE', headers:this._headers({'Content-Type':undefined})});
-    if (r.status === 401) { showAuthScreen(); throw new Error('Session expired — please sign in again'); }
-    if (!r.ok) throw new Error(await r.text());
-    return r.json();
-  }
+  get(p)       { return this._send(p, {method:'GET',    json:false}); },
+  post(p, b)   { return this._send(p, {method:'POST',   body:b ?? {}}); },
+  put(p, b)    { return this._send(p, {method:'PUT',    body:b ?? {}}); },
+  _delete(p)   { return this._send(p, {method:'DELETE', json:false}); }
 };
 
 // Convenience wrapper: _api(path, method='GET', body?)

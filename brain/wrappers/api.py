@@ -64,11 +64,19 @@ def _startup_migrate():
     It runs on a background thread instead: the schema is created by whichever
     boot gets there first, and requests are served immediately. Set
     BRAIN_SKIP_STARTUP_MIGRATE=true where the schema is managed out of band.
+
+    On serverless the thread does not block the response but still contends for
+    the same pool and CPU as the request that woke the process, on every cold
+    start, to re-derive a schema that is already there. So it defaults to
+    skipped there; set BRAIN_SKIP_STARTUP_MIGRATE=false to force it back on.
     """
     import os as _os
     import threading as _threading
 
-    if _os.getenv("BRAIN_SKIP_STARTUP_MIGRATE", "").lower() in ("1", "true", "yes"):
+    _serverless = bool(_os.getenv("VERCEL") or _os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+    _flag = _os.getenv("BRAIN_SKIP_STARTUP_MIGRATE", "").lower()
+    _skip = _flag in ("1", "true", "yes") or (_serverless and _flag not in ("0", "false", "no"))
+    if _skip:
         print("[thread] startup migration skipped (BRAIN_SKIP_STARTUP_MIGRATE)")
         return
 
@@ -538,7 +546,11 @@ def landing():
 def index():
     p = Path(__file__).parent / "webapp" / "index.html"
     html = p.read_text(encoding="utf-8")
-    clerk_pk = os.getenv("CLERK_PUBLISHABLE_KEY", "")
+    # A hosting dashboard does not strip quotes the way python-dotenv does, so a
+    # key pasted as "pk_test_..." arrives with them attached and Clerk never
+    # loads. Strip them here too rather than trust how the value was entered.
+    from brain.auth import _env as _clean_env
+    clerk_pk = _clean_env("CLERK_PUBLISHABLE_KEY")
     injection = f"""<script>
 window.__CLERK_PUBLISHABLE_KEY__ = {json.dumps(clerk_pk)};
 </script>"""
@@ -726,6 +738,41 @@ def guest_session(request: Request):
     token = f"{_GUEST_TOKEN_PREFIX}{b64}.{sig}"
     return {"token": token, "expires_in": 4 * 3600,
             "session_cap": _GUEST_SESSION_CAP, "daily_cap": _GUEST_DAILY_CAP}
+
+
+@app.get("/api/auth-config")
+def auth_config():
+    """What the sign-in screen needs, before anyone is signed in.
+
+    /api/status is auth-gated, which makes it useless for diagnosing broken
+    auth: the frontend called it, got a 401 or a network error, and silently
+    fell back to assuming dev-bypass. This endpoint is public and reports only
+    whether each piece of auth config is present and well-formed -- never a key
+    value. A misconfigured deployment is then one request away from being
+    named instead of being inferred from a login loop.
+    """
+    from brain.auth import _BYPASS, _CLERK_JWKS_URL, _env as _ce
+    pk = _ce("CLERK_PUBLISHABLE_KEY")
+    sk = _ce("CLERK_SECRET_KEY")
+    problems = []
+    if not _BYPASS:
+        if not pk:
+            problems.append("CLERK_PUBLISHABLE_KEY is not set")
+        elif not pk.startswith("pk_"):
+            problems.append("CLERK_PUBLISHABLE_KEY is malformed (expected a pk_ prefix)")
+        if not sk:
+            problems.append("CLERK_SECRET_KEY is not set")
+        elif not sk.startswith("sk_"):
+            problems.append("CLERK_SECRET_KEY is malformed (expected an sk_ prefix)")
+        if pk.startswith("pk_") and not _CLERK_JWKS_URL:
+            problems.append("Could not derive the Clerk domain from the publishable key")
+    return {
+        "auth_mode": "bypass" if _BYPASS else "clerk",
+        "publishable_key": pk if pk.startswith("pk_") else "",
+        "guest_demo": bool(_ce("GUEST_TOKEN_SECRET")),
+        "env": _ce("BRAIN_ENV", "development").lower(),
+        "problems": problems,
+    }
 
 
 @app.get("/api/status")

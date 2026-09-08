@@ -21,17 +21,28 @@ from brain import config
 
 _bearer = HTTPBearer(auto_error=False)
 
-_CLERK_SECRET_KEY: Optional[str] = os.getenv("CLERK_SECRET_KEY")
-_CLERK_PUBLISHABLE_KEY: Optional[str] = os.getenv("CLERK_PUBLISHABLE_KEY")
+def _env(name: str, default: str = "") -> str:
+    """Read an env var, tolerating quotes and stray whitespace.
+
+    python-dotenv strips surrounding quotes from a .env file, but a hosting
+    dashboard does not: a value pasted as "pk_test_..." arrives with the quote
+    characters still in it. That silently breaks any parse of the value, so
+    strip them here rather than in each caller.
+    """
+    return (os.getenv(name) or default).strip().strip('"').strip("'").strip()
+
+
+_CLERK_SECRET_KEY: Optional[str] = _env("CLERK_SECRET_KEY") or None
+_CLERK_PUBLISHABLE_KEY: Optional[str] = _env("CLERK_PUBLISHABLE_KEY") or None
 
 # BRAIN_ENV controls whether dev shortcuts are permitted.
 # Default is "development" for local use; set to "production" when deploying.
-_ENV: str = os.getenv("BRAIN_ENV", "development").lower().strip()
+_ENV: str = _env("BRAIN_ENV", "development").lower()
 _IS_PRODUCTION: bool = _ENV == "production"
 
 # Bypass is ONLY allowed in non-production AND when no Clerk key is configured
 # (single-tenant dev mode) OR when BRAIN_DEV_BYPASS=true is explicitly set.
-_DEV_BYPASS_FLAG: bool = os.getenv("BRAIN_DEV_BYPASS", "").lower() in ("1", "true", "yes")
+_DEV_BYPASS_FLAG: bool = _env("BRAIN_DEV_BYPASS").lower() in ("1", "true", "yes")
 _BYPASS: bool = (
     not _IS_PRODUCTION
     and (not bool(_CLERK_SECRET_KEY) or _DEV_BYPASS_FLAG)
@@ -181,7 +192,7 @@ def _identity_from_clerk_payload(payload: dict) -> Identity:
     )
 
 
-_GUEST_TOKEN_SECRET: Optional[str] = os.getenv("GUEST_TOKEN_SECRET")
+_GUEST_TOKEN_SECRET: Optional[str] = _env("GUEST_TOKEN_SECRET") or None
 
 # Prefix that identifies a guest self-signed token (never clashes with Clerk JWTs)
 _GUEST_TOKEN_PREFIX = "guest."

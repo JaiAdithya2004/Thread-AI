@@ -27,11 +27,17 @@ def _get_pool():
         import psycopg2.extras
         import os
         url = os.getenv("DATABASE_URL", "postgresql://brain:brain_local@localhost:5432/brain")
+        # On serverless every invocation is its own process, so a warm pool is a
+        # cost with no payoff: minconn connections are opened before the first
+        # query and thrown away when the process is frozen. Open one lazily
+        # there and keep the warm pool for long-lived hosts.
+        _serverless = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
         _pool = psycopg2.pool.ThreadedConnectionPool(
-            minconn=2,
-            maxconn=10,
+            minconn=0 if _serverless else 2,
+            maxconn=int(os.getenv("BRAIN_PG_MAXCONN", "3" if _serverless else "10")),
             dsn=url,
             cursor_factory=psycopg2.extras.RealDictCursor,
+            connect_timeout=int(os.getenv("BRAIN_PG_CONNECT_TIMEOUT", "10")),
         )
     return _pool
 
