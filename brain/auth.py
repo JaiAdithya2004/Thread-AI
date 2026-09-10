@@ -37,7 +37,15 @@ _CLERK_PUBLISHABLE_KEY: Optional[str] = _env("CLERK_PUBLISHABLE_KEY") or None
 
 # BRAIN_ENV controls whether dev shortcuts are permitted.
 # Default is "development" for local use; set to "production" when deploying.
-_ENV: str = _env("BRAIN_ENV", "development").lower()
+#
+# A hosted deployment is never "development", whatever BRAIN_ENV says. Scoping
+# BRAIN_ENV to Production only -- easy to do in a dashboard -- would otherwise
+# leave a Preview build defaulting to development, and a Preview build that also
+# lacked a Clerk key would serve the whole app unauthenticated. Treat any
+# recognised hosting environment as production unless BRAIN_ENV explicitly
+# overrides it, so the unsafe mode requires a deliberate statement.
+_HOSTED: bool = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+_ENV: str = _env("BRAIN_ENV", "production" if _HOSTED else "development").lower()
 _IS_PRODUCTION: bool = _ENV == "production"
 
 # Bypass is ONLY allowed in non-production AND when no Clerk key is configured
@@ -192,7 +200,29 @@ def _identity_from_clerk_payload(payload: dict) -> Identity:
     )
 
 
-_GUEST_TOKEN_SECRET: Optional[str] = _env("GUEST_TOKEN_SECRET") or None
+def _derive_guest_secret() -> Optional[str]:
+    """Signing key for guest demo tokens.
+
+    Prefer an explicit GUEST_TOKEN_SECRET. Failing that, derive one from the
+    key-encryption key rather than disabling demo mode: the secret only signs
+    4-hour tokens scoped to the read-only demo workspace, so a separate variable
+    is a step that gets skipped, and skipping it turns "Try live demo" into a
+    503 with nothing to explain it. Deriving through HKDF keeps the two keys
+    independent -- the guest secret never reveals the encryption key.
+    """
+    explicit = _env("GUEST_TOKEN_SECRET")
+    if explicit:
+        return explicit
+    root = _env("BRAIN_KEY_ENCRYPTION_KEY")
+    if not root:
+        return None
+    import hashlib
+    return hashlib.blake2b(
+        root.encode(), digest_size=32, person=b"thread-guest-tok"
+    ).hexdigest()
+
+
+_GUEST_TOKEN_SECRET: Optional[str] = _derive_guest_secret()
 
 # Prefix that identifies a guest self-signed token (never clashes with Clerk JWTs)
 _GUEST_TOKEN_PREFIX = "guest."

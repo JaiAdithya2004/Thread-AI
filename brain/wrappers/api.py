@@ -766,11 +766,18 @@ def auth_config():
             problems.append("CLERK_SECRET_KEY is malformed (expected an sk_ prefix)")
         if pk.startswith("pk_") and not _CLERK_JWKS_URL:
             problems.append("Could not derive the Clerk domain from the publishable key")
+    from brain.auth import _GUEST_TOKEN_SECRET, _IS_PRODUCTION
+    if _IS_PRODUCTION and not _GUEST_TOKEN_SECRET:
+        problems.append(
+            "Demo sign-in is off: set GUEST_TOKEN_SECRET or BRAIN_KEY_ENCRYPTION_KEY"
+        )
+    if pk.startswith("pk_test_") and _IS_PRODUCTION:
+        problems.append("Clerk is still on test keys (pk_test_/sk_test_)")
     return {
         "auth_mode": "bypass" if _BYPASS else "clerk",
         "publishable_key": pk if pk.startswith("pk_") else "",
-        "guest_demo": bool(_ce("GUEST_TOKEN_SECRET")),
-        "env": _ce("BRAIN_ENV", "development").lower(),
+        "guest_demo": bool(_GUEST_TOKEN_SECRET),
+        "env": "production" if _IS_PRODUCTION else "development",
         "problems": problems,
     }
 
