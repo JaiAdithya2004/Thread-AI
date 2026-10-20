@@ -6,6 +6,7 @@ from typing import Optional
 from brain.core import llm, embed
 from brain.core import db
 from brain.config import DEDUP_THRESHOLD, EXTRACT_MODEL
+from brain.core import reconcile
 
 SYSTEM = (
     "You are a precise company-memory extractor. "
@@ -162,11 +163,10 @@ def run(conn, ws, incremental=False, limit=20):
                 summaries = [f.summary for f in facts]
                 embeddings = embed.embed_batch(summaries)
                 for fact, emb in zip(facts, embeddings):
-                    existing = _find_near_duplicate(conn, ws, fact.subject, emb)
-                    if existing:
-                        print(f"[extract] dedup: merged with {existing}", file=sys.stderr)
+                    d = fact.model_dump()
+                    if not _reconcile_into(conn, ws, d, emb, ep):
                         continue
-                    _save(conn, ws, fact.model_dump(), ep, emb)
+                    _save(conn, ws, d, ep, emb)
                     n += 1
         except Exception as e:
             print(f"[extract] error processing episode {ep['id']}: {e}", file=sys.stderr)
@@ -228,16 +228,33 @@ def extract_from_text(conn, ws, text: str, source_kind: str = "agent",
     for fact, emb in zip(result.facts, embeddings):
         if fact.confidence < 0.7:
             continue
-        existing = _find_near_duplicate(conn, ws, fact.subject, emb)
-        if existing:
-            print(f"[extract] harvest dedup: merged with {existing}", file=sys.stderr)
-            continue
         d = fact.model_dump()
         d["source_kind"] = source_kind
+        if not _reconcile_into(conn, ws, d, emb, ep):
+            continue
         _save(conn, ws, d, ep, emb)
         n += 1
 
     return n
+
+
+def _reconcile_into(conn, ws, fact: dict, embedding, ep: dict) -> bool:
+    """Decide how `fact` relates to existing facts and stash the result on it.
+
+    Returns False when the fact duplicates one already stored and should be
+    skipped; otherwise True, with the facts it replaces or conflicts with
+    recorded under "_reconciled" for _save_atomic to apply.
+    """
+    decision = reconcile.reconcile(
+        conn, ws, fact, embedding,
+        team_id=(ep.get("team_id") or "shared"),
+        owner_id=ep.get("owner_id"),
+    )
+    if decision.duplicate_of:
+        print(f"[extract] dedup: merged with {decision.duplicate_of}", file=sys.stderr)
+        return False
+    fact["_reconciled"] = decision
+    return True
 
 
 def _find_near_duplicate(conn, ws, subject: str, embedding: list) -> Optional[str]:
@@ -339,9 +356,16 @@ def _save_atomic(conn, ws, fact_dict: dict, raw_fact: dict, embedding: list):
         #    partial edge sets and surface the error clearly).
         db.save_fact(conn, ws, fact_dict, embedding)
 
-        # 2. Supersession: invalidate the previous fact with same subject
-        if raw_fact.get("supersedes"):
+        # 2. Supersession. Semantic first: facts the reconcile step judged to be
+        #    replaced by this one. The model-supplied `supersedes` hint with an
+        #    exact subject match is kept as a fallback for what it can still catch.
+        decision = raw_fact.get("_reconciled")
+        if decision is not None and decision.supersedes:
+            reconcile.apply(conn, ws, fid, decision, _now())
+        elif raw_fact.get("supersedes"):
             _supersede(conn, ws, raw_fact.get("subject"), fid)
+        if decision is not None and decision.in_tension and not decision.supersedes:
+            reconcile.apply(conn, ws, fid, decision, _now())
 
         # 3. Conflict detection: add in_tension_with edges
         _detect_conflicts(conn, ws, raw_fact, fid, ws)
@@ -445,8 +469,14 @@ def record_human_fact(conn, ws, text, acl, team_id="shared", visibility="team"):
         "team_id":      team_id,
         "visibility":   visibility,
     }
+    decision = reconcile.reconcile(conn, ws, {"summary": text, "subject": "manual"},
+                                   emb, team_id=team_id)
+    if decision.duplicate_of:
+        return {"saved": decision.duplicate_of, "summary": text, "deduplicated": True}
     db.save_fact(conn, ws, fact_dict, emb)
-    return {"saved": fid, "summary": text}
+    reconcile.apply(conn, ws, fid, decision, _now())
+    return {"saved": fid, "summary": text,
+            "supersedes": decision.supersedes, "in_tension_with": decision.in_tension}
 
 
 def correct_fact(conn, ws, fact_id, correction, acl, team_id="shared"):

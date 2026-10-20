@@ -80,6 +80,12 @@ EMBED_BATCH_SIZE: int = 64  # controls Gemini batchEmbedContents batch size
 # deduplication: cosine similarity threshold for entity dedup
 DEDUP_THRESHOLD: float = 0.92
 
+# reconciliation: how close (cosine similarity) an existing fact must be before
+# the LLM judge is asked whether the new fact duplicates, replaces or conflicts
+# with it, and how many such candidates to show the judge.
+RELATED_THRESHOLD: float = float(os.getenv("BRAIN_RELATED_THRESHOLD", "0.75"))
+RECONCILE_K: int = int(os.getenv("BRAIN_RECONCILE_K", "5"))
+
 # confidence: below this threshold → "not sure" path
 CONFIDENCE_THRESHOLD: float = 0.35
 

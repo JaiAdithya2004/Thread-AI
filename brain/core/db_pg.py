@@ -1075,23 +1075,27 @@ def get_fact(conn, ws, fact_id: str):
     return dict(row) if row else None
 
 
-def search_vec(conn, query_embedding: list, n: int = 30, workspace_id: str = None) -> list:
+def search_vec(conn, query_embedding: list, n: int = 30, workspace_id: str = None,
+               include_invalid: bool = False) -> list:
+    # Superseded facts are excluded from candidates unless history was asked for:
+    # filtering only after retrieval would leave them unreachable.
+    valid = "" if include_invalid else "AND invalidated_at IS NULL"
     vec_str = "[" + ",".join(f"{v:.8f}" for v in query_embedding) + "]"
     cur = conn.cursor()
     if workspace_id:
-        cur.execute("""
+        cur.execute(f"""
             SELECT id FROM facts
             WHERE fact_vec_768 IS NOT NULL
-              AND invalidated_at IS NULL
+              {valid}
               AND workspace_id = %s
             ORDER BY fact_vec_768 <=> %s::vector
             LIMIT %s
         """, (workspace_id, vec_str, n))
     else:
-        cur.execute("""
+        cur.execute(f"""
             SELECT id FROM facts
             WHERE fact_vec_768 IS NOT NULL
-              AND invalidated_at IS NULL
+              {valid}
             ORDER BY fact_vec_768 <=> %s::vector
             LIMIT %s
         """, (vec_str, n))
@@ -1100,15 +1104,16 @@ def search_vec(conn, query_embedding: list, n: int = 30, workspace_id: str = Non
     return [r["id"] for r in rows]
 
 
-def search_fts(conn, query: str, n: int = 30) -> list:
+def search_fts(conn, query: str, n: int = 30, include_invalid: bool = False) -> list:
     if not query or not query.strip():
         return []
+    valid = "" if include_invalid else "AND invalidated_at IS NULL"
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(f"""
         SELECT id, ts_rank(fts_vec, plainto_tsquery('english', %s)) AS rank
         FROM facts
         WHERE fts_vec @@ plainto_tsquery('english', %s)
-          AND invalidated_at IS NULL
+          {valid}
         ORDER BY rank DESC
         LIMIT %s
     """, (query, query, n))

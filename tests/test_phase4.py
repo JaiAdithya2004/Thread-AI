@@ -188,8 +188,8 @@ class TestConflictSurfacing:
         cur = mock.MagicMock()
         cur.fetchall.return_value = [
             {
-                "fact_a":    fid_a,
-                "fact_b":    fid_b,
+                "src_fact":  fid_a,
+                "dst_fact":  fid_b,
                 "summary_a": fact_a["summary"],
                 "summary_b": fact_b["summary"],
             }
@@ -292,7 +292,7 @@ class TestMcpCorrectFactOwnership:
         db_mock = mock.MagicMock()
         db_mock.get_fact.return_value = fact
 
-        monkeypatch.setattr(mcp_server, "_brain", brain_mock)
+        monkeypatch.setattr(mcp_server, "_default_brain", lambda: brain_mock)
 
         with mock.patch("brain.wrappers.mcp_server._db", db_mock, create=True):
             with mock.patch("brain.core.db.get_fact", return_value=fact):
@@ -316,7 +316,7 @@ class TestMcpCorrectFactOwnership:
             principals=["alice@company.com"],
             fact_acl="everyone",
         )
-        monkeypatch.setattr(mcp_server, "_brain", brain_mock)
+        monkeypatch.setattr(mcp_server, "_default_brain", lambda: brain_mock)
 
         with mock.patch("brain.core.db.get_fact", return_value=None):
             result_str = mcp_server.correct_fact("nonexistent-uuid", "correction")

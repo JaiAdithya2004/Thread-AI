@@ -121,12 +121,13 @@ def _cache_key(embedding: list, ws: str, principals: list, team_id, cross_team: 
     return "brain:qcache:" + hashlib.md5(parts.encode()).hexdigest()
 
 
-def _vec(conn, query_emb, n=30, workspace_id=None):
-    return db.search_vec(conn, query_emb, n, workspace_id=workspace_id)
+def _vec(conn, query_emb, n=30, workspace_id=None, include_invalid=False):
+    return db.search_vec(conn, query_emb, n, workspace_id=workspace_id,
+                         include_invalid=include_invalid)
 
 
-def _fts(conn, query, n=30):
-    return db.search_fts(conn, query, n)
+def _fts(conn, query, n=30, include_invalid=False):
+    return db.search_fts(conn, query, n, include_invalid=include_invalid)
 
 
 def _rrf(*lists, k=60):
@@ -445,8 +446,8 @@ def run(conn, ws, query, principals, caller, surface,
     if cached is not None:
         return cached
 
-    vec_hits = _vec(conn, q_emb, workspace_id=ws)
-    fts_hits = _fts(conn, query)
+    vec_hits = _vec(conn, q_emb, workspace_id=ws, include_invalid=include_invalid)
+    fts_hits = _fts(conn, query, include_invalid=include_invalid)
     fused = _rrf(vec_hits, fts_hits)
 
     # A recency question needs the newest facts to be *candidates* before they
@@ -504,7 +505,13 @@ def run(conn, ws, query, principals, caller, surface,
         facts = [f for f in facts if not f["invalidated_at"]] + \
                 [f for f in facts if f["invalidated_at"]]
     else:
-        facts.sort(key=lambda f: (f["invalidated_at"] is not None, fused.index(f["id"])))
+        # Superseded facts rank last for an ordinary question, but a history
+        # request exists to show them: sinking them lets unrelated valid facts
+        # fill every slot before `top` truncates the list.
+        if include_invalid:
+            facts.sort(key=lambda f: fused.index(f["id"]))
+        else:
+            facts.sort(key=lambda f: (f["invalidated_at"] is not None, fused.index(f["id"])))
         facts = _rerank(query, facts[:30])
 
     facts = facts[:top]
