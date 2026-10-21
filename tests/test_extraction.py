@@ -51,28 +51,70 @@ def test_extract_from_text_whitespace_only_returns_zero(pg_conn, ws_id):
     assert n == 0
 
 
-# ── dedup: identical texts produce only 1 fact ────────────────────────────────
+# ── dedup and updates through the reconcile step ─────────────────────────────
+#
+# The extraction model, the embedding provider and the reconcile judge are all
+# stubbed, so these tests check the wiring deterministically. A live model can
+# name the same fact with a different subject on each call, which made the
+# earlier version of this test fail at random; how well the judge actually
+# decides is measured by evals/bench.py instead.
 
-@pytest.mark.skipif(not POSTGRES_AVAILABLE, reason="requires Postgres DATABASE_URL")
+def _stub_extraction(summary, subject="Backend language", obj="Python"):
+    return {"facts": [{"subject": subject, "predicate": "is", "object": obj,
+                       "summary": summary, "confidence": 0.9}]}
+
+
+def _unit_vec(dim):
+    return [1.0] + [0.0] * (dim - 1)
+
+
+@pytestmark_pg
 def test_dedup_identical_texts_produces_one_fact(pg_conn, ws_id):
-    """Inserting two identical facts (same subject + near-identical embedding) keeps only 1."""
-    from brain.core import extract, db
+    """A statement the judge calls a duplicate is not stored a second time."""
+    from brain import config
+    from brain.core import extract, db, reconcile
 
     db.migrate(pg_conn)
+    summary = "The company adopted Python as its backend language."
+    vec = _unit_vec(config.EMBED_DIM)
+    with mock.patch.object(extract.llm, "chat_json", return_value=_stub_extraction(summary)),          mock.patch.object(extract.embed, "embed_batch", side_effect=lambda t: [vec for _ in t]),          mock.patch.object(reconcile, "judge",
+                           side_effect=lambda new, cands: {c["id"]: "duplicate" for c in cands}):
+        n1 = extract.extract_from_text(pg_conn, ws_id, "We chose Python.", team_id="eng")
+        n2 = extract.extract_from_text(pg_conn, ws_id, "We chose Python.", team_id="eng")
 
-    # Call extract_from_text twice with the same text / same subject
-    _n1 = extract.extract_from_text(
-        pg_conn, ws_id,
-        "We decided to adopt Python as our backend language.",
-        source_kind="agent", team_id="eng",
-    )
-    n2 = extract.extract_from_text(
-        pg_conn, ws_id,
-        "We decided to adopt Python as our backend language.",
-        source_kind="agent", team_id="eng",
-    )
-    # Second call should produce 0 new facts (deduped by near-duplicate check)
-    assert n2 == 0
+    assert (n1, n2) == (1, 0)
+    cur = pg_conn.cursor()
+    cur.execute("SELECT COUNT(*) AS n FROM facts WHERE workspace_id=%s", (ws_id,))
+    assert cur.fetchone()["n"] == 1
+
+
+@pytestmark_pg
+def test_update_supersedes_the_old_fact(pg_conn, ws_id):
+    """A statement the judge calls a replacement is stored, and the old fact goes stale."""
+    from brain import config
+    from brain.core import extract, db, reconcile
+
+    db.migrate(pg_conn)
+    vec = _unit_vec(config.EMBED_DIM)
+    answers = iter([
+        _stub_extraction("The Pro plan costs $20 per month.", "Pro plan", "$20"),
+        _stub_extraction("The Pro plan price was raised to $29 per month.", "Pro plan pricing", "$29"),
+    ])
+    with mock.patch.object(extract.llm, "chat_json", side_effect=lambda *a, **k: next(answers)),          mock.patch.object(extract.embed, "embed_batch", side_effect=lambda t: [vec for _ in t]),          mock.patch.object(reconcile, "judge",
+                           side_effect=lambda new, cands: {c["id"]: "supersedes" for c in cands}):
+        extract.extract_from_text(pg_conn, ws_id, "Pro plan is $20.", team_id="eng")
+        n2 = extract.extract_from_text(pg_conn, ws_id, "Pro plan is now $29.", team_id="eng")
+
+    assert n2 == 1
+    cur = pg_conn.cursor()
+    cur.execute("SELECT summary, invalidated_at IS NOT NULL AS stale FROM facts WHERE workspace_id=%s",
+                (ws_id,))
+    state = {r["summary"]: r["stale"] for r in cur.fetchall()}
+    assert state == {"The Pro plan costs $20 per month.": True,
+                     "The Pro plan price was raised to $29 per month.": False}
+    cur.execute("SELECT COUNT(*) AS n FROM fact_edges WHERE workspace_id=%s AND type='supersedes'",
+                (ws_id,))
+    assert cur.fetchone()["n"] == 1
 
 
 # ── supersession via correct_fact ────────────────────────────────────────────

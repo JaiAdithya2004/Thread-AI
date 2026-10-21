@@ -12,6 +12,7 @@ Internal helper (used by brain/core/llm.py metering shim):
 """
 import math
 import os
+import re
 import sys
 import time
 
@@ -21,6 +22,19 @@ from brain.core.resilience import get_breaker, CircuitOpen
 # Circuit breaker for the Gemini embed endpoint.
 # Trips after 3 consecutive failures; recovers after 30 s.
 _embed_breaker = get_breaker("embed", failure_threshold=3, recovery_timeout=30.0)
+_fallback_breaker = get_breaker("embed_fallback", failure_threshold=3, recovery_timeout=30.0)
+
+# The same Gemini embedding model, served through OpenRouter. It is used only
+# when Gemini itself fails (the free tier caps requests per day), so an outage or
+# an exhausted quota degrades to a paid, slightly slower call instead of storing
+# zero vectors that no query can ever find. The model and dimension are
+# identical, so vectors from either route live in the same space.
+_OPENROUTER_EMBED_MODEL = os.getenv("BRAIN_EMBED_FALLBACK_MODEL", "google/gemini-embedding-001")
+
+
+def _redact(msg: str) -> str:
+    """Strip API keys that libraries echo back inside request URLs."""
+    return re.sub(r"(key|api_key|token)=[^&\s'\")]+", r"\1=<redacted>", str(msg))
 
 
 def _zero_vec() -> list:
@@ -60,7 +74,7 @@ def _call_gemini(batch: list[str], task_type: str) -> list[list[float]]:
         resp.raise_for_status()
         data = resp.json()
     except Exception as exc:
-        raise RuntimeError(f"Gemini embed error: {exc}") from exc
+        raise RuntimeError(f"Gemini embed error: {_redact(exc)}") from None
 
     embeddings = data.get("embeddings", [])
     vectors: list[list[float]] = []
@@ -73,6 +87,38 @@ def _call_gemini(batch: list[str], task_type: str) -> list[list[float]]:
     while len(vectors) < len(batch):
         vectors.append(_zero_vec())
 
+    return vectors
+
+
+def _call_openrouter(batch: list[str]) -> list[list[float]]:
+    """Embed one batch through OpenRouter. Returns L2-normalized vectors."""
+    import requests as _req
+
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY is not set")
+    try:
+        resp = _req.post(
+            "https://openrouter.ai/api/v1/embeddings",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={"model": _OPENROUTER_EMBED_MODEL, "input": batch, "dimensions": EMBED_DIM},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json().get("data", [])
+    except Exception as exc:
+        raise RuntimeError(f"OpenRouter embed error: {_redact(exc)}") from None
+
+    data = sorted(data, key=lambda d: d.get("index", 0))
+    vectors: list[list[float]] = []
+    for item in data:
+        vec = item.get("embedding", [])
+        if len(vec) != EMBED_DIM:
+            raise RuntimeError(f"OpenRouter returned {len(vec)}-dim vectors, expected {EMBED_DIM}")
+        norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+        vectors.append([v / norm for v in vec])
+    if len(vectors) != len(batch):
+        raise RuntimeError(f"OpenRouter returned {len(vectors)} vectors for {len(batch)} texts")
     return vectors
 
 
@@ -99,10 +145,24 @@ def embed_texts(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list
             all_vectors.extend(vecs)
         except CircuitOpen as e:
             print(f"[embed] circuit open: {e}", file=sys.stderr)
-            all_vectors.extend([_zero_vec() for _ in batch])
+            vecs = None
         except Exception as e:
-            print(f"[embed] batch failed: {e}", file=sys.stderr)
-            all_vectors.extend([_zero_vec() for _ in batch])
+            print(f"[embed] batch failed: {_redact(e)}", file=sys.stderr)
+            vecs = None
+
+        if vecs is None:
+            # Gemini unavailable: try the same model through OpenRouter before
+            # giving up and storing zero vectors.
+            try:
+                if not os.getenv("OPENROUTER_API_KEY"):
+                    raise RuntimeError("no fallback configured")
+                with _fallback_breaker:
+                    vecs = _call_openrouter(batch)
+                print(f"[embed] served {len(batch)} text(s) via OpenRouter fallback", file=sys.stderr)
+            except Exception as e:
+                print(f"[embed] fallback failed: {_redact(e)}", file=sys.stderr)
+                vecs = [_zero_vec() for _ in batch]
+            all_vectors.extend(vecs)
 
         # Throttle between batches to respect free-tier rate limits
         if i + EMBED_BATCH_SIZE < len(texts):

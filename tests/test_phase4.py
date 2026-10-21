@@ -335,3 +335,30 @@ class TestMcpCorrectFactOwnership:
         import json as _json
         result = _json.loads(mcp_server.correct_fact(str(uuid.uuid4()), ""))
         assert result.get("error") == "correction must not be empty"
+
+
+class TestEmbedFallbackAndRedaction:
+    """Embedding must not leak API keys in errors, and must fall back instead of storing zeros."""
+
+    def test_redact_strips_keys_from_urls(self):
+        from brain.core import embed
+        out = embed._redact("403 for url: https://g.example/v1?key=AQ.secret123&alt=json")
+        assert "secret123" not in out and "key=<redacted>" in out and "alt=json" in out
+
+    def test_gemini_failure_falls_back_to_openrouter(self, monkeypatch):
+        import unittest.mock as mock
+        from brain.core import embed
+        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+        vec = [1.0] + [0.0] * (embed.EMBED_DIM - 1)
+        with mock.patch.object(embed, "_call_gemini", side_effect=RuntimeError("429")), \
+             mock.patch.object(embed, "_call_openrouter", return_value=[vec]) as fb:
+            out = embed.embed_texts(["hello"])
+        assert out == [vec] and fb.called
+
+    def test_no_fallback_key_still_returns_zero_vector(self, monkeypatch):
+        import unittest.mock as mock
+        from brain.core import embed
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        with mock.patch.object(embed, "_call_gemini", side_effect=RuntimeError("429")):
+            out = embed.embed_texts(["hello"])
+        assert out == [[0.0] * embed.EMBED_DIM]

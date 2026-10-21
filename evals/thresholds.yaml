@@ -1,82 +1,67 @@
-# Regression thresholds — the quality floor for every metric.
+# Quality gate for evals/bench.py, enforced by tests/test_regression.py.
 #
-# A benchmark run fails if any metric drops MORE than `tolerance` below
-# the stored baseline.  Tolerances are intentionally generous for early-stage;
-# tighten them as the platform matures.
+# Each metric has two checks:
+#   floor      hard limit regardless of baseline (a ceiling when direction is
+#              lower_is_better). Set a safe margin below the measured value so
+#              ordinary run-to-run variation does not fail a build.
+#   tolerance  how far the metric may move in the bad direction relative to
+#              evals/baseline.json before it is flagged as a regression.
 #
-# Metric semantics (all 0.0–1.0 unless noted):
-#   hit_at_k          — fraction of answerable questions where a keyword-relevant
-#                       fact appears in the top-k retrieved results
-#   precision_at_k    — fraction of retrieved facts that are keyword-relevant
-#   recall_at_k       — fraction of relevant facts that are in top-k
-#   mrr               — mean reciprocal rank of first relevant result
-#   ndcg_at_k         — normalized discounted cumulative gain
-#   answer_correct    — fraction of answerable questions where synthesized answer
-#                       contains the expected substring
-#   keyword_hit_rate  — fraction of answerable questions where any retrieved fact
-#                       summary contains a keyword from expected_fact_keywords
-#   faithfulness_rate — fraction of synthesized answers judged faithful by LLM
-#   abstention_accuracy — fraction of unanswerable questions correctly abstained
-#   mean_latency_s    — seconds (lower is better; threshold is a MAX, not MIN)
-#   p95_latency_s     — p95 latency seconds (MAX)
+# Keys are flat names resolved against the benchmark output; see
+# tests/test_regression.py::_value. Baseline values come from
+# `python -m evals.aggregate --write-baseline`.
 #
-# tolerance:  how much a metric may drop below baseline before flagged as regression
-#             0.05 means "5 percentage points below baseline is acceptable"
-# min_value:  hard floor regardless of baseline (catches catastrophic collapse)
-# direction:  "higher_is_better" or "lower_is_better"
+# `retrieval` needs a local database and an embedding key but no chat model.
+# `llm` costs tokens and is not deterministic, so it runs only with BENCH_LLM=1.
 
-metrics:
-  hit_at_k:
-    direction: higher_is_better
-    tolerance: 0.10
-    min_value: 0.50
+retrieval:
+  retrieval.production.hit@5:
+    floor: 0.90
+    tolerance: 0.05
+  retrieval.production.recall@5:
+    floor: 0.90
+    tolerance: 0.05
+  retrieval.production.mrr:
+    floor: 0.85
+    tolerance: 0.05
+  retrieval.production.ndcg@5:
+    floor: 0.85
+    tolerance: 0.05
 
-  precision_at_k:
-    direction: higher_is_better
-    tolerance: 0.10
-    min_value: 0.20
-
-  recall_at_k:
-    direction: higher_is_better
-    tolerance: 0.10
-    min_value: 0.30
-
-  mrr:
-    direction: higher_is_better
-    tolerance: 0.10
-    min_value: 0.30
-
-  ndcg_at_k:
-    direction: higher_is_better
-    tolerance: 0.10
-    min_value: 0.30
-
-  answer_correct_rate:
-    direction: higher_is_better
-    tolerance: 0.10
-    min_value: 0.50
-
-  keyword_hit_rate:
-    direction: higher_is_better
-    tolerance: 0.10
-    min_value: 0.50
-
-  faithfulness_rate:
-    direction: higher_is_better
+llm:
+  answers.answer_correct:
+    floor: 0.90
     tolerance: 0.08
-    min_value: 0.70
-
-  abstention_accuracy:
-    direction: higher_is_better
+  answers.faithfulness:
+    floor: 0.85
+    tolerance: 0.08
+  answers.citation_support:
+    floor: 0.90
+    tolerance: 0.08
+  answers.abstention:
+    floor: 0.80
     tolerance: 0.10
-    min_value: 0.60
 
-  mean_latency_s:
+  supersession.reconcile.supersession_recall:
+    floor: 0.80
+    tolerance: 0.10
+  supersession.reconcile.supersession_precision:
+    floor: 0.70
+    tolerance: 0.10
+  supersession.reconcile.duplicate_detection:
+    floor: 0.75
+    tolerance: 0.15
+  supersession.reconcile.decoy_false_actions:
     direction: lower_is_better
-    tolerance: 2.0        # seconds; regression if mean latency increases by >2s
-    min_value: null       # no hard floor for latency
+    floor: 0.20
+    tolerance: 0.10
 
-  p95_latency_s:
-    direction: lower_is_better
-    tolerance: 5.0        # seconds
-    min_value: null
+  end_to_end.reconcile.chains_fully_correct:
+    floor: 0.70
+    tolerance: 0.15
+  end_to_end.reconcile.current_top1_is_latest:
+    floor: 0.75
+    tolerance: 0.15
+  end_to_end.reconcile.current_answer_latest_only:
+    floor: 0.75
+    tolerance: 0.15

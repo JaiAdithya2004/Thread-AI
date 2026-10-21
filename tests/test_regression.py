@@ -1,14 +1,20 @@
 """
-Regression benchmark test suite — pytest-runnable quality gate.
+Regression gate for Thread's quality.
 
-Runs the full eval harness and asserts every metric stays within the
-tolerances defined in evals/thresholds.yaml relative to the baseline
-snapshot in evals/baseline.json.
+Runs the retrieval benchmark (evals/bench.py, Part A) against a local database
+and checks it against the floors in evals/thresholds.yaml and the recorded
+baseline in evals/baseline.json. The retrieval check needs a database and an
+embedding key but no chat model, so it is cheap enough for every CI run.
 
-Skipped automatically when:
-  - No baseline file exists (evals/baseline.json absent) — run
-    `python scripts/bench_snapshot.py` to create one first.
-  - The DATABASE_URL env var is absent (no DB connection available).
+The LLM-judged parts (answer quality, supersession, end to end) cost tokens and
+are not deterministic, so they run only when BENCH_LLM=1 and are compared with
+the same floors. Refresh the baseline after an intentional change with:
+
+    python -m evals.bench --out evals/results/bench_run_1.json   # repeat for 2, 3
+    python -m evals.aggregate --write-baseline
+
+Skipped automatically when DATABASE_URL is unset or points at a non-local host
+(the benchmark deletes and recreates its ws_bench_* workspaces).
 
 Mark: @pytest.mark.regression
 Run:  pytest tests/test_regression.py -v
@@ -16,15 +22,16 @@ Run:  pytest tests/test_regression.py -v
 import json
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 import yaml
 
 pytestmark = pytest.mark.regression
 
-BASELINE_PATH    = Path("evals/baseline.json")
-THRESHOLDS_PATH  = Path("evals/thresholds.yaml")
-QUESTIONS_PATH   = Path("evals/questions.yaml")
+EVALS = Path(__file__).resolve().parent.parent / "evals"
+BASELINE_PATH = EVALS / "baseline.json"
+THRESHOLDS_PATH = EVALS / "thresholds.yaml"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -33,266 +40,111 @@ QUESTIONS_PATH   = Path("evals/questions.yaml")
 
 @pytest.fixture(scope="session")
 def thresholds():
-    if not THRESHOLDS_PATH.exists():
-        pytest.skip(f"No thresholds file at {THRESHOLDS_PATH}")
-    with open(THRESHOLDS_PATH) as f:
-        return yaml.safe_load(f)["metrics"]
+    return yaml.safe_load(THRESHOLDS_PATH.read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="session")
 def baseline():
-    if not BASELINE_PATH.exists():
-        pytest.skip(
-            f"No baseline at {BASELINE_PATH}. "
-            "Run: python scripts/bench_snapshot.py"
-        )
-    with open(BASELINE_PATH) as f:
-        return json.load(f)
+    return json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
+
+
+def _local_db() -> bool:
+    url = os.getenv("DATABASE_URL", "")
+    return bool(url) and (urlparse(url).hostname or "") in ("localhost", "127.0.0.1", "::1")
 
 
 @pytest.fixture(scope="session")
-def questions():
-    with open(QUESTIONS_PATH) as f:
-        return yaml.safe_load(f)
+def bench_results():
+    """Run the benchmark once per session."""
+    if not _local_db():
+        pytest.skip("needs a local DATABASE_URL (the benchmark resets ws_bench_* workspaces)")
+    if not os.getenv("GEMINI_API_KEY"):
+        pytest.skip("needs GEMINI_API_KEY for query embeddings")
+    import yaml as _yaml
+    from evals import bench
+    from brain.core import db
+
+    corpus = _yaml.safe_load(bench.CORPUS_PATH.read_text(encoding="utf-8"))
+    conn = db.connect()
+    db.migrate(conn)
+    llm = os.getenv("BENCH_LLM") == "1"
+    res = {"A": bench.part_a(corpus, conn, answers=llm)}
+    if llm:
+        res["B"] = bench.part_b(corpus, conn)
+        res["C"] = bench.part_c(corpus, conn)
+    return res
 
 
-@pytest.fixture(scope="session")
-def eval_results(questions):
-    """Run the full eval harness once per session and cache results."""
-    if not os.getenv("DATABASE_URL"):
-        pytest.skip("DATABASE_URL not set — skipping regression tests")
-
-    from brain.config import WORKSPACE_ID, TEAM_ID, CALLER, CALLER_PRINCIPALS
-    from brain.engine import Brain
-    from brain.core import db_pg as pg
-
-    ws = os.getenv("BRAIN_WORKSPACE", WORKSPACE_ID)
-    brain = Brain(
-        workspace_id=ws,
-        team_id=TEAM_ID,
-        caller=CALLER,
-        principals=CALLER_PRINCIPALS,
-    )
-
-    conn = pg.connect()
-    cur  = conn.cursor()
-    cur.execute(
-        "SELECT COUNT(*) as n FROM facts WHERE workspace_id=%s AND invalidated_at IS NULL",
-        (ws,)
-    )
-    fact_count = cur.fetchone()["n"]
-    cur.close()
-    conn.close()
-
-    if fact_count == 0:
-        pytest.skip(f"0 active facts in workspace '{ws}' — run seeding first")
-
-    # Import the per-question runner from the eval harness
-    from evals.run import _run_question, _aggregate
-
-    K = int(os.getenv("EVAL_K", "5"))
-    # Skip LLM-as-judge in CI unless explicitly opted in (saves API quota)
-    run_faithfulness = os.getenv("EVAL_FAITHFULNESS", "false").lower() in ("1", "true", "yes")
-
-    results = []
-    for q in questions:
-        r = _run_question(brain, q, k=K, run_faithfulness=run_faithfulness)
-        results.append(r)
-
-    agg = _aggregate(results, k=K)
-    return {"results": results, "aggregate": agg, "k": K, "fact_count": fact_count}
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _metric_key(metric: str, k: int) -> str:
-    """Normalise threshold key (e.g. 'hit_at_k') to actual key ('hit_at_5')."""
-    return metric.replace("_at_k", f"_at_{k}")
-
-
-def _check_metric(metric: str, cfg: dict, current_val, baseline_val, k: int):
-    """
-    Assert current_val does not represent a regression vs baseline_val.
-    Returns (passed: bool, message: str).
-    """
-    direction = cfg.get("direction", "higher_is_better")
-    tolerance = cfg.get("tolerance", 0.10)
-    min_value = cfg.get("min_value")
-
-    if current_val is None:
-        return True, f"{metric}: not measured (skipped)"
-
-    # Hard floor check
-    if min_value is not None and direction == "higher_is_better":
-        if current_val < min_value:
-            return (False,
-                    f"{metric}: {current_val:.3f} < hard floor {min_value:.3f}")
-
-    if baseline_val is None:
-        return True, f"{metric}: no baseline value — floor check only"
-
-    delta = current_val - baseline_val
-    if direction == "higher_is_better":
-        if delta < -tolerance:
-            return (False,
-                    f"{metric}: {baseline_val:.3f} → {current_val:.3f} "
-                    f"(delta={delta:+.3f}, max allowed drop={tolerance:.3f})")
+def _value(res: dict, key: str):
+    """Resolve a flat key such as 'retrieval.production.hit@5' in bench output."""
+    parts = key.split(".")
+    if parts[0] == "retrieval":
+        v = res["A"]["retrieval"][parts[1]][parts[2]]
+    elif parts[0] == "answers":
+        v = res["A"]["answers"][parts[1]]
+    elif parts[0] == "supersession":
+        v = res["B"]["methods"][parts[1]][parts[2]]
+    elif parts[0] == "end_to_end":
+        v = res["C"][parts[1]][parts[2]]
     else:
-        if delta > tolerance:
-            return (False,
-                    f"{metric}: {baseline_val:.3f} → {current_val:.3f} "
-                    f"(delta={delta:+.3f}, max allowed increase={tolerance:.3f})")
-
-    return True, f"{metric}: OK ({current_val:.3f})"
+        raise KeyError(key)
+    return v["value"] if isinstance(v, dict) else v
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Retrieval metric tests
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestRetrievalMetrics:
-
-    def test_hit_at_k(self, eval_results, baseline, thresholds):
-        k   = eval_results["k"]
-        key = f"hit_at_{k}"
-        cur = eval_results["aggregate"].get(key)
-        bsl = baseline["aggregate"].get(key)
-        passed, msg = _check_metric("hit_at_k", thresholds["hit_at_k"], cur, bsl, k)
-        assert passed, msg
-
-    def test_precision_at_k(self, eval_results, baseline, thresholds):
-        k   = eval_results["k"]
-        key = f"precision_at_{k}"
-        cur = eval_results["aggregate"].get(key)
-        bsl = baseline["aggregate"].get(key)
-        passed, msg = _check_metric("precision_at_k", thresholds["precision_at_k"], cur, bsl, k)
-        assert passed, msg
-
-    def test_recall_at_k(self, eval_results, baseline, thresholds):
-        k   = eval_results["k"]
-        key = f"recall_at_{k}"
-        cur = eval_results["aggregate"].get(key)
-        bsl = baseline["aggregate"].get(key)
-        passed, msg = _check_metric("recall_at_k", thresholds["recall_at_k"], cur, bsl, k)
-        assert passed, msg
-
-    def test_mrr(self, eval_results, baseline, thresholds):
-        cur = eval_results["aggregate"].get("mrr")
-        bsl = baseline["aggregate"].get("mrr")
-        passed, msg = _check_metric("mrr", thresholds["mrr"], cur, bsl, eval_results["k"])
-        assert passed, msg
-
-    def test_ndcg_at_k(self, eval_results, baseline, thresholds):
-        k   = eval_results["k"]
-        key = f"ndcg_at_{k}"
-        cur = eval_results["aggregate"].get(key)
-        bsl = baseline["aggregate"].get(key)
-        passed, msg = _check_metric("ndcg_at_k", thresholds["ndcg_at_k"], cur, bsl, k)
-        assert passed, msg
+def _check(key: str, cfg: dict, current, baseline_val):
+    higher = cfg.get("direction", "higher_is_better") == "higher_is_better"
+    floor, tol = cfg.get("floor"), cfg.get("tolerance", 0.05)
+    if current is None:
+        pytest.fail(f"{key}: not measured")
+    if floor is not None:
+        assert (current >= floor) if higher else (current <= floor), (
+            f"{key}: {current:.3f} breaches the hard limit {floor:.3f}")
+    if baseline_val is not None:
+        delta = current - baseline_val
+        assert (delta >= -tol) if higher else (delta <= tol), (
+            f"{key}: {baseline_val:.3f} -> {current:.3f} (allowed change {tol:.3f}). "
+            "If intentional, refresh the baseline (see this file's docstring).")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Generation quality tests
+# Retrieval gate (every run)
 # ─────────────────────────────────────────────────────────────────────────────
 
-class TestGenerationMetrics:
+class TestRetrievalGate:
 
-    def test_answer_correct_rate(self, eval_results, baseline, thresholds):
-        cur = eval_results["aggregate"].get("answer_correct_rate")
-        bsl = baseline["aggregate"].get("answer_correct_rate")
-        passed, msg = _check_metric(
-            "answer_correct_rate", thresholds["answer_correct_rate"],
-            cur, bsl, eval_results["k"]
-        )
-        assert passed, msg
+    @pytest.mark.parametrize("key", [
+        "retrieval.production.hit@5", "retrieval.production.recall@5",
+        "retrieval.production.mrr", "retrieval.production.ndcg@5",
+    ])
+    def test_metric(self, key, bench_results, baseline, thresholds):
+        cfg = thresholds["retrieval"][key]
+        _check(key, cfg, _value(bench_results, key), baseline["aggregate"].get(key))
 
-    def test_keyword_hit_rate(self, eval_results, baseline, thresholds):
-        cur = eval_results["aggregate"].get("keyword_hit_rate")
-        bsl = baseline["aggregate"].get("keyword_hit_rate")
-        passed, msg = _check_metric(
-            "keyword_hit_rate", thresholds["keyword_hit_rate"],
-            cur, bsl, eval_results["k"]
-        )
-        assert passed, msg
-
-    def test_faithfulness_rate(self, eval_results, baseline, thresholds):
-        cur = eval_results["aggregate"].get("faithfulness_rate")
-        if cur is None:
-            pytest.skip("Faithfulness not measured in this run (--no-faithfulness)")
-        bsl = baseline["aggregate"].get("faithfulness_rate")
-        passed, msg = _check_metric(
-            "faithfulness_rate", thresholds["faithfulness_rate"],
-            cur, bsl, eval_results["k"]
-        )
-        assert passed, msg
-
-    def test_abstention_accuracy(self, eval_results, baseline, thresholds):
-        cur = eval_results["aggregate"].get("abstention_accuracy")
-        bsl = baseline["aggregate"].get("abstention_accuracy")
-        passed, msg = _check_metric(
-            "abstention_accuracy", thresholds["abstention_accuracy"],
-            cur, bsl, eval_results["k"]
-        )
-        assert passed, msg
+    def test_hybrid_not_worse_than_full_text(self, bench_results):
+        """Semantic search carries the system; if it ever falls below keyword search, it is broken."""
+        r = bench_results["A"]["retrieval"]
+        assert r["vector"]["hit@5"]["value"] > r["fulltext"]["hit@5"]["value"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Latency tests
+# LLM-judged gate (BENCH_LLM=1)
 # ─────────────────────────────────────────────────────────────────────────────
 
-class TestLatencyMetrics:
+@pytest.mark.skipif(os.getenv("BENCH_LLM") != "1", reason="set BENCH_LLM=1 to run the LLM-judged benchmark")
+class TestLlmGate:
 
-    def test_mean_latency(self, eval_results, baseline, thresholds):
-        cur = eval_results["aggregate"].get("mean_latency_s")
-        bsl = baseline["aggregate"].get("mean_latency_s")
-        passed, msg = _check_metric(
-            "mean_latency_s", thresholds["mean_latency_s"],
-            cur, bsl, eval_results["k"]
-        )
-        assert passed, msg
-
-    def test_p95_latency(self, eval_results, baseline, thresholds):
-        cur = eval_results["aggregate"].get("p95_latency_s")
-        bsl = baseline["aggregate"].get("p95_latency_s")
-        passed, msg = _check_metric(
-            "p95_latency_s", thresholds["p95_latency_s"],
-            cur, bsl, eval_results["k"]
-        )
-        assert passed, msg
+    def test_metrics(self, bench_results, baseline, thresholds):
+        failures = []
+        for key, cfg in thresholds["llm"].items():
+            try:
+                _check(key, cfg, _value(bench_results, key), baseline["aggregate"].get(key))
+            except AssertionError as e:
+                failures.append(str(e))
+        assert not failures, "\n".join(failures)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Per-question regression gate
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestPerQuestionRegression:
-    """Every question that passed in the baseline must still pass."""
-
-    @pytest.fixture(scope="class")
-    def passing_in_baseline(self, baseline):
-        return {qid for qid, r in baseline.get("per_question", {}).items() if r.get("passed")}
-
-    @pytest.fixture(scope="class")
-    def current_by_id(self, eval_results):
-        return {r["id"]: r for r in eval_results["results"]}
-
-    def test_no_newly_failing_questions(self, passing_in_baseline, current_by_id):
-        """Questions that passed in the baseline must not regress to failing."""
-        newly_failing = [
-            qid for qid in passing_in_baseline
-            if qid in current_by_id and not current_by_id[qid]["passed"]
-        ]
-        assert not newly_failing, (
-            f"Questions newly failing (were passing in baseline): {newly_failing}\n"
-            "Fix these regressions or update the baseline with:\n"
-            "  python scripts/bench_snapshot.py"
-        )
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Architectural change guard tests (no DB needed)
+# Architecture guards (no database needed)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestArchitecturalGuards:

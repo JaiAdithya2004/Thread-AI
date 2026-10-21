@@ -1,0 +1,251 @@
+# Synthetic benchmark corpus for Thread.
+#
+# Everything here is fictional ("Meridian Labs") so the benchmark is public and
+# reproducible: no personal data, no external services needed to seed it.
+#
+# Ground truth is explicit and independent of retrieval. Each question lists the
+# fact keys a correct system must return, decided by reading this file -- not by
+# running a query and filtering what came back.
+#
+# Sections
+#   facts        static knowledge base (retrieval + answer-quality benchmark)
+#   questions    answerable questions with gold fact keys and expected answer text
+#   unanswerable questions the corpus cannot answer (abstention benchmark)
+#   chains       facts that change over time (supersession benchmark)
+#   decoys       similar-looking statements that must NOT replace anything
+#   futures      future-dated changes (a known limitation, scored separately)
+#   rewordings   paraphrases that SHOULD be detected as duplicates
+
+facts:
+  - {key: b01, subject: "Backend stack", summary: "The backend is written in Python 3.11 using FastAPI."}
+  - {key: b02, subject: "Primary database", summary: "Meridian's primary database is PostgreSQL 15 hosted on managed instances."}
+  - {key: b03, subject: "Search", summary: "Search uses pgvector for semantic similarity alongside Postgres full-text search."}
+  - {key: b04, subject: "Frontend", summary: "The web app frontend is built with React and TypeScript."}
+  - {key: b05, subject: "Production deploys", summary: "Production deploys require approval from two engineers."}
+  - {key: b06, subject: "Error tracking", summary: "Application errors are tracked in Sentry."}
+  - {key: b07, subject: "Incident process", summary: "Severity-1 incidents require a written postmortem within five business days."}
+  - {key: b08, subject: "Code review", summary: "Every pull request needs one approving review before merge."}
+  - {key: b09, subject: "Feature flags", summary: "Feature flags are managed through LaunchDarkly."}
+  - {key: b10, subject: "Staging database", summary: "The staging database is refreshed from anonymized production data every Sunday."}
+  - {key: b11, subject: "Free plan", summary: "The Free plan is limited to three projects and one user."}
+  - {key: b12, subject: "Team plan", summary: "The Team plan costs $79 per seat per month."}
+  - {key: b13, subject: "Enterprise support", summary: "Enterprise customers get a one-hour first-response support SLA."}
+  - {key: b14, subject: "Data export", summary: "Customers can export all of their data as CSV or JSON from the settings page."}
+  - {key: b15, subject: "Single sign-on", summary: "Single sign-on via SAML is available only on the Enterprise plan."}
+  - {key: b16, subject: "iOS app", summary: "The iOS app requires iOS 16 or later."}
+  - {key: b17, subject: "Audit logs", summary: "Audit logs are retained for 12 months on the Enterprise plan."}
+  - {key: b18, subject: "Free trial", summary: "New workspaces get a 14-day free trial of the Team plan."}
+  - {key: b19, subject: "Integrations", summary: "The product integrates with Slack, Jira and GitHub."}
+  - {key: b20, subject: "Uptime", summary: "The contractual uptime commitment is 99.9 percent."}
+  - {key: b21, subject: "Customer onboarding", summary: "Alice Chen owns the customer onboarding flow."}
+  - {key: b22, subject: "Security lead", summary: "Dev Patel is the security lead and runs the quarterly access review."}
+  - {key: b23, subject: "Hiring plan", summary: "The company plans to hire two backend engineers in the fourth quarter."}
+  - {key: b24, subject: "Remote work", summary: "Employees may work remotely up to three days per week."}
+  - {key: b25, subject: "Paid time off", summary: "Full-time employees get 25 days of paid time off per year."}
+  - {key: b26, subject: "Company offsite", summary: "The annual company offsite is held in September."}
+  - {key: b27, subject: "Spend approval", summary: "Rosa Gómez, the CFO, approves any spend above $10,000."}
+  - {key: b28, subject: "Legal review", summary: "Contracts are reviewed by outside counsel at Hale & Brandt."}
+  - {key: b29, subject: "Fiscal year", summary: "The fiscal year starts on April 1."}
+  - {key: b30, subject: "Runway", summary: "The company has 22 months of runway at the current burn rate."}
+  - {key: b31, subject: "Annual recurring revenue", summary: "Annual recurring revenue reached $4.2M at the end of last quarter."}
+  - {key: b32, subject: "Largest customer", summary: "The largest customer is Northgate Logistics, at 11 percent of revenue."}
+  - {key: b33, subject: "Pricing review", summary: "Pricing is reviewed once a year in January."}
+  - {key: b34, subject: "Main competitor", summary: "The main competitor is Lumen Analytics."}
+  - {key: b35, subject: "Target market", summary: "The primary target market is mid-size logistics companies in North America."}
+  - {key: b36, subject: "2027 roadmap", summary: "The 2027 roadmap prioritizes a public API and usage-based billing."}
+  - {key: b37, subject: "Brand", summary: "The brand color is deep teal."}
+  - {key: b38, subject: "Standard support hours", summary: "Standard support is staffed Monday to Friday, 8am to 6pm Central."}
+  - {key: b39, subject: "Compliance", summary: "The company completed its SOC 2 Type I audit in March."}
+  - {key: b40, subject: "Database backups", summary: "Database backups run nightly and are retained for 35 days."}
+  - {key: b41, subject: "Customer success", summary: "Customer success is led by Tomás Ribeiro."}
+  - {key: b42, subject: "Product analytics", summary: "Product analytics are collected with Amplitude."}
+  - {key: b43, subject: "Status page", summary: "The public status page is hosted at status.meridian.example."}
+  - {key: b44, subject: "Data residency", summary: "Customer data is stored in the US region by default."}
+
+questions:
+  - {id: q01, q: "Which web framework does the backend use?", gold: [b01], contains_any: ["fastapi"]}
+  - {id: q02, q: "What database does Meridian use?", gold: [b02], contains_any: ["postgresql", "postgres"]}
+  - {id: q03, q: "How does search work technically?", gold: [b03], contains_any: ["pgvector"]}
+  - {id: q04, q: "What is the web frontend built with?", gold: [b04], contains_any: ["react"]}
+  - {id: q05, q: "How many approvals are needed to deploy to production?", gold: [b05], contains_any: ["two", "2"]}
+  - {id: q06, q: "What do we use for error tracking?", gold: [b06], contains_any: ["sentry"]}
+  - {id: q07, q: "When must a postmortem be written after a severity-1 incident?", gold: [b07], contains_any: ["five", "5"]}
+  - {id: q08, q: "How many reviews does a pull request need before merging?", gold: [b08], contains_any: ["one", "1"]}
+  - {id: q09, q: "Which tool manages feature flags?", gold: [b09], contains_any: ["launchdarkly"]}
+  - {id: q10, q: "How often is the staging database refreshed?", gold: [b10], contains_any: ["sunday", "week"]}
+  - {id: q11, q: "What are the limits of the Free plan?", gold: [b11], contains_any: ["three projects", "3 projects"]}
+  - {id: q12, q: "How much does the Team plan cost?", gold: [b12], contains_any: ["$79", "79"]}
+  - {id: q13, q: "What is the first-response SLA for Enterprise customers?", gold: [b13], contains_any: ["one-hour", "one hour", "1 hour", "1-hour"]}
+  - {id: q14, q: "Can customers export their data, and in what format?", gold: [b14], contains_any: ["csv"]}
+  - {id: q15, q: "Which plan includes SAML single sign-on?", gold: [b15], contains_any: ["enterprise"]}
+  - {id: q16, q: "What iOS version does the app require?", gold: [b16], contains_any: ["16"]}
+  - {id: q17, q: "How long are audit logs retained?", gold: [b17], contains_any: ["12 months", "twelve months", "one year"]}
+  - {id: q18, q: "How long is the free trial?", gold: [b18], contains_any: ["14"]}
+  - {id: q19, q: "Who owns customer onboarding?", gold: [b21], contains_any: ["alice"]}
+  - {id: q20, q: "Who is the security lead?", gold: [b22], contains_any: ["dev patel"]}
+  - {id: q21, q: "How many days a week can employees work remotely?", gold: [b24], contains_any: ["three", "3"]}
+  - {id: q22, q: "How much paid time off do full-time employees get?", gold: [b25], contains_any: ["25"]}
+  - {id: q23, q: "Who approves spending above $10,000?", gold: [b27], contains_any: ["rosa"]}
+  - {id: q24, q: "When does the fiscal year start?", gold: [b29], contains_any: ["april"]}
+  - {id: q25, q: "How many months of runway does the company have?", gold: [b30], contains_any: ["22"]}
+  - {id: q26, q: "What share of revenue is the largest customer?", gold: [b32], contains_any: ["11"]}
+  - {id: q27, q: "Who is the main competitor?", gold: [b34], contains_any: ["lumen"]}
+  - {id: q28, q: "What does the 2027 roadmap prioritize?", gold: [b36], contains_any: ["api"]}
+  - {id: q29, q: "Where is customer data stored by default?", gold: [b44], contains_any: ["us region", "u.s. region", "united states", "us"]}
+  - {id: q30, q: "Which compliance audit has the company completed?", gold: [b39], contains_any: ["soc 2"]}
+  - {id: q31, q: "Which tools does the product integrate with?", gold: [b19], contains_all: ["slack", "jira", "github"]}
+  - {id: q32, q: "Who leads customer success and who leads security?", gold: [b41, b22], contains_all: ["ribeiro", "patel"]}
+
+  # Paraphrased questions with little word overlap with the fact they target.
+  - {id: q33, q: "What do we use to roll features out gradually to a subset of users?", gold: [b09], contains_any: ["launchdarkly"]}
+  - {id: q34, q: "If something breaks badly in production, what written follow-up is expected?", gold: [b07], contains_any: ["postmortem"]}
+  - {id: q35, q: "Who can sign off on big purchases?", gold: [b27], contains_any: ["rosa"]}
+  - {id: q36, q: "Which customers can log in with their corporate identity provider?", gold: [b15], contains_any: ["enterprise"]}
+  - {id: q37, q: "What happens to our test data copy each week?", gold: [b10], contains_any: ["refresh", "anonymi", "sunday"]}
+  - {id: q38, q: "How many vacation days does a full-time employee receive?", gold: [b25], contains_any: ["25"]}
+  - {id: q39, q: "How long do we have before we run out of cash?", gold: [b30], contains_any: ["22"]}
+  - {id: q40, q: "Which rival do we compete with most directly?", gold: [b34], contains_any: ["lumen"]}
+  - {id: q41, q: "Which colour represents the brand?", gold: [b37], contains_any: ["teal"]}
+  - {id: q42, q: "How quickly does support first reply to our top-tier customers?", gold: [b13], contains_any: ["hour"]}
+  - {id: q43, q: "Where can people check whether the service is currently down?", gold: [b43], contains_any: ["status"]}
+  - {id: q44, q: "What are we building next year?", gold: [b36], contains_any: ["api", "billing"]}
+  - {id: q45, q: "Which outside firm handles legal review and who handles security reviews?", gold: [b28, b22], contains_all: ["hale", "patel"]}
+
+unanswerable:
+  - {id: u01, q: "What is the CEO's favorite food?"}
+  - {id: u02, q: "How many employees work in the Berlin office?"}
+  - {id: u03, q: "What was the company's revenue in 2019?"}
+  - {id: u04, q: "Which programming language is the Android app written in?"}
+  - {id: u05, q: "What is the home address of the CFO?"}
+  - {id: u06, q: "Does Meridian have a partnership with Oracle?"}
+  - {id: u07, q: "What is the company's Net Promoter Score?"}
+  - {id: u08, q: "Who won the company hackathon last year?"}
+  - {id: u09, q: "What is the password for the production database?"}
+  - {id: u10, q: "How many customers churned last month?"}
+
+# Facts that change over time. Versions are listed oldest to newest. Subjects are
+# written the way an extraction model varies them (sometimes identical, often
+# not), because exact subject equality is what the previous approach relied on.
+chains:
+  - id: c01
+    current_q: "What is the current monthly price of the Pro plan?"
+    history_q: "How has the Pro plan price changed over time?"
+    versions:
+      - {subject: "Pro plan", text: "The Pro plan costs $20 per month.", value: "$20"}
+      - {subject: "Pro plan pricing", text: "The Pro plan price was raised to $29 per month.", value: "$29"}
+      - {subject: "Pro plan", text: "The Pro plan price is now $35 per month.", value: "$35"}
+  - id: c02
+    current_q: "When does version 2 launch?"
+    history_q: "How has the version 2 launch date changed?"
+    versions:
+      - {subject: "V2 launch", text: "Version 2 launches on June 3.", value: "June 3"}
+      - {subject: "Version 2 launch date", text: "The version 2 launch was moved to June 17.", value: "June 17"}
+  - id: c03
+    current_q: "Who owns the billing service?"
+    history_q: "Who has owned the billing service over time?"
+    versions:
+      - {subject: "Billing service", text: "Priya Nair owns the billing service.", value: "Priya"}
+      - {subject: "Billing service ownership", text: "Marcus Webb now owns the billing service.", value: "Marcus"}
+  - id: c04
+    current_q: "Where does production run?"
+    history_q: "How has the production hosting changed over time?"
+    versions:
+      - {subject: "Production hosting", text: "Production runs on AWS in us-east-1.", value: "AWS"}
+      - {subject: "Production infrastructure", text: "Production was migrated to Google Cloud in europe-west4.", value: "Google Cloud"}
+  - id: c05
+    current_q: "What is the first-response SLA for the Standard plan?"
+    history_q: "How has the Standard plan first-response SLA changed?"
+    versions:
+      - {subject: "Standard support SLA", text: "The Standard plan has a 24-hour first-response SLA.", value: "24"}
+      - {subject: "Standard plan SLA", text: "The Standard plan first-response SLA was tightened to 8 hours.", value: "8"}
+      - {subject: "Standard support SLA", text: "The Standard plan first-response SLA is now 4 hours.", value: "4"}
+  - id: c06
+    current_q: "How many people are on the engineering team?"
+    history_q: "How has the engineering team size changed?"
+    versions:
+      - {subject: "Engineering team", text: "The engineering team has 12 people.", value: "12"}
+      - {subject: "Engineering headcount", text: "The engineering team has grown to 15 people.", value: "15"}
+  - id: c07
+    current_q: "What is the mobile app built with?"
+    history_q: "What has the mobile app been built with over time?"
+    versions:
+      - {subject: "Mobile app", text: "The mobile app is built with React Native.", value: "React Native"}
+      - {subject: "Mobile framework", text: "The team rewrote the mobile app in Flutter.", value: "Flutter"}
+  - id: c08
+    current_q: "Which provider runs continuous integration?"
+    history_q: "How has the continuous integration provider changed?"
+    versions:
+      - {subject: "Continuous integration", text: "Continuous integration runs on CircleCI.", value: "CircleCI"}
+      - {subject: "CI provider", text: "Continuous integration moved to GitHub Actions.", value: "GitHub Actions"}
+  - id: c09
+    current_q: "How long is an on-call rotation?"
+    history_q: "How has the on-call rotation length changed?"
+    versions:
+      - {subject: "On-call rotation", text: "On-call rotations last one week.", value: "one week"}
+      - {subject: "On-call schedule", text: "On-call rotations were lengthened to two weeks.", value: "two weeks"}
+  - id: c10
+    current_q: "What is the Series A fundraising target?"
+    history_q: "How has the Series A target changed?"
+    versions:
+      - {subject: "Series A", text: "The Series A target is $8M.", value: "$8M"}
+      - {subject: "Series A target", text: "The Series A target was raised to $12M.", value: "$12M"}
+  - id: c11
+    current_q: "Where is the company headquarters?"
+    history_q: "Where has the headquarters been over time?"
+    versions:
+      - {subject: "Headquarters", text: "The headquarters office is in Austin.", value: "Austin"}
+      - {subject: "HQ location", text: "The headquarters moved to Denver.", value: "Denver"}
+  - id: c12
+    current_q: "How long are application logs retained?"
+    history_q: "How has application log retention changed?"
+    versions:
+      - {subject: "Application logs", text: "Application logs are retained for 30 days.", value: "30 days"}
+      - {subject: "Log retention", text: "Application log retention was extended to 90 days.", value: "90 days"}
+  - id: c13
+    current_q: "What is the public API rate limit?"
+    history_q: "How has the API rate limit changed?"
+    versions:
+      - {subject: "API rate limit", text: "The public API rate limit is 100 requests per minute.", value: "100 requests"}
+      - {subject: "API rate limit", text: "The API rate limit was increased to 300 requests per minute.", value: "300 requests"}
+  - id: c14
+    current_q: "On which day is the weekly all-hands?"
+    history_q: "How has the weekly all-hands day changed?"
+    versions:
+      - {subject: "Weekly all-hands", text: "The weekly all-hands is held on Mondays.", value: "Monday"}
+      - {subject: "All-hands meeting", text: "The weekly all-hands moved to Thursdays.", value: "Thursday"}
+
+# New statements that resemble an existing fact but concern something else. A
+# correct system stores them alongside and replaces nothing.
+decoys:
+  - {id: d01, target: b21, text: "Alice Chen owns the pricing page redesign.", subject: "Pricing page redesign"}
+  - {id: d02, target: b02, text: "The analytics warehouse runs on PostgreSQL 16.", subject: "Analytics warehouse"}
+  - {id: d03, target: b22, text: "Dev Patel runs the annual penetration test.", subject: "Penetration test"}
+  - {id: d04, target: b13, text: "Enterprise customers also get 24/7 phone support.", subject: "Enterprise phone support"}
+  - {id: d05, target: b12, text: "The Team plan is limited to 50 seats.", subject: "Team plan seat limit"}
+  - {id: d06, target: b17, text: "Audit logs on the Team plan are retained for 3 months.", subject: "Team plan audit logs"}
+  - {id: d07, target: b27, text: "Rosa Gómez approves hiring plans for engineering.", subject: "Hiring approval"}
+  - {id: d08, target: b16, text: "The iOS app is distributed to beta testers through TestFlight.", subject: "iOS beta distribution"}
+  - {id: d09, target: b28, text: "Contracts above $50,000 require a second legal review.", subject: "Large contract review"}
+  - {id: d10, target: b05, text: "Staging deploys require no approval.", subject: "Staging deploys"}
+  - {id: d11, target: b06, text: "Sentry alerts page the on-call engineer immediately.", subject: "Sentry alerting"}
+  - {id: d12, target: b38, text: "Standard support is not available on public holidays.", subject: "Standard support holidays"}
+  - {id: d13, target: b44, text: "Customer data for EU customers is stored in the Frankfurt region.", subject: "EU data residency"}
+  - {id: d14, target: b11, text: "The Free plan includes community support only.", subject: "Free plan support"}
+
+# Future-dated changes. The current value is still true until the date, so the
+# existing fact must NOT be invalidated. Scored separately: this is a known
+# limitation, kept in the benchmark so it is measured rather than hidden.
+futures:
+  - {id: f01, target: b12, text: "The Team plan will cost $89 per seat per month starting January 1.", subject: "Team plan"}
+  - {id: f02, target: b24, text: "Remote work will be limited to two days per week starting next quarter.", subject: "Remote work"}
+
+# Paraphrases of an existing fact. A correct system recognises the duplicate.
+rewordings:
+  - {id: r01, target: b21, text: "Alice Chen is responsible for customer onboarding.", subject: "Customer onboarding"}
+  - {id: r02, target: b01, text: "Our backend runs on Python 3.11 with the FastAPI framework.", subject: "Backend"}
+  - {id: r03, target: b06, text: "Errors in the application are monitored with Sentry.", subject: "Error monitoring"}
+  - {id: r04, target: b25, text: "Employees get twenty-five days of PTO each year.", subject: "PTO"}
+  - {id: r05, target: b29, text: "The company's fiscal year begins on 1 April.", subject: "Fiscal year"}
+  - {id: r06, target: b04, text: "Meridian's frontend uses React with TypeScript.", subject: "Web frontend"}
+  - {id: r07, target: b12, text: "Team plan pricing is $79 per seat monthly.", subject: "Team plan pricing"}
+  - {id: r08, target: b27, text: "Rosa Gómez (CFO) must approve any expense over $10k.", subject: "Expense approval"}

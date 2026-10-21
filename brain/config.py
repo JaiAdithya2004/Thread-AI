@@ -83,7 +83,11 @@ DEDUP_THRESHOLD: float = 0.92
 # reconciliation: how close (cosine similarity) an existing fact must be before
 # the LLM judge is asked whether the new fact duplicates, replaces or conflicts
 # with it, and how many such candidates to show the judge.
-RELATED_THRESHOLD: float = float(os.getenv("BRAIN_RELATED_THRESHOLD", "0.75"))
+# Recall-oriented on purpose: the judge, not this cut-off, decides what a
+# candidate means, so a low floor only costs a few extra judge calls. On the
+# benchmark, true updates scored 0.725-0.983 against their predecessor; a floor
+# of 0.75 missed five of sixteen.
+RELATED_THRESHOLD: float = float(os.getenv("BRAIN_RELATED_THRESHOLD", "0.70"))
 RECONCILE_K: int = int(os.getenv("BRAIN_RECONCILE_K", "5"))
 
 # confidence: below this threshold → "not sure" path

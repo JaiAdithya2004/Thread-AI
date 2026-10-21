@@ -161,9 +161,14 @@ def _allowed(acl_str, principals):
 # relevant answer, so the trigger should be obvious from the query text.
 _RECENCY_TERMS = (
     "latest", "recent", "recently", "newest", "last", "today", "yesterday",
-    "this week", "this month", "current", "just now", "so far", "up to now",
+    "this week", "this month", "just now", "so far", "up to now",
     "new ", "any new",
 )
+# "current" is deliberately absent. "What is the current price?" asks which fact
+# is still *valid*, which supersession already answers by retiring the old ones;
+# treating it as a recency query re-sorted every candidate by date, so the
+# newest unrelated fact outranked the topical one and the question went
+# unanswered.
 
 
 # How many of the newest facts to pull in for a recency query. Enough that the

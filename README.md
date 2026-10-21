@@ -49,8 +49,9 @@ Drive       │          │  hash    │         │  facts   │         │ f
 
 1. **Ingest** — connectors pull raw *episodes* (messages, docs, threads). Each is hashed on content and deduplicated, so re-syncing a source never duplicates history.
 2. **Extract** — an LLM turns each episode into structured *facts* (`subject / predicate / object`, a one-line summary, and a confidence score). Facts carry an ACL and a team.
-3. **Retrieve** — a query runs through hybrid search, gets access-filtered, and is synthesized into an answer that cites the exact fact IDs used.
-4. **Log** — every search writes to an append-only ledger: who asked, what they asked, and which facts came back.
+3. **Reconcile** — before a fact is saved, the nearest existing facts in the same team are found by embedding and an LLM judge classifies each as a duplicate, a replacement (the old fact is marked stale and linked), a conflict, or unrelated.
+4. **Retrieve** — a query runs through hybrid search, gets access-filtered, and is synthesized into an answer that cites the exact fact IDs used.
+5. **Log** — every search writes to an append-only ledger: who asked, what they asked, and which facts came back.
 
 ---
 
@@ -87,7 +88,7 @@ Two constraints hold this together:
 - **Every LLM call goes through `llm.py`.** One choke point means token accounting, cost metering, circuit breaking, and BYO-key routing are implemented once rather than at each call site.
 - **Every database call goes through `db.py`.** Row-level security session variables are set in one place, so no query can accidentally skip tenant scoping.
 
-**Stack:** FastAPI · Postgres 16 + pgvector · Redis · LiteLLM · Gemini embeddings (768-dim) · Alembic · arq
+**Stack:** FastAPI · Postgres 16 + pgvector · Redis · LiteLLM · Gemini embeddings (768-dim, with an OpenRouter fallback to the same model) · Alembic · arq
 
 ---
 
@@ -103,7 +104,7 @@ Hybrid retrieval, because vector search and keyword search fail differently. Emb
 | **4. Full-text search** | Postgres `tsvector`, generated column over summary + subject + object. |
 | **5. Fuse** | Reciprocal Rank Fusion — `score = Σ 1/(k + rank)`. Items found by both retrievers rank above items found by one. |
 | **6. Filter** | ACL check against the caller's principals, then team-visibility. Applied *after* fusion so filtering can't be skipped by a ranking path. |
-| **7. Rerank** | Cross-encoder rerank of the top 30, truncated to top-k. |
+| **7. Rerank** | Optional cross-encoder rerank of the top 30 (`BRAIN_RERANK`, **off by default**; the benchmark below runs without it). |
 | **8. Synthesize** | LLM writes a prose answer citing fact IDs. Below a confidence threshold it abstains rather than guessing. |
 | **9. Log** | Append-only ledger write. |
 
@@ -123,19 +124,22 @@ The phrase is used precisely, because it is easy to overclaim. Thread stores kno
 
 **What is implemented:**
 
-- **Temporal versioning (schema).** Facts carry `introduced_at` / `invalidated_at`. A superseded fact is invalidated rather than deleted, so "what did we decide *before*?" stays answerable and provenance survives.
+- **Temporal versioning.** Facts carry `introduced_at` / `invalidated_at`. A superseded fact is invalidated rather than deleted, so "what did we decide *before*?" stays answerable and provenance survives. Decision history returns stale facts alongside valid ones, in order.
+- **Semantic supersession.** When a fact is saved, `brain/core/reconcile.py` finds the nearest existing facts in the same team by embedding (never showing the judge a private fact the author could not see) and asks an LLM judge to classify each as `duplicate`, `supersedes`, `contradicts` or `unrelated`. Embeddings only find candidates, because similarity cannot tell an update from a different fact: "launch is July 5th" and "July 10th" embed almost identically. If the judge is unavailable it falls back to the exact-subject duplicate check and never invalidates on a guess. See [Evaluation](#evaluation) for how well this works and where it fails.
 - **Contradiction surfacing (query path).** Retrieval joins `fact_edges` for `in_tension_with` among the returned facts, so an answer can report that two facts disagree.
 - **Content-hash deduplication** on ingest, making re-sync and webhook replay idempotent.
 - **Referential integrity.** `fact_edges` cascades on fact deletion, so the graph cannot drift out of sync with the facts it describes.
 
 **What is not implemented — stated plainly:**
 
-- **Supersession does not fire in practice.** The mechanism is sound but unreachable: `_supersede` runs only when the extraction LLM returns a non-null `supersedes` field, which asks the model to recall a fact it was never shown — the prompt receives the episode text, not the existing corpus. Even when triggered it matches on *exact* subject string, and subjects are near-unique in practice (51 distinct across 69 facts), so there is almost nothing to match. The live workspace has **0 superseded facts**.
+- **Future-dated changes are mishandled.** "The price *will* be $89 from January 1" currently invalidates today's price. The benchmark measures this failure (6 of 6) rather than hiding it.
+- **Supersession misses about one update in seven** in the benchmark, mostly changes of provider or location rather than of a number.
 - **No conversational memory.** `conversations`/`messages` exist as tables but nothing from a prior turn feeds back into retrieval. Every query is stateless; a follow-up does not know what preceded it.
 - **No entity or user profiles**, and no consolidation of older facts into higher-level ones.
-- **Conflict detection is string-based and imprecise.** It compares `subject` + `predicate` exactly, so generic subjects ("The team") produce false conflicts between unrelated decisions, while a real contradiction whose subjects differ by a word ("Launch" vs "The launch") is missed. Resolving this needs semantic comparison.
+- **The older conflict heuristic is still string-based.** `in_tension_with` edges written at extraction time compare `subject` + `predicate` exactly, so generic subjects ("The team") can produce false conflicts. The reconcile judge's `contradicts` verdict is the semantic replacement, but the two have not been merged.
+- **Each new fact costs one extra short LLM call** when a similar fact already exists.
 
-So: **a versioned fact store whose versioning is currently dormant** — not an agent memory system in the sense of Mem0 or Zep. The schema and query paths are in place; what is missing is the step that decides *this fact replaces that one*, which needs semantic matching rather than exact strings.
+So: **a versioned fact store whose versions are now decided semantically**, with measured accuracy and documented failure modes — still not an agent memory system in the sense of Mem0 or Zep.
 
 ---
 
@@ -195,68 +199,123 @@ A dedicated **isolation suite** (`tests/test_isolation.py`) treats these as test
 
 ## Evaluation
 
-Retrieval quality is measured, not asserted. `evals/run.py` scores a fixed question set (`evals/questions.yaml`, 28 questions including deliberately unanswerable ones) and compares against a stored baseline.
+Quality is measured against explicit ground truth, not asserted. `evals/bench.py` runs a fixed benchmark on a **synthetic company ("Meridian Labs")** so that anyone can reproduce it: there is no personal data in the corpus and nothing to connect.
 
-**Retrieval metrics:** `hit@k` · `precision@k` · `recall@k` · `MRR` · `nDCG@k`
-
-**Answer-quality metrics:**
-
-| Metric | What it catches |
+| | |
 |---|---|
-| `faithfulness_rate` | LLM-as-judge: is the answer actually supported by the retrieved facts? Catches hallucination. |
-| `citation_precision` | Parses `[fact_id]` references out of the answer and verifies each one supports the sentence it's attached to. Catches *plausible but wrong* citations. |
-| `abstention_accuracy` | On deliberately unanswerable questions, does it correctly say "I don't know"? Catches confident nonsense. |
-| `answer_correct_rate` | Does the answer contain the expected substring? |
+| **Knowledge base** | 44 facts |
+| **Answerable questions** | 45 (32 direct, 13 deliberately paraphrased with little word overlap), each with the gold fact IDs that must be returned |
+| **Unanswerable questions** | 10 (the system should abstain) |
+| **Changing facts** | 14 chains, 30 versions, 16 updates (a price rises twice, an owner changes, a vendor is replaced) |
+| **Hard negatives** | 14 "decoys" that resemble an existing fact but must replace nothing, 8 paraphrases that should be detected as duplicates, 2 future-dated changes |
 
-**Latency:** `mean_latency_s`, `p95_latency_s`.
+Ground truth is written by reading `evals/corpus.yaml`, never derived from what retrieval returned; an earlier version of this harness did that, which made recall impossible to lower, and was withdrawn.
 
-Each metric has a **tolerance** (how far it may drop below baseline before it's flagged a regression) and a **hard floor** that catches catastrophic collapse regardless of baseline. Abstention accuracy is measured because a memory system that confidently invents answers is worse than one that admits ignorance.
+```bash
+python -m evals.bench                      # all three parts; needs a LOCAL Postgres and LLM/embedding keys
+python -m evals.bench --parts A --no-answers   # retrieval only: no chat model
+python -m evals.aggregate                  # combine runs/*.json into the tables below
+```
 
-### Quality floors
+The benchmark deletes and recreates its `ws_bench_*` workspaces, so it refuses to run against a non-local `DATABASE_URL`. If an embedding call fails it aborts instead of scoring zero vectors.
 
-These are the enforced thresholds from `evals/thresholds.yaml` — a run is flagged if a metric falls below its floor, or drops more than its tolerance below the recorded baseline.
+### Results
 
-| Metric | Hard floor | Tolerance |
-|---|---|---|
-| `hit_at_k` | 0.50 | 0.10 |
-| `precision_at_k` | 0.20 | 0.10 |
-| `recall_at_k` | 0.30 | 0.10 |
-| `mrr` | 0.30 | 0.10 |
-| `ndcg_at_k` | 0.30 | 0.10 |
-| `answer_correct_rate` | 0.50 | 0.10 |
-| `keyword_hit_rate` | 0.50 | 0.10 |
-| `faithfulness_rate` | 0.70 | 0.08 |
-| `abstention_accuracy` | 0.60 | 0.10 |
-| `mean_latency_s` | — | +2.0 s |
-| `p95_latency_s` | — | +5.0 s |
+The LLM-judged parts are not deterministic, so everything below is from **3 full runs** (2026-10-21, on commit `cc9e67c` plus the changes in this release): the mean is shown with the range across runs, and counts are pooled. Raw output is in `evals/results/`.
 
-Faithfulness carries the tightest tolerance (0.08) because hallucination is the failure mode that most damages trust in the product.
+**Retrieval (k=5)**
 
-### Measured retrieval results
+| Ranker | Hit@5 | Recall@5 | Precision@5 | MRR | nDCG@5 |
+|---|---|---|---|---|---|
+| vector | **1.000** (135/135; all runs equal) | **1.000** | **0.209** | **0.982** | **0.986** |
+| fulltext | **0.244** (33/135; all runs equal) | **0.244** | **0.049** | **0.244** | **0.244** |
+| hybrid_rrf | **1.000** (135/135; all runs equal) | **1.000** | **0.209** | **0.982** | **0.986** |
+| production | **1.000** (135/135; all runs equal) | **1.000** | **0.209** | **1.000** | **1.000** |
 
-**⚠️ These figures are historical.** They were measured against `ws_local`, an 8-fact Slack-derived corpus that has since been removed — the product now serves `ws_demo` (Composio-connected Gmail / GitHub / Calendar). The benchmark needs rewriting against the current corpus before it produces comparable numbers again.
+**Answer quality**
 
-**Conditions at time of measurement:** workspace `ws_local`, 8 facts, 28 questions (17 answerable / 11 deliberately unanswerable), K=5, explicit ground truth.
+| Metric | Result |
+|---|---|
+| Answer correct (answerable) | **1.000** (135/135; all runs equal) |
+| Faithfulness (LLM judge) | **0.956** (129/135; all runs equal) |
+| Citation validity (cited id was retrieved) | **1.000** (143/143; all runs equal) |
+| Citation support (LLM judge) | **1.000** (143/143; all runs equal) |
+| Abstention on unanswerable | **1.000** (30/30; all runs equal) |
+| Answer latency p50 / p95 (s) | 3.9733 / 13.8233 |
+| Retrieval latency p50 / p95 (s) | 2.3397 / 3.642 |
 
-| Metric | Hybrid (current) | Vector-only | FTS-only |
+**Supersession decisions (pairwise, database in true state)**
+
+| Metric | Exact-subject (previous) | Embedding similarity only | Embedding + LLM judge (current) |
 |---|---|---|---|
-| **Hit@5** | **1.0000** | 1.0000 | 0.2941 |
-| **Recall@5** | **0.9412** | 0.9412 | 0.2059 |
-| **MRR** | **0.9706** | 0.9706 | 0.2941 |
-| **NDCG@5** | **0.9474** | 0.9474 | 0.2258 |
-| **Precision@5** | **0.3529** | 0.3529 | 0.2941 |
+| Supersession precision | **1.000** | **0.385** (0.35-0.42) | **0.855** (0.83-0.88) |
+| Supersession recall | **0.062** (3/48; all runs equal) | **0.625** (30/48; 0.56-0.69) | **0.854** (41/48; 0.75-0.94) |
+| Supersession F1 | **0.118** | **0.476** (0.43-0.50) | **0.852** (0.80-0.88) |
+| Updates lost as 'duplicates' | **0.000** (0/48; all runs equal) | **0.188** (9/48; 0.06-0.31) | **0.000** (0/48; all runs equal) |
+| Paraphrases recognised as duplicates | **0.083** (2/24; 0.00-0.12) | **0.458** (11/24; 0.00-0.75) | **1.000** (24/24; all runs equal) |
+| Decoys wrongly acted on | **0.000** (0/42; all runs equal) | **0.714** (30/42; 0.50-1.00) | **0.024** (1/42; 0.00-0.07) |
+| Future-dated changes wrongly superseded | **0.000** (0/6; all runs equal) | **1.000** (6/6; all runs equal) | **1.000** (6/6; all runs equal) |
+| True predecessor among candidates | - | - | **0.979** (47/48; 0.94-1.00) |
 
-Reproduce with `python -m evals.benchmark --workspace ws_local`.
+**End to end: changing facts through the real save pipeline**
 
-**What these numbers do and do not show:**
+| Metric | Reconciliation off (previous) | Reconciliation on (current) |
+|---|---|---|
+| Versions stored | **0.944** (85/90; 0.93-0.97) | **1.000** (90/90; all runs equal) |
+| Version status correct (valid vs stale) | **0.411** (37/90; 0.40-0.43) | **0.989** (89/90; 0.97-1.00) |
+| Chains fully correct | **0.000** (0/42; all runs equal) | **0.976** (41/42; 0.93-1.00) |
+| 'Current X?' top result is the latest | **0.167** (7/42; 0.14-0.21) | **0.976** (41/42; 0.93-1.00) |
+| 'Current X?' answer states latest only | **0.000** (0/42; all runs equal) | **0.976** (41/42; 0.93-1.00) |
+| History returns every version | **0.944** (85/90; 0.93-0.97) | **1.000** (90/90; all runs equal) |
+| History marks stale/valid correctly | **0.411** (37/90; 0.40-0.43) | **0.989** (89/90; 0.97-1.00) |
+| Unrelated facts wrongly invalidated | 0 | 0 |
 
-- **The corpus is small.** 8 facts with K=5 means retrieval returns 62% of the corpus on every query. `Hit@5 = 1.0` is evidence of **no catastrophic defect and working semantics** — it is *not* evidence of production-scale quality, where ranking has to discriminate among thousands of facts.
-- **Precision@5 = 0.353 is a corpus artifact, not a defect.** A question with one relevant fact is capped at 0.20 when five are returned.
-- **Hybrid and vector-only are identical to four decimal places.** On this corpus the full-text leg contributes nothing the vector leg does not already supply.
-- **FTS alone finds a relevant fact for only 5 of 17 questions.** Postgres `plainto_tsquery` ANDs its terms, so *"what mobile framework did we choose"* cannot match a fact reading *"React Native for the mobile app"* — "framework" and "choose" appear nowhere in the corpus. Semantic retrieval carries the system.
-- **An earlier published baseline (Hit@5 0.412) was invalid** and has been withdrawn: it ran against the wrong workspace and derived "relevant" facts by filtering the system's own output, so recall could not fall when retrieval missed a fact.
 
-**Answer-quality metrics are not currently published.** The configured synthesis model is rate-limited, so faithfulness, citation precision and abstention accuracy would measure the outage rather than the system.
+**Models:** extraction and the supersession judge `gemini-2.5-flash-lite`; answers `gemini-3.8-flash`; answer judge `gpt-4o-mini` (a different model family from the answerer, to avoid self-grading); embeddings `gemini-embedding-001`, 768-dim. Per-run cost was not metered; at current OpenRouter prices the token volume is on the order of cents.
+
+### What the numbers show
+
+**Retrieval is solved at this scale, which says little about larger corpora.** Hit@5 is 1.000 on all 135 question-runs (95% Wilson lower bound 0.92 per run). But the corpus has 44 facts and K=5 returns 11% of it on every query, so a ceiling is expected. Hybrid and vector-only are identical on this corpus; full-text alone finds the right fact for only 24% of questions because Postgres `plainto_tsquery` ANDs its terms, so semantic search carries the system. Treat this as evidence of "no defect and working semantics", not of production-scale ranking.
+
+**Answers are grounded.** Every answer contained the expected content (135/135), every cited fact ID was real and supported the sentence (143/143), and all 30 unanswerable questions were refused. Faithfulness is 0.956: the six answers flagged were ones that appended a caveat sentence such as "this is not specified in company memory" — the judge treated the caveat as an unsupported claim. Abstention is detected with a phrase match on the answer, not a judge.
+
+**Supersession is the headline.** Deciding "this new fact replaces that one" with embeddings to find candidates and an LLM to classify them reaches F1 0.85, against 0.12 for the previous exact-subject method and 0.48 for embedding similarity alone. Two failure modes of the alternatives are worth naming:
+
+- *Embedding similarity alone cannot tell an update from a different fact.* Decoys scored 0.69-0.89 similar to the fact they resemble, overlapping the 0.73-0.98 of true updates (measured on the fallback embedding route), so a threshold either misses updates or replaces unrelated facts: it wrongly acted on 71% of decoys, and silently dropped 19% of real updates as "duplicates".
+- *The previous method almost never fires.* It needs the extraction model to recall a fact it was never shown and then matches subjects exactly; it replaced the right fact for 3 of 48 updates and recognised 2 of 24 paraphrases as duplicates.
+
+Through the real save pipeline, with reconciliation off, no chain ended up in the correct final state (0 of 42), and "what is the current X?" ranked the latest value first for only 17% of chains (and never produced an answer stating only the latest value). With it on, 41 of 42 chains are correct and the question is answered correctly for 41 of 42. No unrelated fact was ever invalidated.
+
+### Known weaknesses
+
+- **Future-dated changes are mishandled.** "The Team plan *will* cost $89 starting January 1" invalidates today's $79 fact (6/6 in both LLM-based methods). The current value is still true until that date. This is in the benchmark deliberately so it is measured rather than hidden; fixing it needs "effective from" semantics.
+- **Seven of 48 updates were missed** (both versions left valid), always the same few: AWS to Google Cloud, React Native to Flutter, Austin to Denver, and once the third step of the Pro plan price. These are changes of provider or location rather than of a number, and the judge did not treat them as replacements.
+- **A decoy was superseded in one of three runs:** "The analytics warehouse runs on PostgreSQL 16" replaced "the primary database is PostgreSQL 15".
+- **The true predecessor was missing from the candidate set once in 48 updates** (0.979), so a candidate floor of 0.70 is not quite a guarantee.
+- **Latency.** Answers take a median of ~4 s and a p95 of ~14 s, and retrieval alone a median of ~2.3 s. Both are dominated by network calls to the embedding and model providers from a development machine; the figures say nothing about a co-located deployment.
+
+### Limits of this evaluation
+
+- The corpus and questions were written by the person who built the system. The 13 paraphrased questions and the decoys are meant to counter that, but an independent set would be stronger.
+- Subjects in the changing-fact chains are written to vary the way an extraction model's do, which favours the new method. The previous method is credited with the extraction hint it needs, whenever an update really occurs, so its score is a ceiling, not a typical figure.
+- The candidate floor (`RELATED_THRESHOLD` = 0.70) was chosen after looking at this benchmark's pair similarities: 0.75 missed 5 of 16 true updates when embeddings were served by the OpenRouter fallback. It has not been validated on held-out data.
+- 3 runs on one machine. Run-to-run spread is reported, but n is small (16 updates, 14 chains), so intervals are wide.
+- Embeddings occasionally came from the OpenRouter fallback (same model, no task-type hint) when Gemini rate-limited: one batch in run 1 and 34 in run 3. A separate full run entirely on the fallback route gave candidate recall 16/16 and supersession precision 0.86 and recall 0.75. Its end-to-end answer metrics are excluded because synthesis returned empty responses during that run (`evals/results/bench_fallback_embeddings.json`).
+
+### Quality gate
+
+`tests/test_regression.py` runs the retrieval benchmark against the floors in `evals/thresholds.yaml` and the recorded `evals/baseline.json`. It needs a local Postgres and a `GEMINI_API_KEY` (or `OPENROUTER_API_KEY`) for query embeddings, so CI currently runs only its no-database architecture guards; run the full gate locally with `pytest tests/test_regression.py`. The LLM-judged parts run with `BENCH_LLM=1`. After an intentional change, refresh the baseline with `python -m evals.aggregate --write-baseline`.
+
+| Metric | Hard floor | Tolerance vs baseline |
+|---|---|---|
+| Retrieval hit@5, recall@5 | 0.90 | 0.05 |
+| Retrieval MRR, nDCG@5 | 0.85 | 0.05 |
+| Answer correct / faithfulness / citation support | 0.90 / 0.85 / 0.90 | 0.08 |
+| Supersession recall / precision | 0.80 / 0.70 | 0.10 |
+| Decoys wrongly acted on (ceiling) | 0.20 | 0.10 |
+| Chains fully correct; current-answer correctness | 0.70; 0.75 | 0.15 |
+
+`evals/run.py` and `evals/questions.yaml` remain as a harness for scoring your own workspace's questions with keyword-based relevance; they are not the source of the figures above.
 
 ---
 
@@ -325,7 +384,7 @@ curl http://localhost:7070/metrics | grep brain_request_latency
 
 ## Testing and CI
 
-**152 test functions across 18 files.**
+**293 test functions across 17 files** (301 collected cases with parametrisation). The last full local run, excluding the Playwright and load suites: 279 passed, 7 skipped, 0 failed.
 
 | Suite | Scope |
 |---|---|
@@ -334,6 +393,7 @@ curl http://localhost:7070/metrics | grep brain_request_latency
 | **Isolation** | Tenant isolation, RLS enforcement, privilege escalation, SQL injection |
 | E2E | Playwright journeys over a live server: signup, invite, chat privacy, cost caps |
 | Load | Locust scenarios |
+| **Benchmark gate** | `tests/test_regression.py` scores the retrieval benchmark against `evals/thresholds.yaml` (local database + embedding key); the LLM-judged parts run with `BENCH_LLM=1`. CI runs only its architecture guards |
 
 CI runs seven jobs on every push: `lint` · `typecheck` · `unit-tests` · `integration-tests` · `isolation-suite` · `secret-scan` · `dependency-scan`, with Postgres and Redis as live services.
 
@@ -359,7 +419,7 @@ Open `http://localhost:7070`.
 ```bash
 pytest tests/ -v                    # full suite (integration tests need DATABASE_URL)
 pytest tests/test_isolation.py -v   # security isolation suite
-python evals/run.py                 # retrieval + answer quality benchmark
+python -m evals.bench               # retrieval, answer quality and supersession benchmark (local DB only)
 ```
 
 ---
@@ -430,3 +490,5 @@ Stated plainly, because knowing what isn't built matters as much as what is:
 - **No data residency controls.** The deployment region is wherever it's hosted; there's no per-tenant region selection.
 - **No SOC 2 attestation.** The controls above are real and tested, but no third-party audit has been performed.
 - **Queries reach third-party model providers.** Answer synthesis calls an external LLM, so query text leaves the deployment.
+- **A failed embedding call is stored as a zero vector.** The new OpenRouter fallback makes this rarer, but if both providers are down a fact is saved that no query can find until it is re-embedded (`scripts/reembed_gemini.py`). The benchmark aborts in that case; the application does not.
+- **The supersession judge is an LLM.** It is tuned on a synthetic benchmark of 16 updates and has not been validated on real team data; see the limits listed under [Evaluation](#evaluation).

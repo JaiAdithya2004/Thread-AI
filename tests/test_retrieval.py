@@ -327,7 +327,8 @@ def test_topic_queries_are_not_treated_as_recency():
     from brain.core.retrieve import _wants_recency
     for q in ("what did we decide about the database",
               "who owns the onboarding flow",
-              "which mobile framework did we choose"):
+              "which mobile framework did we choose",
+              "what is the current monthly price of the pro plan"):
         assert not _wants_recency(q), f"should NOT detect recency intent: {q!r}"
 
 
