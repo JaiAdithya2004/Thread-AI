@@ -2,6 +2,12 @@
 Database access — Postgres + pgvector (Supabase or self-hosted).
 All callers import from this module.
 """
+# Postgres is the only backend. Callers branch on this name to skip billing and
+# plan logic when a backend without those tables is in use; removing it left
+# every `from brain.core.db import BACKEND` raising ImportError, which broke
+# plan limits, usage reporting, backfill and the dead-letter endpoints.
+BACKEND = "postgres"
+
 from brain.core.db_pg import (  # noqa: F401
     connect,
     migrate,

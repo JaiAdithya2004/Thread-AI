@@ -498,7 +498,7 @@ def main():
     if args.reset_extracted:
         conn = pg.connect()
         cur  = conn.cursor()
-        cur.execute("UPDATE episodes SET extracted=false WHERE workspace_id=%s", (ws,))
+        cur.execute("UPDATE episodes SET extracted=0 WHERE workspace_id=%s", (ws,))   # column is INTEGER, not boolean
         cur.execute("SELECT COUNT(*) as n FROM episodes WHERE workspace_id=%s", (ws,))
         n = cur.fetchone()["n"]
         conn.commit()

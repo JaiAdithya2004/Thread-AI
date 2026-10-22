@@ -90,6 +90,14 @@ DEDUP_THRESHOLD: float = 0.92
 RELATED_THRESHOLD: float = float(os.getenv("BRAIN_RELATED_THRESHOLD", "0.70"))
 RECONCILE_K: int = int(os.getenv("BRAIN_RECONCILE_K", "5"))
 
+# What the reconcile step is allowed to do:
+#   enforce  decide and apply (skip duplicates, retire replaced facts)   [default]
+#   shadow   decide and LOG the decision, but change nothing
+#   off      skip reconciliation entirely (no candidate search, no model call)
+# Shadow mode is how supersession is validated on real data before it is trusted
+# to retire facts: run it for a trial period, then audit the logged decisions.
+RECONCILE_MODE: str = os.getenv("BRAIN_RECONCILE_MODE", "enforce").strip().lower()
+
 # confidence: below this threshold → "not sure" path
 CONFIDENCE_THRESHOLD: float = 0.35
 

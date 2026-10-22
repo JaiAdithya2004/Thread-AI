@@ -68,10 +68,18 @@ def bench_results():
     conn = db.connect()
     db.migrate(conn)
     llm = os.getenv("BENCH_LLM") == "1"
-    res = {"A": bench.part_a(corpus, conn, answers=llm)}
-    if llm:
-        res["B"] = bench.part_b(corpus, conn)
-        res["C"] = bench.part_c(corpus, conn)
+    # A provider outage or an exhausted quota is not a quality regression. Scoring
+    # zero vectors would report one, so skip with the reason instead.
+    try:
+        with bench.embedding_guard():
+            res = {"A": bench.part_a(corpus, conn, answers=llm)}
+            if llm:
+                if not (res["A"].get("answers") or {}).get("answer_correct", {}).get("n"):
+                    pytest.skip("no answers were synthesized (model provider unavailable or out of credit)")
+                res["B"] = bench.part_b(corpus, conn)
+                res["C"] = bench.part_c(corpus, conn)
+    except RuntimeError as e:
+        pytest.skip(f"benchmark infrastructure unavailable: {e}")
     return res
 
 

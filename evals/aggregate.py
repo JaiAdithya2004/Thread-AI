@@ -65,6 +65,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--glob", default="results/bench_run_*.json")
     ap.add_argument("--write-baseline", action="store_true")
+    ap.add_argument("--tables-out", default="results/tables.md",
+                    help="Where to write the markdown tables (relative to evals/).")
     args = ap.parse_args()
     runs = load(args.glob)
     if not runs:
@@ -131,7 +133,7 @@ def main():
 
     text = "\n".join(out)
     print(text)
-    (HERE / "results" / "tables.md").write_text(text, encoding="utf-8")
+    (HERE / args.tables_out).write_text(text, encoding="utf-8")
 
     if args.write_baseline:
         agg = {}

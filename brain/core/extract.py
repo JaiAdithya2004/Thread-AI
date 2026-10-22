@@ -92,13 +92,27 @@ RESPONSE TEXT:
 
 
 class Fact(BaseModel):
-    subject: str
-    predicate: str
-    object: str
+    subject: str = ""
+    predicate: str = ""
+    object: str = ""
     summary: str
     confidence: float = 0.6
     supersedes: Optional[str] = None
     visibility: str = "team"
+
+    # Models return null for fields they have no value for ("object": null). A
+    # strict string field rejected the whole episode's output, so every fact in
+    # it was lost and the episode was retried and rejected forever. The summary is
+    # the only field retrieval needs; the rest default to empty.
+    @field_validator("subject", "predicate", "object", mode="before")
+    @classmethod
+    def _none_to_empty(cls, v):
+        return "" if v is None else str(v)
+
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def _none_confidence(cls, v):
+        return 0.6 if v is None else v
 
     @field_validator("confidence")
     @classmethod
@@ -114,9 +128,34 @@ class Fact(BaseModel):
 class ExtractionResult(BaseModel):
     facts: list[Fact] = []
 
+    @field_validator("facts", mode="before")
+    @classmethod
+    def _drop_unusable(cls, v):
+        """Keep the usable facts rather than rejecting all of them for one bad entry."""
+        if not isinstance(v, list):
+            return []
+        return [f for f in v if isinstance(f, dict) and str(f.get("summary") or "").strip()]
+
 
 def _now():
     return datetime.datetime.utcnow().isoformat()
+
+
+class EmbeddingUnavailable(RuntimeError):
+    """Raised when an embedding came back as a zero vector (every provider failed)."""
+
+
+def _require_real_embeddings(embeddings: list) -> list:
+    """Refuse to store facts whose embedding failed.
+
+    A failed embedding call yields an all-zero vector. Saved, it makes a fact that
+    no query can ever retrieve and whose similarity to everything is undefined, so
+    it silently rots. Raising here lets the caller leave the episode unextracted
+    so the next run retries once embeddings are back.
+    """
+    if any(not any(v) for v in embeddings):
+        raise EmbeddingUnavailable("embedding provider unavailable; not saving unsearchable facts")
+    return embeddings
 
 
 def run(conn, ws, incremental=False, limit=20):
@@ -161,7 +200,7 @@ def run(conn, ws, incremental=False, limit=20):
             facts = result.facts
             if facts:
                 summaries = [f.summary for f in facts]
-                embeddings = embed.embed_batch(summaries)
+                embeddings = _require_real_embeddings(embed.embed_batch(summaries))
                 for fact, emb in zip(facts, embeddings):
                     d = fact.model_dump()
                     if not _reconcile_into(conn, ws, d, emb, ep):
@@ -213,7 +252,11 @@ def extract_from_text(conn, ws, text: str, source_kind: str = "agent",
         return 0
 
     summaries = [f.summary for f in result.facts]
-    embeddings = embed.embed_batch(summaries)
+    try:
+        embeddings = _require_real_embeddings(embed.embed_batch(summaries))
+    except EmbeddingUnavailable as e:
+        print(f"[extract] {e}", file=sys.stderr)
+        return 0
 
     # Synthetic episode dict for the AI response (never persisted to episodes table).
     ep = {
@@ -249,6 +292,7 @@ def _reconcile_into(conn, ws, fact: dict, embedding, ep: dict) -> bool:
         conn, ws, fact, embedding,
         team_id=(ep.get("team_id") or "shared"),
         owner_id=ep.get("owner_id"),
+        episode_id=ep.get("id"),
     )
     if decision.duplicate_of:
         print(f"[extract] dedup: merged with {decision.duplicate_of}", file=sys.stderr)

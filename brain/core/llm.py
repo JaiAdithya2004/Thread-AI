@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+from contextvars import ContextVar
 from brain.config import LANGFUSE_ENABLED
 from brain.core.resilience import retry, get_breaker, CircuitOpen
 import brain.config as config
@@ -106,7 +107,62 @@ def _trace_end(gen, output, error=False):
 
 # ── cost metering ─────────────────────────────────────────────────────────────
 
-_ctx: dict = {}
+class _ContextDict:
+    """A dict whose contents belong to the current request or thread, not the process.
+
+    The billing context used to be a plain module-level dict. Request handlers run
+    on a thread pool, so two concurrent requests shared it: one could overwrite
+    the account id another was about to bill against, or read its encrypted
+    bring-your-own key. Backing it with a ContextVar gives each request its own
+    copy while keeping the dict-style calls the rest of the code uses.
+    """
+
+    def __init__(self, name):
+        self._var = ContextVar(name, default=None)
+
+    def _d(self, create=False):
+        d = self._var.get()
+        if d is None and create:
+            d = {}
+            self._var.set(d)
+        return d if d is not None else {}
+
+    def get(self, key, default=None):
+        return self._d().get(key, default)
+
+    def __getitem__(self, key):
+        return self._d()[key]
+
+    def __setitem__(self, key, value):
+        self._d(create=True)[key] = value
+
+    def clear(self):
+        self._var.set({})
+
+    # The rest of the dict surface, so existing callers and tests keep working.
+    def update(self, *args, **kwargs):
+        self._d(create=True).update(*args, **kwargs)
+
+    def pop(self, key, *default):
+        return self._d(create=True).pop(key, *default)
+
+    def items(self):
+        return self._d().items()
+
+    def __contains__(self, key):
+        return key in self._d()
+
+    def __len__(self):
+        return len(self._d())
+
+    def __eq__(self, other):
+        return self._d() == (other._d() if isinstance(other, _ContextDict) else other)
+
+    def __repr__(self):
+        return f"_ContextDict({self._d()!r})"
+
+
+_ctx = _ContextDict("billing_ctx")
 
 def _load_byo_key(account_id: str):
     """Load the BYO API key for this account and stash it in _ctx."""
@@ -244,6 +300,19 @@ def _call_llm_with_fallback(primary: str, fallback: str, temperature: float,
         return resp, fallback
 
 
+# Output-token ceilings per task, applied when a call does not set its own.
+# Without one, litellm sends the model's maximum (65,536 for some models) and a
+# provider such as OpenRouter must reserve credit for all of it up front, so a
+# request that would cost a fraction of a cent is refused with "402: requires
+# more credits" on a small balance. The ceilings are generous (thinking models
+# spend output tokens on reasoning) but bounded.
+_DEFAULT_MAX_TOKENS = {
+    "extract": 4000, "harvest": 4000, "classify": 1000, "expand": 500,
+    "reconcile": 1500, "synthesize": 2000, "chat": 2000,
+}
+_FALLBACK_MAX_TOKENS = 2000
+
+
 def chat_json(system: str, user: str, model: str = None,
               task_name: str = "extract") -> dict:
     _check_credit_allowance()
@@ -264,6 +333,8 @@ def chat_json(system: str, user: str, model: str = None,
         temperature    = route.get("temperature", 0.1)
         max_tokens     = route.get("max_tokens", None)
 
+    if max_tokens is None:
+        max_tokens = _DEFAULT_MAX_TOKENS.get(task_name, _FALLBACK_MAX_TOKENS)
     kwargs = _build_kwargs(system, user, model=primary_model, temperature=temperature,
                            json_mode=True, max_tokens=max_tokens)
     # Remove model from kwargs — _call_llm_with_fallback passes it explicitly
@@ -320,6 +391,8 @@ def chat_text(system: str, user: str, model: str = None,
         temperature    = route.get("temperature", 0.3)
         max_tokens     = route.get("max_tokens", None)
 
+    if max_tokens is None:
+        max_tokens = _DEFAULT_MAX_TOKENS.get(task_name, _FALLBACK_MAX_TOKENS)
     kwargs = _build_kwargs(system, user, model=primary_model, temperature=temperature,
                            json_mode=False, max_tokens=max_tokens)
     base_kwargs = {k: v for k, v in kwargs.items() if k not in ("model", "temperature")}

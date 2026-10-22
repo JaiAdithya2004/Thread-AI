@@ -26,6 +26,7 @@ Runs against a local database only unless --allow-remote is given: it deletes
 and recreates the ws_bench_* workspaces.
 """
 import argparse
+import contextlib
 import datetime
 import json
 import math
@@ -156,6 +157,31 @@ def put_fact(conn, ws, key, subject, summary, emb, clock, invalid_at=None):
     }, emb)
 
 
+@contextlib.contextmanager
+def embedding_guard():
+    """Make a failed embedding abort the run instead of being scored.
+
+    A failed embedding call becomes a zero vector, which silently turns every
+    similarity score into noise. Aborting is the only honest outcome. The guard
+    is installed for the duration of the block and always removed afterwards, so
+    it cannot leak into unrelated code (or other tests) in the same process.
+    """
+    from brain.core import embed
+    original = embed.embed_texts
+
+    def checked(texts, task_type="RETRIEVAL_DOCUMENT"):
+        vecs = original(texts, task_type)
+        if any(not any(v) for v in vecs):
+            raise RuntimeError("embedding failed (zero vector returned); results would be invalid")
+        return vecs
+
+    embed.embed_texts = checked
+    try:
+        yield
+    finally:
+        embed.embed_texts = original
+
+
 def git_rev() -> str:
     try:
         return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"],
@@ -168,17 +194,37 @@ def git_rev() -> str:
 # ── LLM judge (independent model family from the answerer) ───────────────────
 
 _FAITH_SYS = ("You are a strict evaluator. Decide whether EVERY claim in the answer is "
-              "supported by the facts given. Reply JSON only: "
+              "supported by the facts given. Applying today's date to a date stated in a fact "
+              "(for example, saying a change dated in the past is already in force) is supported. "
+              "A fact marked superseded is an older value that has been replaced. Reply JSON only: "
               '{"faithful": true|false, "unsupported": ["..."]}')
 _CITE_SYS = ("You are a strict evaluator. Decide whether the cited fact supports the "
              'sentence. Reply JSON only: {"supported": true|false}')
 
 
 def judge_faithful(question, answer, facts):
+    """Is every claim in the answer supported by the facts the answerer was given?
+
+    The judge is shown exactly what the answerer saw: the same facts with the same
+    "as of" dates and "superseded" labels, and today's date. Without them it flags
+    legitimate reasoning ("that change took effect on May 1, so it is in force
+    today") as unsupported, which measures the judge's ignorance, not the answer.
+    """
     from brain.core import llm
-    block = "\n".join(f"- {f['summary']}" for f in facts)
+    import datetime as _dt
+
+    def line(f):
+        notes = []
+        if f.get("as_of"):
+            notes.append(f"as of {f['as_of']}")
+        if f.get("status") == "stale":
+            notes.append("superseded")
+        return f"- ({'; '.join(notes)}) {f['summary']}" if notes else f"- {f['summary']}"
+
+    block = "\n".join(line(f) for f in facts)
+    today = _dt.date.today().isoformat()
     r = llm.chat_json(_FAITH_SYS,
-                      f"Question: {question}\n\nAnswer: {answer}\n\nFacts:\n{block}",
+                      f"Today's date: {today}\nQuestion: {question}\n\nAnswer: {answer}\n\nFacts:\n{block}",
                       model=JUDGE_MODEL, task_name="bench_judge")
     return r.get("faithful") if isinstance(r, dict) and "faithful" in r else None
 
@@ -625,18 +671,6 @@ def main() -> int:
     from brain import config
     from brain.core import db, embed
 
-    # A failed embedding becomes a zero vector, which silently makes every
-    # similarity score meaningless. Abort rather than publish numbers measured
-    # on broken embeddings.
-    _orig_embed_texts = embed.embed_texts
-
-    def _checked_embed_texts(texts, task_type="RETRIEVAL_DOCUMENT"):
-        vecs = _orig_embed_texts(texts, task_type)
-        if any(not any(v) for v in vecs):
-            raise RuntimeError("embedding failed (zero vector returned); results would be invalid")
-        return vecs
-
-    embed.embed_texts = _checked_embed_texts
     conn = db.connect()
     db.migrate(conn)
 
@@ -649,12 +683,13 @@ def main() -> int:
         "dedup_threshold": config.DEDUP_THRESHOLD, "k_candidates": config.RECONCILE_K,
         "rerank_enabled": config.RERANK_ENABLED,
     }}
-    if "A" in parts:
-        res["A"] = part_a(corpus, conn, answers=not args.no_answers)
-    if "B" in parts:
-        res["B"] = part_b(corpus, conn)
-    if "C" in parts:
-        res["C"] = part_c(corpus, conn)
+    with embedding_guard():
+        if "A" in parts:
+            res["A"] = part_a(corpus, conn, answers=not args.no_answers)
+        if "B" in parts:
+            res["B"] = part_b(corpus, conn)
+        if "C" in parts:
+            res["C"] = part_c(corpus, conn)
     Path(args.out).write_text(json.dumps(res, indent=2, ensure_ascii=False), encoding="utf-8")
     print_report(res)
     print(f"\nwrote {args.out}")

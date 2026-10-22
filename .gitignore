@@ -18,8 +18,16 @@ brain.db
 .env
 token_*.json
 
-# Personal notes — never publish
+# Personal notes and prep material — never publish
 INTERVIEW_PREP.md
+*INTERVIEW*
+interview*/
+notes/
+NOTES*.md
+TODO*.md
+CONTEXT.md
+scratch/
+tmp/
 
 # Evals output
 evals/results.json
@@ -40,3 +48,45 @@ server.err
 
 # Migration checkpoints (resume state - never commit)
 scripts/.reembed_progress.json
+
+# Environment files: keep only the committed template
+.env.*
+!.env.example
+
+# Editor and tool state
+.vscode/
+.idea/
+*.code-workspace
+.claude/
+.vercel/
+.mypy_cache/
+.pyright/
+
+# Test, coverage and browser-test output
+.coverage.*
+coverage.xml
+test-results/
+playwright-report/
+node_modules/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+
+# Database dumps and backups (may contain customer data)
+*.dump
+*.pgdump
+*.sql
+
+# Keys, certificates and real credential files (templates like *.example stay tracked)
+*.pem
+*.key
+credentials*.json
+pgbouncer/userlist.txt
+
+# Benchmark scratch (raw runs under evals/results/ are kept as evidence)
+evals/.embed_cache*
+
+# Raw text from real mailboxes used by the real-data benchmark: never publish
+evals/results/private/

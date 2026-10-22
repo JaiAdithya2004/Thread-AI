@@ -700,6 +700,27 @@ def migrate(conn):
             ON slack_channel_mappings(account_id, slack_team_id);
     """)
 
+    # reconcile_shadow_log: what the reconcile step WOULD have done while running
+    # in BRAIN_RECONCILE_MODE=shadow. Used to audit supersession decisions on real
+    # data before the step is allowed to retire facts. Holds fact text, so it is
+    # for offline review by an administrator, not for serving to end users.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS reconcile_shadow_log (
+            id            BIGSERIAL PRIMARY KEY,
+            workspace_id  TEXT NOT NULL,
+            team_id       TEXT,
+            owner_id      TEXT,
+            new_summary   TEXT,
+            decision      JSONB NOT NULL,
+            candidates    JSONB NOT NULL DEFAULT '[]',
+            ts            TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS reconcile_shadow_ws
+            ON reconcile_shadow_log(workspace_id, ts DESC);
+    """)
+
     # ── Connector sync state (polling watermarks + state machine) ────────────
     cur.execute("""
         CREATE TABLE IF NOT EXISTS connector_sync_state (

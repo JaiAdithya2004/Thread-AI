@@ -169,11 +169,14 @@ def _decode_clerk_jwt(token: str) -> dict:
 def _identity_from_clerk_payload(payload: dict) -> Identity:
     user_id = payload.get("sub", "anonymous")
     email = payload.get("email", "")
+    # Only `public_metadata` is trusted: it can be written by the backend alone.
+    # `unsafe_metadata` is editable by the signed-in user from the browser, so
+    # reading a role, team or workspace from it would let anyone grant themselves
+    # admin or read another team's facts.
     public_meta = payload.get("public_metadata") or {}
-    unsafe_meta = payload.get("unsafe_metadata") or {}
 
-    role = public_meta.get("role") or unsafe_meta.get("role", "member")
-    team_id = public_meta.get("team_id") or unsafe_meta.get("team_id") or config.TEAM_ID
+    role = public_meta.get("role") or "member"
+    team_id = public_meta.get("team_id") or config.TEAM_ID
     workspace_id = public_meta.get("workspace_id") or config.WORKSPACE_ID
 
     is_guest = (role == "guest")
@@ -223,6 +226,56 @@ def _derive_guest_secret() -> Optional[str]:
 
 
 _GUEST_TOKEN_SECRET: Optional[str] = _derive_guest_secret()
+
+
+# ── Signed OAuth state ────────────────────────────────────────────────────────
+# The integration callback is a browser redirect from a third party, so it
+# carries no bearer token and cannot be authenticated the usual way. Instead the
+# identity is sealed into a signed, expiring `state` value when the connection is
+# started (by an authenticated call) and only trusted when it verifies on the
+# way back. Reading user/workspace ids from the callback's query string, as it
+# used to, let anyone write routing rows for any workspace.
+
+def _state_secret() -> Optional[bytes]:
+    import hashlib
+    root = _env("BRAIN_KEY_ENCRYPTION_KEY") or _env("CLERK_SECRET_KEY")
+    if not root:
+        # Local development without any secret: a fixed key is acceptable there
+        # and nowhere else.
+        return None if _IS_PRODUCTION else b"thread-dev-oauth-state-key-not-secret"
+    return hashlib.blake2b(root.encode(), digest_size=32, person=b"thread-oauth-st").digest()
+
+
+def sign_state(payload: dict, ttl_seconds: int = 900) -> str:
+    """Seal `payload` into a tamper-evident, expiring token."""
+    import base64, hashlib, hmac, json as _json, time as _time
+    key = _state_secret()
+    if not key:
+        raise RuntimeError("No signing secret configured for OAuth state.")
+    body = dict(payload, exp=int(_time.time()) + ttl_seconds)
+    raw = _json.dumps(body, separators=(",", ":"), sort_keys=True).encode()
+    sig = hmac.new(key, raw, hashlib.sha256).hexdigest()
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode() + "." + sig
+
+
+def verify_state(token: str) -> dict:
+    """Return the sealed payload, or raise ValueError if forged, malformed or expired."""
+    import base64, hashlib, hmac, json as _json, time as _time
+    key = _state_secret()
+    if not key or not token or "." not in token:
+        raise ValueError("invalid state")
+    b64, sig = token.rsplit(".", 1)
+    try:
+        raw = base64.urlsafe_b64decode(b64 + "=" * (-len(b64) % 4))
+    except Exception:
+        raise ValueError("invalid state")
+    expected = hmac.new(key, raw, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, sig):
+        raise ValueError("invalid state")
+    body = _json.loads(raw)
+    if body.get("exp", 0) < _time.time():
+        raise ValueError("state expired")
+    return body
 
 # Prefix that identifies a guest self-signed token (never clashes with Clerk JWTs)
 _GUEST_TOKEN_PREFIX = "guest."

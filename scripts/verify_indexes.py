@@ -14,7 +14,7 @@ import sys
 
 REQUIRED_INDEXES = {
     "facts": [
-        "facts_embedding_hnsw",   # HNSW vector index (vector similarity)
+        "facts_vec_768_idx",       # HNSW vector index on fact_vec_768 (vector similarity)
         "facts_fts_gin",           # GIN full-text index (FTS retrieval)
         "facts_ws_idx",            # workspace_id lookup index
     ],

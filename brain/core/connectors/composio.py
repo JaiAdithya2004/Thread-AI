@@ -8,8 +8,10 @@ import datetime
 from .base import Connector
 from brain.core.resilience import retry, get_breaker
 
-# Thread-local billing context set by the API layer
-_billing_ctx: dict = {}
+# Per-request billing context set by the API layer (see llm._ContextDict for why
+# this is not a plain module-level dict).
+from brain.core.llm import _ContextDict
+_billing_ctx = _ContextDict("composio_billing_ctx")
 
 def set_billing_context(account_id: str):
     _billing_ctx["account_id"] = account_id

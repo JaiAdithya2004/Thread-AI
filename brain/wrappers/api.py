@@ -340,7 +340,7 @@ class ComposioConnectRequest(BaseModel):
 
 class SignupRequest(BaseModel):
     email: str
-    password: str
+    password: str = ""   # ignored: Clerk owns credentials, and the user id comes from the verified token
     account_type: str
     name: str
 
@@ -603,7 +603,8 @@ def readyz():
 
     def _check_llm():
         # Only verify that at least one LLM API key is configured — no real call.
-        for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GROK_API_KEY", "GEMINI_API_KEY"):
+        for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GROK_API_KEY", "GEMINI_API_KEY",
+                    "OPENROUTER_API_KEY", "MOONSHOT_API_KEY"):
             if os.getenv(key):
                 return "ok"
         return "error: no LLM API key configured"
@@ -1170,10 +1171,19 @@ def composio_connect(
     try:
         from brain.core.connectors.composio import get_connect_url
         # entity_id = caller's user_id - each user gets their own OAuth connection
-        _ = req.redirect_url or os.getenv("APP_BASE_URL", "http://localhost:7070")
-        # Point Composio callback back through our endpoint so we can register webhooks
+        # Point Composio callback back through our endpoint so we can register
+        # webhooks. The caller's identity travels as a signed, expiring `state`
+        # value: the callback is a bare browser redirect with no bearer token, so
+        # it must not trust ids supplied in its own query string.
+        from urllib.parse import quote
+        from brain.auth import sign_state
         app_base = os.getenv("APP_BASE_URL", "http://localhost:7070").rstrip("/")
-        callback = f"{app_base}/api/composio/callback?user_id={identity.user_id}&workspace_id={identity.workspace_id}&account_id={identity.account_id or ''}"
+        state = sign_state({
+            "user_id": identity.user_id,
+            "workspace_id": identity.workspace_id,
+            "account_id": _resolve_account_id(identity.user_id),
+        })
+        callback = f"{app_base}/api/composio/callback?state={quote(state, safe='')}"
         url = get_connect_url(req.app, user_id=identity.user_id, redirect_url=callback)
         return {"app": req.app, "connect_url": url}
     except RuntimeError as e:
@@ -1183,9 +1193,7 @@ def composio_connect(
 @app.get("/api/composio/callback")
 def composio_oauth_callback(
     request: Request,
-    user_id: str = "",
-    workspace_id: str = "",
-    account_id: str = "",
+    state: str = "",
     app: str = "",
     connected_account_id: str = "",
 ):
@@ -1202,9 +1210,17 @@ def composio_oauth_callback(
     from brain.core.db_pg import upsert_webhook_route
     from fastapi.responses import RedirectResponse
 
-    entity_id = user_id or "default"
-    ws = workspace_id or config.WORKSPACE_ID
-    acct = account_id or ""
+    # The identity comes from the signed state minted by /api/composio/connect,
+    # never from the query string. A missing, forged or expired state is refused
+    # before anything is written.
+    from brain.auth import verify_state
+    try:
+        sealed = verify_state(state)
+    except ValueError:
+        raise HTTPException(400, "Invalid or expired connection link. Start the connection again.")
+    entity_id = sealed.get("user_id") or "default"
+    ws = sealed.get("workspace_id") or config.WORKSPACE_ID
+    acct = sealed.get("account_id") or ""
 
     # Save entity->workspace route so webhook events can be dispatched
     if entity_id and ws:
@@ -1259,11 +1275,15 @@ def composio_oauth_callback(
 
 
 @app.post("/api/auth/signup")
-def signup(req: SignupRequest, request: Request):
+def signup(req: SignupRequest, request: Request,
+           identity: Identity = Depends(require_not_guest)):
     """
-    Register account + membership after Clerk creates the auth user.
+    Register account + membership for the signed-in Clerk user.
     Clerk handles passwords — we just store the workspace row.
-    Called right after Clerk signup completes with the Clerk user_id as user_id.
+
+    Requires a verified session. The user id is taken from that token, never from
+    the request body: this endpoint used to accept it from an unauthenticated
+    caller, which let anyone attach an arbitrary user id to an account they made.
     """
     _rl_auth(request)
     import uuid as _uuid
@@ -1285,9 +1305,7 @@ def signup(req: SignupRequest, request: Request):
             "Company accounts require a work email. "
             "Public providers (Gmail, Outlook…) are not allowed.")
 
-    # user_id comes from the Clerk JWT (passed as password field since SignupRequest has it)
-    # Actually we get it from the auth identity
-    user_id = req.password  # repurposed: caller passes clerk user_id here
+    user_id = identity.user_id
 
     from brain.core import db_pg as _pg
     conn = _pg.connect()

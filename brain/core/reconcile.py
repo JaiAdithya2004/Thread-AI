@@ -84,7 +84,8 @@ def find_related(conn, ws, embedding, team_id, owner_id=None,
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, subject, summary, 1 - (fact_vec_768 <=> %s::vector) AS similarity
+            SELECT id, subject, summary, episode_id,
+                   1 - (fact_vec_768 <=> %s::vector) AS similarity
             FROM facts
             WHERE workspace_id = %s
               AND invalidated_at IS NULL
@@ -128,13 +129,63 @@ def judge(new_summary: str, candidates: list) -> Optional[dict]:
     }
 
 
-def reconcile(conn, ws, fact: dict, embedding, team_id, owner_id=None) -> Decision:
-    """Classify `fact` against its nearest existing facts."""
+def _mode() -> str:
+    mode = config.RECONCILE_MODE
+    return mode if mode in ("enforce", "shadow", "off") else "enforce"
+
+
+def _log_shadow(conn, ws, team_id, owner_id, fact, candidates, verdicts, decision):
+    """Record what reconciliation WOULD have done. Never raises: a logging failure
+    must not affect ingestion."""
+    try:
+        import json
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO reconcile_shadow_log
+                   (workspace_id, team_id, owner_id, new_summary, decision, candidates)
+               VALUES (%s, %s, %s, %s, %s, %s)""",
+            (ws, team_id, owner_id, fact.get("summary"),
+             json.dumps({"duplicate_of": decision.duplicate_of,
+                         "supersedes": decision.supersedes,
+                         "in_tension": decision.in_tension,
+                         "judge_available": verdicts is not None}),
+             json.dumps([{"id": str(c["id"]), "summary": c["summary"],
+                          "similarity": round(float(c["similarity"]), 4),
+                          "verdict": (verdicts or {}).get(str(c["id"]))}
+                         for c in candidates])),
+        )
+        conn.commit()
+        cur.close()
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        print(f"[reconcile] shadow log failed (non-fatal): {e}", file=sys.stderr)
+
+
+def reconcile(conn, ws, fact: dict, embedding, team_id, owner_id=None, episode_id=None) -> Decision:
+    """Classify `fact` against its nearest existing facts.
+
+    `episode_id` is the message the new fact came from. Two facts taken from the
+    same message are siblings, not an update and its predecessor, so neither may
+    retire or conflict with the other (only duplicate detection applies between them).
+    A message that says "migrating to GitHub Actions next sprint" and "the CircleCI
+    contract ends in April" must not have its second fact replace its first.
+
+    Honours BRAIN_RECONCILE_MODE: in `shadow` the decision is logged and an empty
+    one is returned, so nothing is skipped, retired or linked; in `off` nothing
+    runs at all.
+    """
+    mode = _mode()
+    if mode == "off":
+        return Decision()
     candidates = find_related(conn, ws, embedding, team_id, owner_id)
     if not candidates:
         return Decision()
 
     verdicts = judge(fact.get("summary") or "", candidates)
+    decision = Decision()
     if verdicts is None:
         # Judge unavailable: keep the old conservative behaviour. Only a
         # same-subject, near-identical fact counts as a duplicate; nothing is
@@ -142,18 +193,23 @@ def reconcile(conn, ws, fact: dict, embedding, team_id, owner_id=None) -> Decisi
         for c in candidates:
             if (c["subject"] == fact.get("subject")
                     and float(c["similarity"]) >= config.DEDUP_THRESHOLD):
-                return Decision(duplicate_of=c["id"])
-        return Decision()
+                decision = Decision(duplicate_of=c["id"])
+                break
+    else:
+        for c in candidates:
+            rel = verdicts.get(str(c["id"]), "unrelated")
+            if episode_id and c.get("episode_id") == episode_id and rel in ("supersedes", "contradicts"):
+                continue
+            if rel == "duplicate" and decision.duplicate_of is None:
+                decision.duplicate_of = c["id"]
+            elif rel == "supersedes":
+                decision.supersedes.append(c["id"])
+            elif rel == "contradicts":
+                decision.in_tension.append(c["id"])
 
-    decision = Decision()
-    for c in candidates:
-        rel = verdicts.get(str(c["id"]), "unrelated")
-        if rel == "duplicate" and decision.duplicate_of is None:
-            decision.duplicate_of = c["id"]
-        elif rel == "supersedes":
-            decision.supersedes.append(c["id"])
-        elif rel == "contradicts":
-            decision.in_tension.append(c["id"])
+    if mode == "shadow":
+        _log_shadow(conn, ws, team_id, owner_id, fact, candidates, verdicts, decision)
+        return Decision()
     return decision
 
 
