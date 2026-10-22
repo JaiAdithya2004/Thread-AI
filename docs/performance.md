@@ -13,7 +13,7 @@
 | Vector similarity (HNSW) | 10–30 ms | Scales with dataset size; HNSW avoids full scan |
 | FTS search (GIN) | 5–20 ms | GIN index on `fts_vec`; scales logarithmically |
 | RRF merge | <1 ms | Pure Python over two small lists |
-| Per-fact hydration | 1–5 ms | One `SELECT * FROM facts WHERE id=?` per candidate |
+| Candidate hydration | 1 round-trip | One `SELECT … WHERE id = ANY(…)` for all candidates (a per-fact version cost ~7 s for 37 candidates against a remote database) |
 | LLM synthesis | 300–2000 ms | External API call; **excluded from retrieval budget** |
 
 **Total retrieval (cache miss):** ~25–60 ms typical, <300 ms p95 goal.
@@ -69,13 +69,13 @@ Only increase `ef_search` if recall testing shows it falling below 0.95.
 For typical company knowledge bases (<100k facts), the default (40) is fine.
 
 ### `ef_construction` (index build time)
-`ef_construction = 64` (set in `db_pg.py`) governs index build quality.
+`ef_construction = 64` (set in `scripts/rebuild_index.py` and migration `0003`) governs index build quality.
 Only rebuild the index with a higher value if you observe recall degradation
 under the HNSW ef_search tuning above. Rebuilding requires:
 ```sql
-DROP INDEX facts_embedding_hnsw;
-CREATE INDEX facts_embedding_hnsw ON facts
-    USING hnsw (embedding vector_cosine_ops)
+DROP INDEX facts_vec_768_idx;
+CREATE INDEX facts_vec_768_idx ON facts
+    USING hnsw (fact_vec_768 vector_cosine_ops)
     WITH (m = 16, ef_construction = 128);
 ```
 

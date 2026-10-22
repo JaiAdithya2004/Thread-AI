@@ -1,0 +1,201 @@
+{
+  "track": "synthetic",
+  "n_runs": 1,
+  "runs_used_per_section": {
+    "ingestion": "1/1 runs",
+    "extraction": "1/1 runs",
+    "state": "1/1 runs",
+    "retrieval": "1/1 runs",
+    "answers": "0/1 runs",
+    "ops": "1/1 runs"
+  },
+  "metrics": {
+    "ingestion": {
+      "noise_dropped": {
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "ci95": [
+          0.207,
+          1.0
+        ],
+        "range": [
+          1.0,
+          1.0
+        ]
+      },
+      "duplicates_dropped": {
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "ci95": [
+          0.207,
+          1.0
+        ],
+        "range": [
+          1.0,
+          1.0
+        ]
+      },
+      "kept_real_messages": {
+        "k": 32,
+        "n": 32,
+        "value": 1.0,
+        "ci95": [
+          0.893,
+          1.0
+        ],
+        "range": [
+          1.0,
+          1.0
+        ]
+      },
+      "injection_phrases_scrubbed": {
+        "k": 2,
+        "n": 2,
+        "value": 1.0,
+        "ci95": [
+          0.342,
+          1.0
+        ],
+        "range": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    "extraction": {
+      "claim_recall": {
+        "k": 38,
+        "n": 39,
+        "value": 0.9744,
+        "ci95": [
+          0.868,
+          0.995
+        ],
+        "range": [
+          0.9744,
+          0.9744
+        ]
+      },
+      "facts_extracted": 62.0,
+      "facts_per_kept_episode": 1.82,
+      "claims_stored_twice": 3.0,
+      "false_facts_from_noise": 0.0,
+      "groundedness": {
+        "k": 62,
+        "n": 62,
+        "value": 1.0,
+        "ci95": [
+          0.942,
+          1.0
+        ],
+        "range": [
+          1.0,
+          1.0
+        ]
+      },
+      "unsupported_facts": 0.0
+    },
+    "state": {
+      "claim_state_correct": {
+        "k": 37,
+        "n": 38,
+        "value": 0.9737,
+        "ci95": [
+          0.865,
+          0.995
+        ],
+        "range": [
+          0.9737,
+          0.9737
+        ]
+      },
+      "update_pairs_correct": {
+        "k": 11,
+        "n": 13,
+        "value": 0.8462,
+        "ci95": [
+          0.578,
+          0.957
+        ],
+        "range": [
+          0.8462,
+          0.8462
+        ]
+      },
+      "false_retirements": 0.0,
+      "missed_retirements": 1.0,
+      "decoys_left_alone": {
+        "k": 2,
+        "n": 2,
+        "value": 1.0,
+        "ci95": [
+          0.342,
+          1.0
+        ],
+        "range": [
+          1.0,
+          1.0
+        ]
+      },
+      "chains_fully_correct": {
+        "k": 11,
+        "n": 12,
+        "value": 0.9167,
+        "ci95": [
+          0.646,
+          0.985
+        ],
+        "range": [
+          0.9167,
+          0.9167
+        ]
+      }
+    },
+    "retrieval": {
+      "hit@5_given_extracted": {
+        "k": 27,
+        "n": 27,
+        "value": 1.0,
+        "ci95": [
+          0.875,
+          1.0
+        ],
+        "range": [
+          1.0,
+          1.0
+        ]
+      },
+      "mrr": 0.9148,
+      "ndcg@5": 0.9257,
+      "current_top1_is_latest": {
+        "k": 9,
+        "n": 11,
+        "value": 0.8182,
+        "ci95": [
+          0.523,
+          0.949
+        ],
+        "range": [
+          0.8182,
+          0.8182
+        ]
+      }
+    },
+    "ops": {
+      "episodes": 36.0,
+      "episodes_kept": 34.0,
+      "ingest_seconds": 0.4,
+      "extract_seconds": 223.9,
+      "extract_rounds": 2.0,
+      "seconds_per_kept_episode_extract": 6.59,
+      "search_latency_s": {
+        "p50": 2.102,
+        "p95": 8.201
+      },
+      "total_seconds": 437.8,
+      "provider_cost_usd": 0.0225
+    }
+  }
+}

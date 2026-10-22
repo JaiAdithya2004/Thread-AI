@@ -1,0 +1,2645 @@
+{
+  "meta": {
+    "date": "2026-10-22",
+    "git": "8d0458e",
+    "embed_model": "gemini-embedding-001",
+    "embed_dim": 768,
+    "extract_model": "openrouter/google/gemini-2.5-flash-lite",
+    "synth_model": "openrouter/google/gemini-3.8-flash",
+    "judge_model": "openrouter/openai/gpt-4o-mini",
+    "related_threshold": 0.7,
+    "dedup_threshold": 0.92,
+    "k_candidates": 5,
+    "rerank_enabled": false
+  },
+  "A": {
+    "corpus_facts": 44,
+    "n_answerable": 45,
+    "k": 5,
+    "retrieval": {
+      "vector": {
+        "hit@5": {
+          "k": 45,
+          "n": 45,
+          "value": 1.0,
+          "ci95": [
+            0.921,
+            1.0
+          ]
+        },
+        "recall@5": 1.0,
+        "precision@5": 0.2089,
+        "mrr": 1.0,
+        "ndcg@5": 1.0
+      },
+      "fulltext": {
+        "hit@5": {
+          "k": 11,
+          "n": 45,
+          "value": 0.2444,
+          "ci95": [
+            0.142,
+            0.387
+          ]
+        },
+        "recall@5": 0.2444,
+        "precision@5": 0.0489,
+        "mrr": 0.2444,
+        "ndcg@5": 0.2444
+      },
+      "hybrid_rrf": {
+        "hit@5": {
+          "k": 45,
+          "n": 45,
+          "value": 1.0,
+          "ci95": [
+            0.921,
+            1.0
+          ]
+        },
+        "recall@5": 1.0,
+        "precision@5": 0.2089,
+        "mrr": 1.0,
+        "ndcg@5": 1.0
+      },
+      "production": {
+        "hit@5": {
+          "k": 45,
+          "n": 45,
+          "value": 1.0,
+          "ci95": [
+            0.921,
+            1.0
+          ]
+        },
+        "recall@5": 1.0,
+        "precision@5": 0.2089,
+        "mrr": 1.0,
+        "ndcg@5": 1.0
+      }
+    },
+    "retrieval_latency_s": {
+      "p50": 2.911,
+      "p95": 4.047,
+      "mean": 2.9998
+    },
+    "rerank_enabled": false,
+    "per_question": [
+      {
+        "id": "q01",
+        "gold": [
+          "b01"
+        ],
+        "production_top": [
+          "b01",
+          "b04",
+          "b23",
+          "b06",
+          "b02"
+        ]
+      },
+      {
+        "id": "q02",
+        "gold": [
+          "b02"
+        ],
+        "production_top": [
+          "b02",
+          "b43",
+          "b10",
+          "b40",
+          "b34"
+        ]
+      },
+      {
+        "id": "q03",
+        "gold": [
+          "b03"
+        ],
+        "production_top": [
+          "b03",
+          "b04",
+          "b01",
+          "b33",
+          "b06"
+        ]
+      },
+      {
+        "id": "q04",
+        "gold": [
+          "b04"
+        ],
+        "production_top": [
+          "b04",
+          "b01",
+          "b06",
+          "b36",
+          "b09"
+        ]
+      },
+      {
+        "id": "q05",
+        "gold": [
+          "b05"
+        ],
+        "production_top": [
+          "b05",
+          "b08",
+          "b27",
+          "b10",
+          "b09"
+        ]
+      },
+      {
+        "id": "q06",
+        "gold": [
+          "b06"
+        ],
+        "production_top": [
+          "b06",
+          "b42",
+          "b09",
+          "b07",
+          "b04"
+        ]
+      },
+      {
+        "id": "q07",
+        "gold": [
+          "b07"
+        ],
+        "production_top": [
+          "b07",
+          "b13",
+          "b06",
+          "b17",
+          "b22"
+        ]
+      },
+      {
+        "id": "q08",
+        "gold": [
+          "b08"
+        ],
+        "production_top": [
+          "b08",
+          "b05",
+          "b22",
+          "b19",
+          "b07"
+        ]
+      },
+      {
+        "id": "q09",
+        "gold": [
+          "b09"
+        ],
+        "production_top": [
+          "b09",
+          "b05",
+          "b19",
+          "b42",
+          "b08"
+        ]
+      },
+      {
+        "id": "q10",
+        "gold": [
+          "b10"
+        ],
+        "production_top": [
+          "b10",
+          "b40",
+          "b02",
+          "b17",
+          "b20"
+        ]
+      },
+      {
+        "id": "q11",
+        "gold": [
+          "b11"
+        ],
+        "production_top": [
+          "b11",
+          "b18",
+          "b12",
+          "b15",
+          "b17"
+        ]
+      },
+      {
+        "id": "q12",
+        "gold": [
+          "b12"
+        ],
+        "production_top": [
+          "b12",
+          "b18",
+          "b15",
+          "b11",
+          "b33"
+        ]
+      },
+      {
+        "id": "q13",
+        "gold": [
+          "b13"
+        ],
+        "production_top": [
+          "b13",
+          "b17",
+          "b15",
+          "b38",
+          "b07"
+        ]
+      },
+      {
+        "id": "q14",
+        "gold": [
+          "b14"
+        ],
+        "production_top": [
+          "b14",
+          "b44",
+          "b19",
+          "b10",
+          "b40"
+        ]
+      },
+      {
+        "id": "q15",
+        "gold": [
+          "b15"
+        ],
+        "production_top": [
+          "b15",
+          "b12",
+          "b17",
+          "b13",
+          "b18"
+        ]
+      },
+      {
+        "id": "q16",
+        "gold": [
+          "b16"
+        ],
+        "production_top": [
+          "b16",
+          "b38",
+          "b20",
+          "b15",
+          "b01"
+        ]
+      },
+      {
+        "id": "q17",
+        "gold": [
+          "b17"
+        ],
+        "production_top": [
+          "b17",
+          "b40",
+          "b39",
+          "b22",
+          "b10"
+        ]
+      },
+      {
+        "id": "q18",
+        "gold": [
+          "b18"
+        ],
+        "production_top": [
+          "b18",
+          "b11",
+          "b33",
+          "b17",
+          "b12"
+        ]
+      },
+      {
+        "id": "q19",
+        "gold": [
+          "b21"
+        ],
+        "production_top": [
+          "b21",
+          "b41",
+          "b44",
+          "b13",
+          "b14"
+        ]
+      },
+      {
+        "id": "q20",
+        "gold": [
+          "b22"
+        ],
+        "production_top": [
+          "b22",
+          "b39",
+          "b27",
+          "b09",
+          "b05"
+        ]
+      },
+      {
+        "id": "q21",
+        "gold": [
+          "b24"
+        ],
+        "production_top": [
+          "b24",
+          "b25",
+          "b26",
+          "b08",
+          "b38"
+        ]
+      },
+      {
+        "id": "q22",
+        "gold": [
+          "b25"
+        ],
+        "production_top": [
+          "b25",
+          "b24",
+          "b26",
+          "b38",
+          "b13"
+        ]
+      },
+      {
+        "id": "q23",
+        "gold": [
+          "b27"
+        ],
+        "production_top": [
+          "b27",
+          "b05",
+          "b28",
+          "b08",
+          "b33"
+        ]
+      },
+      {
+        "id": "q24",
+        "gold": [
+          "b29"
+        ],
+        "production_top": [
+          "b29",
+          "b26",
+          "b33",
+          "b30",
+          "b25"
+        ]
+      },
+      {
+        "id": "q25",
+        "gold": [
+          "b30"
+        ],
+        "production_top": [
+          "b30",
+          "b31",
+          "b23",
+          "b39",
+          "b26"
+        ]
+      },
+      {
+        "id": "q26",
+        "gold": [
+          "b32"
+        ],
+        "production_top": [
+          "b32",
+          "b35",
+          "b31",
+          "b44",
+          "b20"
+        ]
+      },
+      {
+        "id": "q27",
+        "gold": [
+          "b34"
+        ],
+        "production_top": [
+          "b34",
+          "b35",
+          "b32",
+          "b37",
+          "b30"
+        ]
+      },
+      {
+        "id": "q28",
+        "gold": [
+          "b36"
+        ],
+        "production_top": [
+          "b36",
+          "b16",
+          "b33",
+          "b13",
+          "b30"
+        ]
+      },
+      {
+        "id": "q29",
+        "gold": [
+          "b44"
+        ],
+        "production_top": [
+          "b44",
+          "b14",
+          "b40",
+          "b10",
+          "b32"
+        ]
+      },
+      {
+        "id": "q30",
+        "gold": [
+          "b39"
+        ],
+        "production_top": [
+          "b39",
+          "b17",
+          "b22",
+          "b28",
+          "b20"
+        ]
+      },
+      {
+        "id": "q31",
+        "gold": [
+          "b19"
+        ],
+        "production_top": [
+          "b19",
+          "b42",
+          "b14",
+          "b34",
+          "b09"
+        ]
+      },
+      {
+        "id": "q32",
+        "gold": [
+          "b41",
+          "b22"
+        ],
+        "production_top": [
+          "b41",
+          "b22",
+          "b14",
+          "b13",
+          "b44"
+        ]
+      },
+      {
+        "id": "q33",
+        "gold": [
+          "b09"
+        ],
+        "production_top": [
+          "b09",
+          "b05",
+          "b10",
+          "b36",
+          "b42"
+        ]
+      },
+      {
+        "id": "q34",
+        "gold": [
+          "b07"
+        ],
+        "production_top": [
+          "b07",
+          "b05",
+          "b13",
+          "b06",
+          "b19"
+        ]
+      },
+      {
+        "id": "q35",
+        "gold": [
+          "b27"
+        ],
+        "production_top": [
+          "b27",
+          "b05",
+          "b28",
+          "b21",
+          "b32"
+        ]
+      },
+      {
+        "id": "q36",
+        "gold": [
+          "b15"
+        ],
+        "production_top": [
+          "b15",
+          "b13",
+          "b35",
+          "b32",
+          "b44"
+        ]
+      },
+      {
+        "id": "q37",
+        "gold": [
+          "b10"
+        ],
+        "production_top": [
+          "b10",
+          "b40",
+          "b14",
+          "b17",
+          "b44"
+        ]
+      },
+      {
+        "id": "q38",
+        "gold": [
+          "b25"
+        ],
+        "production_top": [
+          "b25",
+          "b24",
+          "b26",
+          "b38",
+          "b20"
+        ]
+      },
+      {
+        "id": "q39",
+        "gold": [
+          "b30"
+        ],
+        "production_top": [
+          "b30",
+          "b31",
+          "b34",
+          "b29",
+          "b36"
+        ]
+      },
+      {
+        "id": "q40",
+        "gold": [
+          "b34"
+        ],
+        "production_top": [
+          "b34",
+          "b32",
+          "b37",
+          "b33",
+          "b35"
+        ]
+      },
+      {
+        "id": "q41",
+        "gold": [
+          "b37"
+        ],
+        "production_top": [
+          "b37",
+          "b26",
+          "b09",
+          "b42",
+          "b34"
+        ]
+      },
+      {
+        "id": "q42",
+        "gold": [
+          "b13"
+        ],
+        "production_top": [
+          "b13",
+          "b38",
+          "b20",
+          "b07",
+          "b33"
+        ]
+      },
+      {
+        "id": "q43",
+        "gold": [
+          "b43"
+        ],
+        "production_top": [
+          "b43",
+          "b20",
+          "b38",
+          "b13",
+          "b09"
+        ]
+      },
+      {
+        "id": "q44",
+        "gold": [
+          "b36"
+        ],
+        "production_top": [
+          "b36",
+          "b33",
+          "b23",
+          "b26",
+          "b30"
+        ]
+      },
+      {
+        "id": "q45",
+        "gold": [
+          "b28",
+          "b22"
+        ],
+        "production_top": [
+          "b28",
+          "b22",
+          "b39",
+          "b08",
+          "b05"
+        ]
+      }
+    ],
+    "answers": {
+      "answer_correct": {
+        "k": 0,
+        "n": 0,
+        "value": null,
+        "ci95": [
+          null,
+          null
+        ]
+      },
+      "faithfulness": {
+        "k": 0,
+        "n": 0,
+        "value": null,
+        "ci95": [
+          null,
+          null
+        ]
+      },
+      "citation_validity": {
+        "k": 0,
+        "n": 0,
+        "value": null,
+        "ci95": [
+          null,
+          null
+        ]
+      },
+      "citation_support": {
+        "k": 0,
+        "n": 0,
+        "value": null,
+        "ci95": [
+          null,
+          null
+        ]
+      },
+      "abstention": {
+        "k": 0,
+        "n": 0,
+        "value": null,
+        "ci95": [
+          null,
+          null
+        ]
+      },
+      "no_synthesis": 45,
+      "latency_s": {
+        "p50": 0.026,
+        "p95": 3.643,
+        "mean": 0.6381
+      },
+      "judge_model": "openrouter/openai/gpt-4o-mini",
+      "answers": [
+        {
+          "id": "q01",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q02",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q03",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q04",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q05",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q06",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q07",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q08",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q09",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q10",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q11",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q12",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q13",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q14",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q15",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q16",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q17",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q18",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q19",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q20",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q21",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q22",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q23",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q24",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q25",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q26",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q27",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q28",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q29",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q30",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q31",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q32",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q33",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q34",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q35",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q36",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q37",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q38",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q39",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q40",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q41",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q42",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q43",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q44",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "q45",
+          "answer": "",
+          "note": "no synthesis"
+        }
+      ],
+      "unanswerable": [
+        {
+          "id": "u01",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "u02",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "u03",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "u04",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "u05",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "u06",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "u07",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "u08",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "u09",
+          "answer": "",
+          "note": "no synthesis"
+        },
+        {
+          "id": "u10",
+          "answer": "",
+          "note": "no synthesis"
+        }
+      ]
+    }
+  },
+  "B": {
+    "items": 40,
+    "n_updates": 16,
+    "candidate_recall_of_true_predecessor": {
+      "k": 16,
+      "n": 16,
+      "value": 1.0,
+      "ci95": [
+        0.806,
+        1.0
+      ]
+    },
+    "related_threshold": 0.7,
+    "k_candidates": 5,
+    "methods": {
+      "legacy_exact_subject": {
+        "supersession_precision": 1.0,
+        "supersession_recall": {
+          "k": 1,
+          "n": 16,
+          "value": 0.0625,
+          "ci95": [
+            0.011,
+            0.283
+          ]
+        },
+        "supersession_f1": 0.1176,
+        "updates_dropped_as_duplicate": {
+          "k": 0,
+          "n": 16,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.194
+          ]
+        },
+        "duplicate_detection": {
+          "k": 1,
+          "n": 8,
+          "value": 0.125,
+          "ci95": [
+            0.022,
+            0.471
+          ]
+        },
+        "decoy_false_actions": {
+          "k": 0,
+          "n": 14,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.215
+          ]
+        },
+        "future_dated_wrongly_superseded": {
+          "k": 0,
+          "n": 2,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.658
+          ]
+        },
+        "total_wrong_supersessions": 0
+      },
+      "embedding_only": {
+        "supersession_precision": 0.4167,
+        "supersession_recall": {
+          "k": 10,
+          "n": 16,
+          "value": 0.625,
+          "ci95": [
+            0.386,
+            0.815
+          ]
+        },
+        "supersession_f1": 0.5,
+        "updates_dropped_as_duplicate": {
+          "k": 1,
+          "n": 16,
+          "value": 0.0625,
+          "ci95": [
+            0.011,
+            0.283
+          ]
+        },
+        "duplicate_detection": {
+          "k": 5,
+          "n": 8,
+          "value": 0.625,
+          "ci95": [
+            0.306,
+            0.863
+          ]
+        },
+        "decoy_false_actions": {
+          "k": 9,
+          "n": 14,
+          "value": 0.6429,
+          "ci95": [
+            0.388,
+            0.837
+          ]
+        },
+        "future_dated_wrongly_superseded": {
+          "k": 2,
+          "n": 2,
+          "value": 1.0,
+          "ci95": [
+            0.342,
+            1.0
+          ]
+        },
+        "total_wrong_supersessions": 14
+      },
+      "reconcile": {
+        "supersession_precision": null,
+        "supersession_recall": {
+          "k": 0,
+          "n": 16,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.194
+          ]
+        },
+        "supersession_f1": 0.0,
+        "updates_dropped_as_duplicate": {
+          "k": 0,
+          "n": 16,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.194
+          ]
+        },
+        "duplicate_detection": {
+          "k": 1,
+          "n": 8,
+          "value": 0.125,
+          "ci95": [
+            0.022,
+            0.471
+          ]
+        },
+        "decoy_false_actions": {
+          "k": 0,
+          "n": 14,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.215
+          ]
+        },
+        "future_dated_wrongly_superseded": {
+          "k": 0,
+          "n": 2,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.658
+          ]
+        },
+        "total_wrong_supersessions": 0
+      }
+    },
+    "detail": {
+      "legacy_exact_subject": [
+        {
+          "item": "c01.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c01.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c01.v2",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c01.v1",
+          "gold_dup": null
+        },
+        {
+          "item": "c02.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c02.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c03.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c03.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c04.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c04.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c05.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c05.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c05.v2",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c05.v1",
+          "gold_dup": null
+        },
+        {
+          "item": "c06.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c06.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c07.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c07.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c08.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c08.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c09.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c09.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c10.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c10.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c11.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c11.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c12.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c12.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c13.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c13.v0"
+          ],
+          "gold_sup": "c13.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c14.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c14.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "d01",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d02",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d03",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d04",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d05",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d06",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d07",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d08",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d09",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d10",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d11",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d12",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d13",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d14",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "f01",
+          "kind": "future",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "f02",
+          "kind": "future",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "r01",
+          "kind": "reword",
+          "dup": "b21",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b21"
+        },
+        {
+          "item": "r02",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b01"
+        },
+        {
+          "item": "r03",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b06"
+        },
+        {
+          "item": "r04",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b25"
+        },
+        {
+          "item": "r05",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b29"
+        },
+        {
+          "item": "r06",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b04"
+        },
+        {
+          "item": "r07",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b12"
+        },
+        {
+          "item": "r08",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b27"
+        }
+      ],
+      "embedding_only": [
+        {
+          "item": "c01.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c01.v0"
+          ],
+          "gold_sup": "c01.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c01.v2",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c01.v1"
+          ],
+          "gold_sup": "c01.v1",
+          "gold_dup": null
+        },
+        {
+          "item": "c02.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c02.v0"
+          ],
+          "gold_sup": "c02.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c03.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c03.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c04.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c04.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c05.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c05.v0"
+          ],
+          "gold_sup": "c05.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c05.v2",
+          "kind": "update",
+          "dup": "c05.v1",
+          "sup": [],
+          "gold_sup": "c05.v1",
+          "gold_dup": null
+        },
+        {
+          "item": "c06.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c06.v0"
+          ],
+          "gold_sup": "c06.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c07.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c07.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c08.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c08.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c09.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c09.v0"
+          ],
+          "gold_sup": "c09.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c10.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c10.v0"
+          ],
+          "gold_sup": "c10.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c11.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c11.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c12.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c12.v0"
+          ],
+          "gold_sup": "c12.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c13.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c13.v0"
+          ],
+          "gold_sup": "c13.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c14.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c14.v0"
+          ],
+          "gold_sup": "c14.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "d01",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b21"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d02",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d03",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b22"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d04",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b13"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d05",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b12"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d06",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b17"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d07",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d08",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d09",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d10",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b05"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d11",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d12",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b38"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d13",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b44"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d14",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b11"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "f01",
+          "kind": "future",
+          "dup": null,
+          "sup": [
+            "b12"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "f02",
+          "kind": "future",
+          "dup": null,
+          "sup": [
+            "b24"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "r01",
+          "kind": "reword",
+          "dup": "b21",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b21"
+        },
+        {
+          "item": "r02",
+          "kind": "reword",
+          "dup": "b01",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b01"
+        },
+        {
+          "item": "r03",
+          "kind": "reword",
+          "dup": "b06",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b06"
+        },
+        {
+          "item": "r04",
+          "kind": "reword",
+          "dup": null,
+          "sup": [
+            "b25"
+          ],
+          "gold_sup": null,
+          "gold_dup": "b25"
+        },
+        {
+          "item": "r05",
+          "kind": "reword",
+          "dup": null,
+          "sup": [
+            "b29"
+          ],
+          "gold_sup": null,
+          "gold_dup": "b29"
+        },
+        {
+          "item": "r06",
+          "kind": "reword",
+          "dup": null,
+          "sup": [
+            "b04"
+          ],
+          "gold_sup": null,
+          "gold_dup": "b04"
+        },
+        {
+          "item": "r07",
+          "kind": "reword",
+          "dup": "b12",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b12"
+        },
+        {
+          "item": "r08",
+          "kind": "reword",
+          "dup": "b27",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b27"
+        }
+      ],
+      "reconcile": [
+        {
+          "item": "c01.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c01.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c01.v2",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c01.v1",
+          "gold_dup": null
+        },
+        {
+          "item": "c02.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c02.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c03.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c03.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c04.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c04.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c05.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c05.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c05.v2",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c05.v1",
+          "gold_dup": null
+        },
+        {
+          "item": "c06.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c06.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c07.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c07.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c08.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c08.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c09.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c09.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c10.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c10.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c11.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c11.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c12.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c12.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c13.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c13.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c14.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c14.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "d01",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d02",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d03",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d04",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d05",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d06",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d07",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d08",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d09",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d10",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d11",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d12",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d13",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d14",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "f01",
+          "kind": "future",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "f02",
+          "kind": "future",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "r01",
+          "kind": "reword",
+          "dup": "b21",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b21"
+        },
+        {
+          "item": "r02",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b01"
+        },
+        {
+          "item": "r03",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b06"
+        },
+        {
+          "item": "r04",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b25"
+        },
+        {
+          "item": "r05",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b29"
+        },
+        {
+          "item": "r06",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b04"
+        },
+        {
+          "item": "r07",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b12"
+        },
+        {
+          "item": "r08",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b27"
+        }
+      ]
+    }
+  },
+  "C": {
+    "legacy": {
+      "versions_stored": {
+        "k": 29,
+        "n": 30,
+        "value": 0.9667,
+        "ci95": [
+          0.833,
+          0.994
+        ]
+      },
+      "version_status_correct": {
+        "k": 13,
+        "n": 30,
+        "value": 0.4333,
+        "ci95": [
+          0.274,
+          0.608
+        ]
+      },
+      "chains_fully_correct": {
+        "k": 0,
+        "n": 14,
+        "value": 0.0,
+        "ci95": [
+          0.0,
+          0.215
+        ]
+      },
+      "current_top1_is_latest": {
+        "k": 3,
+        "n": 14,
+        "value": 0.2143,
+        "ci95": [
+          0.076,
+          0.476
+        ]
+      },
+      "current_answer_latest_only": {
+        "k": 0,
+        "n": 14,
+        "value": 0.0,
+        "ci95": [
+          0.0,
+          0.215
+        ]
+      },
+      "history_recall": {
+        "k": 29,
+        "n": 30,
+        "value": 0.9667,
+        "ci95": [
+          0.833,
+          0.994
+        ]
+      },
+      "history_status_correct": {
+        "k": 13,
+        "n": 30,
+        "value": 0.4333,
+        "ci95": [
+          0.274,
+          0.608
+        ]
+      },
+      "base_facts_wrongly_invalidated": 0,
+      "detail": [
+        {
+          "chain": "c01",
+          "stored": [
+            true,
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c02",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": true,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c03",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": true,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c04",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c05",
+          "stored": [
+            true,
+            true,
+            false
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c06",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": true,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c07",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c08",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c09",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c10",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c11",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c12",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c13",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c14",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        }
+      ]
+    },
+    "reconcile": {
+      "versions_stored": {
+        "k": 29,
+        "n": 30,
+        "value": 0.9667,
+        "ci95": [
+          0.833,
+          0.994
+        ]
+      },
+      "version_status_correct": {
+        "k": 13,
+        "n": 30,
+        "value": 0.4333,
+        "ci95": [
+          0.274,
+          0.608
+        ]
+      },
+      "chains_fully_correct": {
+        "k": 0,
+        "n": 14,
+        "value": 0.0,
+        "ci95": [
+          0.0,
+          0.215
+        ]
+      },
+      "current_top1_is_latest": {
+        "k": 2,
+        "n": 14,
+        "value": 0.1429,
+        "ci95": [
+          0.04,
+          0.399
+        ]
+      },
+      "current_answer_latest_only": {
+        "k": 0,
+        "n": 14,
+        "value": 0.0,
+        "ci95": [
+          0.0,
+          0.215
+        ]
+      },
+      "history_recall": {
+        "k": 29,
+        "n": 30,
+        "value": 0.9667,
+        "ci95": [
+          0.833,
+          0.994
+        ]
+      },
+      "history_status_correct": {
+        "k": 13,
+        "n": 30,
+        "value": 0.4333,
+        "ci95": [
+          0.274,
+          0.608
+        ]
+      },
+      "base_facts_wrongly_invalidated": 0,
+      "detail": [
+        {
+          "chain": "c01",
+          "stored": [
+            true,
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c02",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": true,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c03",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c04",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c05",
+          "stored": [
+            true,
+            true,
+            false
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c06",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": true,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c07",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c08",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c09",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c10",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c11",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c12",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c13",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        },
+        {
+          "chain": "c14",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": ""
+        }
+      ]
+    }
+  }
+}

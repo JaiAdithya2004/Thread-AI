@@ -1,0 +1,122 @@
+{
+  "track": "real",
+  "metrics": {
+    "ingestion": {
+      "emails_fetched": 30,
+      "episodes_stored": 21,
+      "dropped_or_duplicate": 9
+    },
+    "extraction": {
+      "facts": 15,
+      "facts_per_episode": 0.71,
+      "episodes_with_no_fact": 17,
+      "private_by_default": {
+        "k": 15,
+        "n": 15,
+        "value": 1.0,
+        "ci95": [
+          0.796,
+          1.0
+        ]
+      },
+      "groundedness": {
+        "k": 15,
+        "n": 15,
+        "value": 1.0,
+        "ci95": [
+          0.796,
+          1.0
+        ]
+      }
+    },
+    "reconcile": {
+      "supersedes_edges": 0,
+      "in_tension_edges": 0,
+      "stale_facts": 0
+    },
+    "retrieval": {
+      "questions": 15,
+      "hit@5": {
+        "k": 15,
+        "n": 15,
+        "value": 1.0,
+        "ci95": [
+          0.796,
+          1.0
+        ]
+      },
+      "mrr": 1.0,
+      "ndcg@5": 1.0
+    },
+    "answers": {
+      "faithfulness": {
+        "k": 15,
+        "n": 15,
+        "value": 1.0,
+        "ci95": [
+          0.796,
+          1.0
+        ]
+      },
+      "citation_validity": {
+        "k": 23,
+        "n": 23,
+        "value": 1.0,
+        "ci95": [
+          0.857,
+          1.0
+        ]
+      },
+      "citation_support": {
+        "k": 23,
+        "n": 23,
+        "value": 1.0,
+        "ci95": [
+          0.857,
+          1.0
+        ]
+      },
+      "abstention_on_out_of_scope": {
+        "k": 8,
+        "n": 8,
+        "value": 1.0,
+        "ci95": [
+          0.676,
+          1.0
+        ]
+      }
+    },
+    "health": {
+      "valid": true,
+      "problems": [],
+      "stages": {
+        "ingestion": true,
+        "extraction": true,
+        "state": true,
+        "retrieval": true,
+        "answers": true
+      },
+      "unextracted_episodes": 0,
+      "blank_answers": 0
+    },
+    "ops": {
+      "pull_seconds": 9.4,
+      "extract_seconds": 63.6,
+      "search_latency_s": {
+        "p50": 3.219,
+        "p95": 28.876
+      },
+      "provider_cost_usd": 0.0094
+    }
+  },
+  "meta": {
+    "date": "2026-10-22",
+    "git": "8d0458e",
+    "extract_model": "openrouter/google/gemini-2.5-flash-lite",
+    "synth_model": "openrouter/google/gemini-2.5-flash-lite",
+    "judge_model": "openrouter/openai/gpt-4o-mini",
+    "embed_model": "gemini-embedding-001",
+    "related_threshold": 0.7,
+    "reconcile_mode": "enforce"
+  }
+}

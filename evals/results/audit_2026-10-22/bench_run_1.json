@@ -1,0 +1,2992 @@
+{
+  "meta": {
+    "date": "2026-10-22",
+    "git": "8d0458e",
+    "embed_model": "gemini-embedding-001",
+    "embed_dim": 768,
+    "extract_model": "openrouter/google/gemini-2.5-flash-lite",
+    "synth_model": "openrouter/google/gemini-3.8-flash",
+    "judge_model": "openrouter/openai/gpt-4o-mini",
+    "related_threshold": 0.7,
+    "dedup_threshold": 0.92,
+    "k_candidates": 5,
+    "rerank_enabled": false
+  },
+  "A": {
+    "corpus_facts": 44,
+    "n_answerable": 45,
+    "k": 5,
+    "retrieval": {
+      "vector": {
+        "hit@5": {
+          "k": 45,
+          "n": 45,
+          "value": 1.0,
+          "ci95": [
+            0.921,
+            1.0
+          ]
+        },
+        "recall@5": 1.0,
+        "precision@5": 0.2089,
+        "mrr": 1.0,
+        "ndcg@5": 1.0
+      },
+      "fulltext": {
+        "hit@5": {
+          "k": 11,
+          "n": 45,
+          "value": 0.2444,
+          "ci95": [
+            0.142,
+            0.387
+          ]
+        },
+        "recall@5": 0.2444,
+        "precision@5": 0.0489,
+        "mrr": 0.2444,
+        "ndcg@5": 0.2444
+      },
+      "hybrid_rrf": {
+        "hit@5": {
+          "k": 45,
+          "n": 45,
+          "value": 1.0,
+          "ci95": [
+            0.921,
+            1.0
+          ]
+        },
+        "recall@5": 1.0,
+        "precision@5": 0.2089,
+        "mrr": 1.0,
+        "ndcg@5": 1.0
+      },
+      "production": {
+        "hit@5": {
+          "k": 45,
+          "n": 45,
+          "value": 1.0,
+          "ci95": [
+            0.921,
+            1.0
+          ]
+        },
+        "recall@5": 1.0,
+        "precision@5": 0.2089,
+        "mrr": 1.0,
+        "ndcg@5": 1.0
+      }
+    },
+    "retrieval_latency_s": {
+      "p50": 3.8,
+      "p95": 5.265,
+      "mean": 3.8457
+    },
+    "rerank_enabled": false,
+    "per_question": [
+      {
+        "id": "q01",
+        "gold": [
+          "b01"
+        ],
+        "production_top": [
+          "b01",
+          "b04",
+          "b23",
+          "b06",
+          "b02"
+        ]
+      },
+      {
+        "id": "q02",
+        "gold": [
+          "b02"
+        ],
+        "production_top": [
+          "b02",
+          "b43",
+          "b10",
+          "b40",
+          "b34"
+        ]
+      },
+      {
+        "id": "q03",
+        "gold": [
+          "b03"
+        ],
+        "production_top": [
+          "b03",
+          "b04",
+          "b01",
+          "b33",
+          "b06"
+        ]
+      },
+      {
+        "id": "q04",
+        "gold": [
+          "b04"
+        ],
+        "production_top": [
+          "b04",
+          "b01",
+          "b06",
+          "b36",
+          "b09"
+        ]
+      },
+      {
+        "id": "q05",
+        "gold": [
+          "b05"
+        ],
+        "production_top": [
+          "b05",
+          "b08",
+          "b27",
+          "b10",
+          "b09"
+        ]
+      },
+      {
+        "id": "q06",
+        "gold": [
+          "b06"
+        ],
+        "production_top": [
+          "b06",
+          "b42",
+          "b09",
+          "b07",
+          "b04"
+        ]
+      },
+      {
+        "id": "q07",
+        "gold": [
+          "b07"
+        ],
+        "production_top": [
+          "b07",
+          "b13",
+          "b06",
+          "b17",
+          "b22"
+        ]
+      },
+      {
+        "id": "q08",
+        "gold": [
+          "b08"
+        ],
+        "production_top": [
+          "b08",
+          "b05",
+          "b22",
+          "b19",
+          "b07"
+        ]
+      },
+      {
+        "id": "q09",
+        "gold": [
+          "b09"
+        ],
+        "production_top": [
+          "b09",
+          "b05",
+          "b19",
+          "b42",
+          "b08"
+        ]
+      },
+      {
+        "id": "q10",
+        "gold": [
+          "b10"
+        ],
+        "production_top": [
+          "b10",
+          "b40",
+          "b02",
+          "b17",
+          "b20"
+        ]
+      },
+      {
+        "id": "q11",
+        "gold": [
+          "b11"
+        ],
+        "production_top": [
+          "b11",
+          "b18",
+          "b12",
+          "b15",
+          "b17"
+        ]
+      },
+      {
+        "id": "q12",
+        "gold": [
+          "b12"
+        ],
+        "production_top": [
+          "b12",
+          "b18",
+          "b15",
+          "b11",
+          "b33"
+        ]
+      },
+      {
+        "id": "q13",
+        "gold": [
+          "b13"
+        ],
+        "production_top": [
+          "b13",
+          "b17",
+          "b15",
+          "b38",
+          "b07"
+        ]
+      },
+      {
+        "id": "q14",
+        "gold": [
+          "b14"
+        ],
+        "production_top": [
+          "b14",
+          "b44",
+          "b19",
+          "b10",
+          "b40"
+        ]
+      },
+      {
+        "id": "q15",
+        "gold": [
+          "b15"
+        ],
+        "production_top": [
+          "b15",
+          "b12",
+          "b17",
+          "b13",
+          "b18"
+        ]
+      },
+      {
+        "id": "q16",
+        "gold": [
+          "b16"
+        ],
+        "production_top": [
+          "b16",
+          "b38",
+          "b20",
+          "b15",
+          "b01"
+        ]
+      },
+      {
+        "id": "q17",
+        "gold": [
+          "b17"
+        ],
+        "production_top": [
+          "b17",
+          "b40",
+          "b39",
+          "b22",
+          "b10"
+        ]
+      },
+      {
+        "id": "q18",
+        "gold": [
+          "b18"
+        ],
+        "production_top": [
+          "b18",
+          "b11",
+          "b33",
+          "b17",
+          "b12"
+        ]
+      },
+      {
+        "id": "q19",
+        "gold": [
+          "b21"
+        ],
+        "production_top": [
+          "b21",
+          "b41",
+          "b44",
+          "b13",
+          "b14"
+        ]
+      },
+      {
+        "id": "q20",
+        "gold": [
+          "b22"
+        ],
+        "production_top": [
+          "b22",
+          "b39",
+          "b27",
+          "b09",
+          "b05"
+        ]
+      },
+      {
+        "id": "q21",
+        "gold": [
+          "b24"
+        ],
+        "production_top": [
+          "b24",
+          "b25",
+          "b26",
+          "b08",
+          "b38"
+        ]
+      },
+      {
+        "id": "q22",
+        "gold": [
+          "b25"
+        ],
+        "production_top": [
+          "b25",
+          "b24",
+          "b26",
+          "b38",
+          "b13"
+        ]
+      },
+      {
+        "id": "q23",
+        "gold": [
+          "b27"
+        ],
+        "production_top": [
+          "b27",
+          "b05",
+          "b28",
+          "b08",
+          "b33"
+        ]
+      },
+      {
+        "id": "q24",
+        "gold": [
+          "b29"
+        ],
+        "production_top": [
+          "b29",
+          "b26",
+          "b33",
+          "b30",
+          "b25"
+        ]
+      },
+      {
+        "id": "q25",
+        "gold": [
+          "b30"
+        ],
+        "production_top": [
+          "b30",
+          "b31",
+          "b23",
+          "b39",
+          "b26"
+        ]
+      },
+      {
+        "id": "q26",
+        "gold": [
+          "b32"
+        ],
+        "production_top": [
+          "b32",
+          "b35",
+          "b31",
+          "b44",
+          "b20"
+        ]
+      },
+      {
+        "id": "q27",
+        "gold": [
+          "b34"
+        ],
+        "production_top": [
+          "b34",
+          "b35",
+          "b32",
+          "b37",
+          "b30"
+        ]
+      },
+      {
+        "id": "q28",
+        "gold": [
+          "b36"
+        ],
+        "production_top": [
+          "b36",
+          "b16",
+          "b33",
+          "b13",
+          "b30"
+        ]
+      },
+      {
+        "id": "q29",
+        "gold": [
+          "b44"
+        ],
+        "production_top": [
+          "b44",
+          "b14",
+          "b40",
+          "b10",
+          "b32"
+        ]
+      },
+      {
+        "id": "q30",
+        "gold": [
+          "b39"
+        ],
+        "production_top": [
+          "b39",
+          "b17",
+          "b22",
+          "b28",
+          "b20"
+        ]
+      },
+      {
+        "id": "q31",
+        "gold": [
+          "b19"
+        ],
+        "production_top": [
+          "b19",
+          "b42",
+          "b14",
+          "b34",
+          "b09"
+        ]
+      },
+      {
+        "id": "q32",
+        "gold": [
+          "b41",
+          "b22"
+        ],
+        "production_top": [
+          "b41",
+          "b22",
+          "b14",
+          "b13",
+          "b44"
+        ]
+      },
+      {
+        "id": "q33",
+        "gold": [
+          "b09"
+        ],
+        "production_top": [
+          "b09",
+          "b05",
+          "b10",
+          "b36",
+          "b42"
+        ]
+      },
+      {
+        "id": "q34",
+        "gold": [
+          "b07"
+        ],
+        "production_top": [
+          "b07",
+          "b05",
+          "b13",
+          "b06",
+          "b19"
+        ]
+      },
+      {
+        "id": "q35",
+        "gold": [
+          "b27"
+        ],
+        "production_top": [
+          "b27",
+          "b05",
+          "b28",
+          "b21",
+          "b32"
+        ]
+      },
+      {
+        "id": "q36",
+        "gold": [
+          "b15"
+        ],
+        "production_top": [
+          "b15",
+          "b13",
+          "b35",
+          "b32",
+          "b44"
+        ]
+      },
+      {
+        "id": "q37",
+        "gold": [
+          "b10"
+        ],
+        "production_top": [
+          "b10",
+          "b40",
+          "b14",
+          "b17",
+          "b44"
+        ]
+      },
+      {
+        "id": "q38",
+        "gold": [
+          "b25"
+        ],
+        "production_top": [
+          "b25",
+          "b24",
+          "b26",
+          "b38",
+          "b20"
+        ]
+      },
+      {
+        "id": "q39",
+        "gold": [
+          "b30"
+        ],
+        "production_top": [
+          "b30",
+          "b31",
+          "b34",
+          "b29",
+          "b36"
+        ]
+      },
+      {
+        "id": "q40",
+        "gold": [
+          "b34"
+        ],
+        "production_top": [
+          "b34",
+          "b32",
+          "b37",
+          "b33",
+          "b35"
+        ]
+      },
+      {
+        "id": "q41",
+        "gold": [
+          "b37"
+        ],
+        "production_top": [
+          "b37",
+          "b26",
+          "b09",
+          "b42",
+          "b34"
+        ]
+      },
+      {
+        "id": "q42",
+        "gold": [
+          "b13"
+        ],
+        "production_top": [
+          "b13",
+          "b38",
+          "b20",
+          "b07",
+          "b33"
+        ]
+      },
+      {
+        "id": "q43",
+        "gold": [
+          "b43"
+        ],
+        "production_top": [
+          "b43",
+          "b20",
+          "b38",
+          "b13",
+          "b09"
+        ]
+      },
+      {
+        "id": "q44",
+        "gold": [
+          "b36"
+        ],
+        "production_top": [
+          "b36",
+          "b33",
+          "b23",
+          "b26",
+          "b30"
+        ]
+      },
+      {
+        "id": "q45",
+        "gold": [
+          "b28",
+          "b22"
+        ],
+        "production_top": [
+          "b28",
+          "b22",
+          "b39",
+          "b08",
+          "b05"
+        ]
+      }
+    ],
+    "answers": {
+      "answer_correct": {
+        "k": 45,
+        "n": 45,
+        "value": 1.0,
+        "ci95": [
+          0.921,
+          1.0
+        ]
+      },
+      "faithfulness": {
+        "k": 42,
+        "n": 45,
+        "value": 0.9333,
+        "ci95": [
+          0.821,
+          0.977
+        ]
+      },
+      "citation_validity": {
+        "k": 47,
+        "n": 47,
+        "value": 1.0,
+        "ci95": [
+          0.924,
+          1.0
+        ]
+      },
+      "citation_support": {
+        "k": 47,
+        "n": 47,
+        "value": 1.0,
+        "ci95": [
+          0.924,
+          1.0
+        ]
+      },
+      "abstention": {
+        "k": 10,
+        "n": 10,
+        "value": 1.0,
+        "ci95": [
+          0.722,
+          1.0
+        ]
+      },
+      "no_synthesis": 0,
+      "latency_s": {
+        "p50": 3.737,
+        "p95": 13.393,
+        "mean": 4.821
+      },
+      "judge_model": "openrouter/openai/gpt-4o-mini",
+      "answers": [
+        {
+          "id": "q01",
+          "answer": "The backend uses FastAPI [ba5cf363-3ae3-5534-92a5-ea18b6bf8533].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q02",
+          "answer": "Meridian's primary database is PostgreSQL 15 hosted on managed instances [9d2dfc6d-d97b-5ba6-b0e7-23190624df16].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q03",
+          "answer": "Search technically uses pgvector for semantic similarity alongside Postgres full-text search [ee37aac5-c963-5af4-bef6-03e126cb4390].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q04",
+          "answer": "The web app frontend is built with React and TypeScript [8383ee51-258c-5c5c-a058-982e4a5f8ae9].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q05",
+          "answer": "Production deploys require approval from two engineers [e2b1cffb-1068-5e86-a8a8-ef0244f4bd9d].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q06",
+          "answer": "Application errors are tracked in Sentry [cd4ac916-a7ff-5ebb-a9d3-0c27c138ff59].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q07",
+          "answer": "A written postmortem is required within five business days following a severity-1 incident [f036d07e-e6a9-5961-8d5b-17e7eb7d11e4].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q08",
+          "answer": "Every pull request requires one approving review before it can be merged [0af70338-e04b-523b-8fe5-6484e3f2152d].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q09",
+          "answer": "Feature flags are managed through LaunchDarkly [beae7b95-d307-5102-af41-681fbef1b366].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q10",
+          "answer": "The staging database is refreshed every Sunday from anonymized production data [242b9daf-b506-5861-859b-1a38f9f238c1].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q11",
+          "answer": "The Free plan is limited to three projects and one user [f4a21b54-124d-5084-8658-efc6f856547c].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q12",
+          "answer": "The Team plan costs $79 per seat per month [153a296a-9351-51dd-be29-ba69a0cdfe30].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q13",
+          "answer": "Enterprise customers receive a one-hour first-response support SLA [a00faa38-9017-56e8-b3e1-787d780090cb].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q14",
+          "answer": "Yes, customers can export all of their data as CSV or JSON from the settings page [d127a3ed-3498-54ef-97ee-49af40800fa5].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q15",
+          "answer": "Single sign-on via SAML is available only on the Enterprise plan [246fef44-b3ef-5ecf-a7cd-fe6f017cdbaf].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q16",
+          "answer": "The iOS app requires iOS 16 or later [4535ab82-5110-5f5b-97cb-196c42b938bd].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q17",
+          "answer": "Audit logs are retained for 12 months on the Enterprise plan [bc409746-04c2-5164-99a4-f4c3a7e4d871]. Retention periods for other plans are not specified.",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q18",
+          "answer": "New workspaces receive a 14-day free trial of the Team plan [68cf4301-74d3-5da9-bf09-8e5401c75775].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q19",
+          "answer": "Alice Chen owns the customer onboarding flow [eedd8257-a70c-5d01-ad64-bdd6c0f40c32].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q20",
+          "answer": "Dev Patel is the security lead [38ef668f-0434-5ae4-b6d2-755bb85de3a8].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q21",
+          "answer": "Employees may work remotely up to three days per week [30f1b9a5-d8f1-51c8-bee6-c15265323791].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q22",
+          "answer": "Full-time employees get 25 days of paid time off per year [1a089f44-bc30-5848-81e5-35ea280a9236].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q23",
+          "answer": "Rosa Gómez, the CFO, approves any spend above $10,000 [8c2d58b7-5aae-5388-a565-ac68808dca30].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q24",
+          "answer": "The fiscal year starts on April 1 [d1ce72ec-abfa-595e-afcb-da4847fce595].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q25",
+          "answer": "The company has 22 months of runway at the current burn rate [7c2633b8-80d1-5da1-abff-4e63d26e750c].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q26",
+          "answer": "The largest customer, Northgate Logistics, accounts for 11 percent of revenue [e937c721-56fe-5616-9234-e096bd93b6b0].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q27",
+          "answer": "The main competitor is Lumen Analytics [4c937821-cc8b-5a39-a7ee-c7fe20a91aba].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q28",
+          "answer": "The 2027 roadmap prioritizes a public API and usage-based billing [686592eb-bdc5-5d03-afec-f06cebce3cee].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q29",
+          "answer": "Customer data is stored in the US region by default [33e22063-0bb7-5d8b-aa17-7965e687fa0d].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q30",
+          "answer": "The company completed its SOC 2 Type I audit in March [8ef9dcb3-c9b7-5814-b7b9-90b5a1912dc8].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q31",
+          "answer": "The product integrates with Slack, Jira, and GitHub [cafaf126-33b3-5d3f-ba83-14951fc538a4].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q32",
+          "answer": "Customer success is led by Tomás Ribeiro [f227563f-0ba1-5cbf-8bba-4d0954dba6ed], and Dev Patel is the security lead [38ef668f-0434-5ae4-b6d2-755bb85de3a8].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 2,
+            "valid": 2,
+            "judged": 2,
+            "supported": 2
+          }
+        },
+        {
+          "id": "q33",
+          "answer": "Feature flags are managed through LaunchDarkly [beae7b95-d307-5102-af41-681fbef1b366], but the provided facts do not explicitly state what tool is used to roll features out gradually to a subset of users.",
+          "correct": true,
+          "faithful": false,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q34",
+          "answer": "Severity-1 incidents require a written postmortem within five business days [f036d07e-e6a9-5961-8d5b-17e7eb7d11e4].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q35",
+          "answer": "Rosa Gómez, the CFO, approves any spend above $10,000 [8c2d58b7-5aae-5388-a565-ac68808dca30].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q36",
+          "answer": "Customers on the Enterprise plan can log in with their corporate identity provider, as single sign-on via SAML is available only on that plan [246fef44-b3ef-5ecf-a7cd-fe6f017cdbaf]. However, the records do not state which specific customers are currently on the Enterprise plan.",
+          "correct": true,
+          "faithful": false,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q37",
+          "answer": "The staging database is refreshed from anonymized production data every Sunday [242b9daf-b506-5861-859b-1a38f9f238c1].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q38",
+          "answer": "Full-time employees receive 25 days of paid time off per year [1a089f44-bc30-5848-81e5-35ea280a9236].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q39",
+          "answer": "The company has 22 months of runway at the current burn rate [7c2633b8-80d1-5da1-abff-4e63d26e750c].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q40",
+          "answer": "The main competitor is Lumen Analytics [4c937821-cc8b-5a39-a7ee-c7fe20a91aba].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q41",
+          "answer": "The brand color is deep teal [682f9873-baf7-59a9-ab48-00f6445fd535].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q42",
+          "answer": "Enterprise customers receive a one-hour first-response support SLA [a00faa38-9017-56e8-b3e1-787d780090cb].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q43",
+          "answer": "The public status page is hosted at status.meridian.example [7c23139e-0962-5be0-a17c-f56307290e35].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q44",
+          "answer": "The 2027 roadmap prioritizes a public API and usage-based billing [686592eb-bdc5-5d03-afec-f06cebce3cee]. However, company memory does not state the current year, so it is unclear if this refers to next year.",
+          "correct": true,
+          "faithful": false,
+          "citations": {
+            "total": 1,
+            "valid": 1,
+            "judged": 1,
+            "supported": 1
+          }
+        },
+        {
+          "id": "q45",
+          "answer": "Outside legal counsel reviews are handled by Hale & Brandt [4fc28d91-3b34-5903-a032-3eb3c84c3792]. Dev Patel, the security lead, runs the quarterly access reviews [38ef668f-0434-5ae4-b6d2-755bb85de3a8].",
+          "correct": true,
+          "faithful": true,
+          "citations": {
+            "total": 2,
+            "valid": 2,
+            "judged": 2,
+            "supported": 2
+          }
+        }
+      ],
+      "unanswerable": [
+        {
+          "id": "u01",
+          "answer": "I don't have that information in company memory.",
+          "abstained": true
+        },
+        {
+          "id": "u02",
+          "answer": "I don't have that information in company memory.",
+          "abstained": true
+        },
+        {
+          "id": "u03",
+          "answer": "I don't have that information in company memory.",
+          "abstained": true
+        },
+        {
+          "id": "u04",
+          "answer": "I don't have that information in company memory.",
+          "abstained": true
+        },
+        {
+          "id": "u05",
+          "answer": "The CFO is Rosa Gómez [8c2d58b7-5aae-5388-a565-ac68808dca30], but company memory does not contain information about her home address.",
+          "abstained": true
+        },
+        {
+          "id": "u06",
+          "answer": "I don't have that information in company memory.",
+          "abstained": true
+        },
+        {
+          "id": "u07",
+          "answer": "I don't have that information in company memory.",
+          "abstained": true
+        },
+        {
+          "id": "u08",
+          "answer": "I don't have that information in company memory.",
+          "abstained": true
+        },
+        {
+          "id": "u09",
+          "answer": "I can't help with that.",
+          "abstained": true
+        },
+        {
+          "id": "u10",
+          "answer": "I don't have that information in company memory.",
+          "abstained": true
+        }
+      ]
+    }
+  },
+  "B": {
+    "items": 40,
+    "n_updates": 16,
+    "candidate_recall_of_true_predecessor": {
+      "k": 16,
+      "n": 16,
+      "value": 1.0,
+      "ci95": [
+        0.806,
+        1.0
+      ]
+    },
+    "related_threshold": 0.7,
+    "k_candidates": 5,
+    "methods": {
+      "legacy_exact_subject": {
+        "supersession_precision": 1.0,
+        "supersession_recall": {
+          "k": 1,
+          "n": 16,
+          "value": 0.0625,
+          "ci95": [
+            0.011,
+            0.283
+          ]
+        },
+        "supersession_f1": 0.1176,
+        "updates_dropped_as_duplicate": {
+          "k": 0,
+          "n": 16,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.194
+          ]
+        },
+        "duplicate_detection": {
+          "k": 1,
+          "n": 8,
+          "value": 0.125,
+          "ci95": [
+            0.022,
+            0.471
+          ]
+        },
+        "decoy_false_actions": {
+          "k": 0,
+          "n": 14,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.215
+          ]
+        },
+        "future_dated_wrongly_superseded": {
+          "k": 0,
+          "n": 2,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.658
+          ]
+        },
+        "total_wrong_supersessions": 0
+      },
+      "embedding_only": {
+        "supersession_precision": 0.4167,
+        "supersession_recall": {
+          "k": 10,
+          "n": 16,
+          "value": 0.625,
+          "ci95": [
+            0.386,
+            0.815
+          ]
+        },
+        "supersession_f1": 0.5,
+        "updates_dropped_as_duplicate": {
+          "k": 1,
+          "n": 16,
+          "value": 0.0625,
+          "ci95": [
+            0.011,
+            0.283
+          ]
+        },
+        "duplicate_detection": {
+          "k": 5,
+          "n": 8,
+          "value": 0.625,
+          "ci95": [
+            0.306,
+            0.863
+          ]
+        },
+        "decoy_false_actions": {
+          "k": 9,
+          "n": 14,
+          "value": 0.6429,
+          "ci95": [
+            0.388,
+            0.837
+          ]
+        },
+        "future_dated_wrongly_superseded": {
+          "k": 2,
+          "n": 2,
+          "value": 1.0,
+          "ci95": [
+            0.342,
+            1.0
+          ]
+        },
+        "total_wrong_supersessions": 14
+      },
+      "reconcile": {
+        "supersession_precision": 0.875,
+        "supersession_recall": {
+          "k": 14,
+          "n": 16,
+          "value": 0.875,
+          "ci95": [
+            0.64,
+            0.965
+          ]
+        },
+        "supersession_f1": 0.875,
+        "updates_dropped_as_duplicate": {
+          "k": 0,
+          "n": 16,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.194
+          ]
+        },
+        "duplicate_detection": {
+          "k": 8,
+          "n": 8,
+          "value": 1.0,
+          "ci95": [
+            0.676,
+            1.0
+          ]
+        },
+        "decoy_false_actions": {
+          "k": 0,
+          "n": 14,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.215
+          ]
+        },
+        "future_dated_wrongly_superseded": {
+          "k": 2,
+          "n": 2,
+          "value": 1.0,
+          "ci95": [
+            0.342,
+            1.0
+          ]
+        },
+        "total_wrong_supersessions": 2
+      }
+    },
+    "detail": {
+      "legacy_exact_subject": [
+        {
+          "item": "c01.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c01.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c01.v2",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c01.v1",
+          "gold_dup": null
+        },
+        {
+          "item": "c02.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c02.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c03.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c03.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c04.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c04.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c05.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c05.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c05.v2",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c05.v1",
+          "gold_dup": null
+        },
+        {
+          "item": "c06.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c06.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c07.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c07.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c08.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c08.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c09.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c09.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c10.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c10.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c11.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c11.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c12.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c12.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c13.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c13.v0"
+          ],
+          "gold_sup": "c13.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c14.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c14.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "d01",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d02",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d03",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d04",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d05",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d06",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d07",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d08",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d09",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d10",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d11",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d12",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d13",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d14",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "f01",
+          "kind": "future",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "f02",
+          "kind": "future",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "r01",
+          "kind": "reword",
+          "dup": "b21",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b21"
+        },
+        {
+          "item": "r02",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b01"
+        },
+        {
+          "item": "r03",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b06"
+        },
+        {
+          "item": "r04",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b25"
+        },
+        {
+          "item": "r05",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b29"
+        },
+        {
+          "item": "r06",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b04"
+        },
+        {
+          "item": "r07",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b12"
+        },
+        {
+          "item": "r08",
+          "kind": "reword",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b27"
+        }
+      ],
+      "embedding_only": [
+        {
+          "item": "c01.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c01.v0"
+          ],
+          "gold_sup": "c01.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c01.v2",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c01.v1"
+          ],
+          "gold_sup": "c01.v1",
+          "gold_dup": null
+        },
+        {
+          "item": "c02.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c02.v0"
+          ],
+          "gold_sup": "c02.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c03.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c03.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c04.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c04.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c05.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c05.v0"
+          ],
+          "gold_sup": "c05.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c05.v2",
+          "kind": "update",
+          "dup": "c05.v1",
+          "sup": [],
+          "gold_sup": "c05.v1",
+          "gold_dup": null
+        },
+        {
+          "item": "c06.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c06.v0"
+          ],
+          "gold_sup": "c06.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c07.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c07.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c08.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c08.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c09.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c09.v0"
+          ],
+          "gold_sup": "c09.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c10.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c10.v0"
+          ],
+          "gold_sup": "c10.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c11.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c11.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c12.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c12.v0"
+          ],
+          "gold_sup": "c12.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c13.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c13.v0"
+          ],
+          "gold_sup": "c13.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c14.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c14.v0"
+          ],
+          "gold_sup": "c14.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "d01",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b21"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d02",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d03",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b22"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d04",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b13"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d05",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b12"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d06",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b17"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d07",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d08",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d09",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d10",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b05"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d11",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d12",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b38"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d13",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b44"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d14",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [
+            "b11"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "f01",
+          "kind": "future",
+          "dup": null,
+          "sup": [
+            "b12"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "f02",
+          "kind": "future",
+          "dup": null,
+          "sup": [
+            "b24"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "r01",
+          "kind": "reword",
+          "dup": "b21",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b21"
+        },
+        {
+          "item": "r02",
+          "kind": "reword",
+          "dup": "b01",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b01"
+        },
+        {
+          "item": "r03",
+          "kind": "reword",
+          "dup": "b06",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b06"
+        },
+        {
+          "item": "r04",
+          "kind": "reword",
+          "dup": null,
+          "sup": [
+            "b25"
+          ],
+          "gold_sup": null,
+          "gold_dup": "b25"
+        },
+        {
+          "item": "r05",
+          "kind": "reword",
+          "dup": null,
+          "sup": [
+            "b29"
+          ],
+          "gold_sup": null,
+          "gold_dup": "b29"
+        },
+        {
+          "item": "r06",
+          "kind": "reword",
+          "dup": null,
+          "sup": [
+            "b04"
+          ],
+          "gold_sup": null,
+          "gold_dup": "b04"
+        },
+        {
+          "item": "r07",
+          "kind": "reword",
+          "dup": "b12",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b12"
+        },
+        {
+          "item": "r08",
+          "kind": "reword",
+          "dup": "b27",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b27"
+        }
+      ],
+      "reconcile": [
+        {
+          "item": "c01.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c01.v0"
+          ],
+          "gold_sup": "c01.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c01.v2",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c01.v1"
+          ],
+          "gold_sup": "c01.v1",
+          "gold_dup": null
+        },
+        {
+          "item": "c02.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c02.v0"
+          ],
+          "gold_sup": "c02.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c03.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c03.v0"
+          ],
+          "gold_sup": "c03.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c04.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c04.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c05.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c05.v0"
+          ],
+          "gold_sup": "c05.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c05.v2",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c05.v1"
+          ],
+          "gold_sup": "c05.v1",
+          "gold_dup": null
+        },
+        {
+          "item": "c06.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c06.v0"
+          ],
+          "gold_sup": "c06.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c07.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [],
+          "gold_sup": "c07.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c08.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c08.v0"
+          ],
+          "gold_sup": "c08.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c09.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c09.v0"
+          ],
+          "gold_sup": "c09.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c10.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c10.v0"
+          ],
+          "gold_sup": "c10.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c11.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c11.v0"
+          ],
+          "gold_sup": "c11.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c12.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c12.v0"
+          ],
+          "gold_sup": "c12.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c13.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c13.v0"
+          ],
+          "gold_sup": "c13.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "c14.v1",
+          "kind": "update",
+          "dup": null,
+          "sup": [
+            "c14.v0"
+          ],
+          "gold_sup": "c14.v0",
+          "gold_dup": null
+        },
+        {
+          "item": "d01",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d02",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d03",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d04",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d05",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d06",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d07",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d08",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d09",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d10",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d11",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d12",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d13",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "d14",
+          "kind": "decoy",
+          "dup": null,
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "f01",
+          "kind": "future",
+          "dup": null,
+          "sup": [
+            "b12"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "f02",
+          "kind": "future",
+          "dup": null,
+          "sup": [
+            "b24"
+          ],
+          "gold_sup": null,
+          "gold_dup": null
+        },
+        {
+          "item": "r01",
+          "kind": "reword",
+          "dup": "b21",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b21"
+        },
+        {
+          "item": "r02",
+          "kind": "reword",
+          "dup": "b01",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b01"
+        },
+        {
+          "item": "r03",
+          "kind": "reword",
+          "dup": "b06",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b06"
+        },
+        {
+          "item": "r04",
+          "kind": "reword",
+          "dup": "b25",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b25"
+        },
+        {
+          "item": "r05",
+          "kind": "reword",
+          "dup": "b29",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b29"
+        },
+        {
+          "item": "r06",
+          "kind": "reword",
+          "dup": "b04",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b04"
+        },
+        {
+          "item": "r07",
+          "kind": "reword",
+          "dup": "b12",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b12"
+        },
+        {
+          "item": "r08",
+          "kind": "reword",
+          "dup": "b27",
+          "sup": [],
+          "gold_sup": null,
+          "gold_dup": "b27"
+        }
+      ]
+    }
+  },
+  "C": {
+    "legacy": {
+      "versions_stored": {
+        "k": 29,
+        "n": 30,
+        "value": 0.9667,
+        "ci95": [
+          0.833,
+          0.994
+        ]
+      },
+      "version_status_correct": {
+        "k": 13,
+        "n": 30,
+        "value": 0.4333,
+        "ci95": [
+          0.274,
+          0.608
+        ]
+      },
+      "chains_fully_correct": {
+        "k": 0,
+        "n": 14,
+        "value": 0.0,
+        "ci95": [
+          0.0,
+          0.215
+        ]
+      },
+      "current_top1_is_latest": {
+        "k": 3,
+        "n": 14,
+        "value": 0.2143,
+        "ci95": [
+          0.076,
+          0.476
+        ]
+      },
+      "current_answer_latest_only": {
+        "k": 0,
+        "n": 14,
+        "value": 0.0,
+        "ci95": [
+          0.0,
+          0.215
+        ]
+      },
+      "history_recall": {
+        "k": 29,
+        "n": 30,
+        "value": 0.9667,
+        "ci95": [
+          0.833,
+          0.994
+        ]
+      },
+      "history_status_correct": {
+        "k": 13,
+        "n": 30,
+        "value": 0.4333,
+        "ci95": [
+          0.274,
+          0.608
+        ]
+      },
+      "base_facts_wrongly_invalidated": 0,
+      "detail": [
+        {
+          "chain": "c01",
+          "stored": [
+            true,
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": "The Pro plan price is now $35 per month [274d0e73-3378-4f40-baae-58b53486386a]. Note that other records also state the plan costs $20 per month [7dfcdf9a-a9a6-4ba5-a292-31528a32756b] and was previousl"
+        },
+        {
+          "chain": "c02",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": true,
+          "answer_has_final_only": false,
+          "answer": "Version 2 was scheduled to launch on June 3 [29511744-0eb7-4261-b4e7-0cca816fca0c], but the launch was moved to June 17 [0b9d1381-e874-441d-8e5e-78852b31c255]."
+        },
+        {
+          "chain": "c03",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": true,
+          "answer_has_final_only": false,
+          "answer": "Marcus Webb now owns the billing service [af7b0306-4796-4da5-8cee-f0712d3e9563], though company records also state that Priya Nair owns it [bff5038d-7403-409d-a4d5-4d178c6988ad]."
+        },
+        {
+          "chain": "c04",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": "According to the records, production runs on AWS in us-east-1 [e26a3910-af80-4752-94ed-240f59b63af7], though another record states it was migrated to Google Cloud in europe-west4 [8f23f947-4b92-44a7-b"
+        },
+        {
+          "chain": "c05",
+          "stored": [
+            true,
+            true,
+            false
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": "The Standard plan has a 24-hour first-response SLA [3074a907-2394-4ad1-b66f-c03881ce135b], which was tightened to 8 hours [58fd657e-4cbc-4312-bcf0-7004075b7441]."
+        },
+        {
+          "chain": "c06",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": true,
+          "answer_has_final_only": false,
+          "answer": "The engineering team has grown to 15 people [347cd86e-0971-4ab9-90ba-bbd848396b52], though another record indicates the team has 12 people [10d5feb0-1c92-442e-8c5b-513a73e9776d]."
+        },
+        {
+          "chain": "c07",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": "The mobile app is built with React Native [f3246f84-f6da-4470-afa3-54963758543d], though the team later rewrote it in Flutter [39466925-b586-4ea0-8380-b94e17056503]."
+        },
+        {
+          "chain": "c08",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": "Continuous integration runs on CircleCI [822597c2-0f44-4d47-8831-f3479193ee7d], though it was moved to GitHub Actions [e2b2661d-2467-4023-88c2-28bdfe2bfa7c]."
+        },
+        {
+          "chain": "c09",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": "On-call rotations last one week [14582ee2-245c-40cf-8545-6083f58b2589], though company records also state they were lengthened to two weeks [cffd2439-f886-45cd-80ee-4afa6ed99045]."
+        },
+        {
+          "chain": "c10",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": "The Series A target was initially set at $8M [dc7026bb-cebb-432b-a744-66cad03771f0], but was subsequently raised to $12M [cad63d6b-d5da-4310-a752-7e36c6ed7c42]."
+        },
+        {
+          "chain": "c11",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": "The company headquarters office is listed as being in Austin [b5df8955-34ad-444a-b324-bd807b5a25e6], though another record indicates the headquarters moved to Denver [c0a90c3e-4b47-4947-af62-8dc6caccb"
+        },
+        {
+          "chain": "c12",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": "Application logs were originally retained for 30 days [55875242-230c-4c2a-87e5-9593290ce057], but retention was extended to 90 days [90092e7b-0a01-418d-851a-815dcb30d3d8]."
+        },
+        {
+          "chain": "c13",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": "The public API rate limit is listed as 100 requests per minute [68fe6376-f9d5-44ec-9773-ca6a4a09e8e6], though company records also note that the API rate limit was increased to 300 requests per minute"
+        },
+        {
+          "chain": "c14",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": "The weekly all-hands was held on Mondays [b1fe861a-c285-45d9-8c16-d2d78db61da8], but it moved to Thursdays [28eda48e-2907-46b4-b93a-a02c4e86c83e]."
+        }
+      ]
+    },
+    "reconcile": {
+      "versions_stored": {
+        "k": 30,
+        "n": 30,
+        "value": 1.0,
+        "ci95": [
+          0.886,
+          1.0
+        ]
+      },
+      "version_status_correct": {
+        "k": 28,
+        "n": 30,
+        "value": 0.9333,
+        "ci95": [
+          0.787,
+          0.982
+        ]
+      },
+      "chains_fully_correct": {
+        "k": 12,
+        "n": 14,
+        "value": 0.8571,
+        "ci95": [
+          0.601,
+          0.96
+        ]
+      },
+      "current_top1_is_latest": {
+        "k": 12,
+        "n": 14,
+        "value": 0.8571,
+        "ci95": [
+          0.601,
+          0.96
+        ]
+      },
+      "current_answer_latest_only": {
+        "k": 12,
+        "n": 14,
+        "value": 0.8571,
+        "ci95": [
+          0.601,
+          0.96
+        ]
+      },
+      "history_recall": {
+        "k": 30,
+        "n": 30,
+        "value": 1.0,
+        "ci95": [
+          0.886,
+          1.0
+        ]
+      },
+      "history_status_correct": {
+        "k": 28,
+        "n": 30,
+        "value": 0.9333,
+        "ci95": [
+          0.787,
+          0.982
+        ]
+      },
+      "base_facts_wrongly_invalidated": 0,
+      "detail": [
+        {
+          "chain": "c01",
+          "stored": [
+            true,
+            true,
+            true
+          ],
+          "state_correct": true,
+          "top1_is_final": true,
+          "answer_has_final_only": true,
+          "answer": "The Pro plan price is now $35 per month [bfe1464e-3c9e-43b3-9a0c-e5fec3c3b574]."
+        },
+        {
+          "chain": "c02",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": true,
+          "top1_is_final": true,
+          "answer_has_final_only": true,
+          "answer": "The version 2 launch was moved to June 17 [c4fe403d-20ba-42eb-987f-68d6af52487b]."
+        },
+        {
+          "chain": "c03",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": true,
+          "top1_is_final": true,
+          "answer_has_final_only": true,
+          "answer": "Marcus Webb owns the billing service [b3d3e459-d18c-4b37-b592-73a606ee1d84]."
+        },
+        {
+          "chain": "c04",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": "Production runs on AWS in us-east-1 [17cf775f-6e49-49ee-887e-60a8330f2298], but it was also migrated to Google Cloud in europe-west4 [4a1aac7b-1efe-41a7-b60a-6da340d3e2a6]."
+        },
+        {
+          "chain": "c05",
+          "stored": [
+            true,
+            true,
+            true
+          ],
+          "state_correct": true,
+          "top1_is_final": true,
+          "answer_has_final_only": true,
+          "answer": "The first-response SLA for the Standard plan is 4 hours [a9a67824-e865-4f79-91ab-7108fe5d8690]."
+        },
+        {
+          "chain": "c06",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": true,
+          "top1_is_final": true,
+          "answer_has_final_only": true,
+          "answer": "The engineering team has grown to 15 people [bd3d61c9-a302-4175-8c42-1701a56899fd]."
+        },
+        {
+          "chain": "c07",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": false,
+          "top1_is_final": false,
+          "answer_has_final_only": false,
+          "answer": "The mobile app was built with React Native [3f7cbdb4-299c-4886-87ea-900d547b5c77], though the team subsequently rewrote it in Flutter [b8c269db-0e2d-42bf-a40f-11652698b898]."
+        },
+        {
+          "chain": "c08",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": true,
+          "top1_is_final": true,
+          "answer_has_final_only": true,
+          "answer": "Continuous integration is run on GitHub Actions [d6471c2c-6089-4504-8de8-3ed503ee70c0]."
+        },
+        {
+          "chain": "c09",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": true,
+          "top1_is_final": true,
+          "answer_has_final_only": true,
+          "answer": "An on-call rotation is two weeks long [f31304a5-b63b-4617-b636-e904abadc1f1]."
+        },
+        {
+          "chain": "c10",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": true,
+          "top1_is_final": true,
+          "answer_has_final_only": true,
+          "answer": "The Series A fundraising target was raised to $12M [34daf097-15de-46d7-a1dc-998d7a2b8b38]."
+        },
+        {
+          "chain": "c11",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": true,
+          "top1_is_final": true,
+          "answer_has_final_only": true,
+          "answer": "The company headquarters moved to Denver [5746fd24-26c0-4471-b1cc-edda520c1778]."
+        },
+        {
+          "chain": "c12",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": true,
+          "top1_is_final": true,
+          "answer_has_final_only": true,
+          "answer": "Application log retention was extended to 90 days [40be748a-94e1-417a-bce5-76682cf16fe8]."
+        },
+        {
+          "chain": "c13",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": true,
+          "top1_is_final": true,
+          "answer_has_final_only": true,
+          "answer": "The API rate limit was increased to 300 requests per minute [73b190d7-ac8c-4393-abbe-288ea2e700fd], but the records do not specify whether this applies to the public API, which is prioritized on the 2"
+        },
+        {
+          "chain": "c14",
+          "stored": [
+            true,
+            true
+          ],
+          "state_correct": true,
+          "top1_is_final": true,
+          "answer_has_final_only": true,
+          "answer": "The weekly all-hands is held on Thursdays [3be3badf-a108-4350-8efa-cc0571c57830]."
+        }
+      ]
+    }
+  }
+}
