@@ -245,3 +245,68 @@ def test_llm_calls_always_carry_an_output_ceiling():
         captured.clear()
         llm.chat_text("sys", "user", model="gemini/x", task_name="never-heard-of-it")
         assert captured["max_tokens"] == llm._FALLBACK_MAX_TOKENS
+
+
+# ── auth-config: advisories must not block sign-in ──────────────────────────
+
+def _auth_config(monkeypatch, *, pk, sk="sk_test_x", production=True, guest_secret="s"):
+    import brain.auth as auth
+    from brain.wrappers.api import auth_config
+    monkeypatch.setenv("CLERK_PUBLISHABLE_KEY", pk)
+    monkeypatch.setenv("CLERK_SECRET_KEY", sk)
+    monkeypatch.setattr(auth, "_BYPASS", False)
+    monkeypatch.setattr(auth, "_IS_PRODUCTION", production)
+    monkeypatch.setattr(auth, "_GUEST_TOKEN_SECRET", guest_secret)
+    monkeypatch.setattr(auth, "_CLERK_JWKS_URL", "https://x.example/.well-known/jwks.json")
+    return auth_config()
+
+
+def test_test_keys_in_production_warn_but_do_not_block_sign_in(monkeypatch):
+    cfg = _auth_config(monkeypatch, pk="pk_test_abc")
+    assert cfg["problems"] == []
+    assert any("test keys" in w for w in cfg["warnings"])
+
+
+def test_demo_being_off_warns_but_does_not_block_sign_in(monkeypatch):
+    cfg = _auth_config(monkeypatch, pk="pk_live_abc", sk="sk_live_x", guest_secret=None)
+    assert cfg["problems"] == [] and any("Demo sign-in is off" in w for w in cfg["warnings"])
+
+
+def test_missing_or_malformed_keys_still_block_sign_in(monkeypatch):
+    assert any("not set" in p for p in _auth_config(monkeypatch, pk="")["problems"])
+    assert any("malformed" in p for p in _auth_config(monkeypatch, pk="not-a-key")["problems"])
+    assert any("SECRET" in p for p in _auth_config(monkeypatch, pk="pk_live_a", sk="")["problems"])
+
+
+# ── the demo must not be a dead end ─────────────────────────────────────────
+
+def _page():
+    from pathlib import Path
+    return (Path(__file__).parent.parent / "brain" / "wrappers" / "webapp" / "index.html").read_text(encoding="utf-8")
+
+
+def test_demo_banner_offers_sign_in_and_sign_up():
+    html = _page()
+    banner = html[html.index('id="guestBanner"'):html.index('id="userPill"')]
+    assert "leaveDemo('signin')" in banner and "leaveDemo('signup')" in banner
+
+
+def test_leaving_the_demo_clears_the_guest_session_and_opens_the_auth_form():
+    html = _page()
+    body = html[html.index("async function leaveDemo"):html.index("async function signOut")]
+    assert "await signOut()" in body and "setAuthTab(" in body
+    # signOut -> showAuthScreen is what drops the guest token, so a reload cannot resume the demo
+    assert "sessionStorage.removeItem('_guestToken')" in html[html.index("function showAuthScreen"):html.index("function showApp")]
+
+
+def test_guest_sidebar_button_goes_to_sign_in_not_the_landing_page():
+    html = _page()
+    start = html.index("if(isGuest){")
+    block = html[start:start + 900]
+    assert "leaveDemo('signin')" in block and "location.href='/'" not in block
+
+
+def test_only_real_misconfiguration_blocks_the_sign_in_screen():
+    html = _page()
+    assert "cfg.problems && cfg.problems.length" in html       # blocking list
+    assert "cfg.warnings" in html and "console.warn" in html   # advisories only logged

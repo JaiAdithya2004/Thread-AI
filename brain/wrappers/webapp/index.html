@@ -313,7 +313,12 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 .guest-banner-title{font-weight:600;font-size:12.5px}
 .guest-banner-bar{background:rgba(255,255,255,.25);border-radius:99px;height:4px;overflow:hidden}
 .guest-banner-fill{height:100%;background:#fff;border-radius:99px;transition:width .3s}
-.guest-banner-count{font-size:11px;opacity:.85}</style>
+.guest-banner-count{font-size:11px;opacity:.85}
+.guest-banner-actions{display:flex;gap:6px;margin-top:4px}
+.guest-banner-actions button{flex:1;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.14);color:#fff;border-radius:7px;padding:6px 8px;font-size:12px;font-weight:600;cursor:pointer}
+.guest-banner-actions button:hover{background:rgba(255,255,255,.28)}
+.guest-banner-actions button.primary{background:#fff;color:#4f46e5;border-color:#fff}
+</style>
 </head>
 <body>
 
@@ -535,6 +540,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
     <div class="guest-banner-title">Live demo · read-only</div>
     <div class="guest-banner-bar"><div class="guest-banner-fill" id="guestBannerFill" style="width:0%"></div></div>
     <div class="guest-banner-count" id="guestBannerCount">0 / 20 queries used</div>
+    <div class="guest-banner-actions">
+      <button class="primary" onclick="leaveDemo('signin')">Sign in</button>
+      <button onclick="leaveDemo('signup')">Sign up</button>
+    </div>
   </div>
 
   <div class="user-pill" id="userPill" style="display:none">
@@ -943,6 +952,7 @@ async function initAuth() {
   // key was pasted into a hosting dashboard with quotes, the server strips them
   // and this is the cleaned copy.
   const pk = cfg.publishable_key || window.__CLERK_PUBLISHABLE_KEY__ || '';
+  if (cfg.warnings && cfg.warnings.length) console.warn('Thread config warnings:', cfg.warnings);
   if (!pk || (cfg.problems && cfg.problems.length)) {
     showAuthScreen();
     document.getElementById('authErr').textContent =
@@ -1199,6 +1209,13 @@ async function doVerify() {
   } catch(e) {
     err.textContent = e.errors?.[0]?.message || 'Invalid code';
   }
+}
+
+// Leave the read-only demo and go to the sign-in or sign-up form. The demo used to
+// be a dead end: its only exit sent people to the landing page, never to sign-in.
+async function leaveDemo(tab) {
+  await signOut();          // clears the guest token and cached state, shows the auth screen
+  setAuthTab(tab === 'signup' ? 'signup' : 'signin');
 }
 
 async function signOut() {
@@ -2582,8 +2599,8 @@ function applyRoleUI(){
     // Hide the "Sync all" button in the connections tab
     document.querySelector('#tab-connections .btn-sync')?.setAttribute('style','display:none');
     // Hide sign-out in favour of "back to signup"
-    document.getElementById('userPill').querySelector('.user-signout').textContent = 'Sign up free';
-    document.getElementById('userPill').querySelector('.user-signout').onclick = () => location.href='/';
+    document.getElementById('userPill').querySelector('.user-signout').textContent = 'Sign in / Sign up';
+    document.getElementById('userPill').querySelector('.user-signout').onclick = () => leaveDemo('signin');
   }
 
   // Department block: hide entirely for individual accounts or guests

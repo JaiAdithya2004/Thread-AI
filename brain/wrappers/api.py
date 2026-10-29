@@ -768,18 +768,25 @@ def auth_config():
         if pk.startswith("pk_") and not _CLERK_JWKS_URL:
             problems.append("Could not derive the Clerk domain from the publishable key")
     from brain.auth import _GUEST_TOKEN_SECRET, _IS_PRODUCTION
+    # `problems` stop sign-in from working and the sign-in screen refuses to start.
+    # `warnings` are things worth fixing that do not stop it. Test keys are a
+    # warning: a Clerk development instance authenticates fine on a deployed app,
+    # and a production instance needs a custom domain, so blocking sign-in on them
+    # locked every user out of a working deployment.
+    warnings = []
     if _IS_PRODUCTION and not _GUEST_TOKEN_SECRET:
-        problems.append(
+        warnings.append(
             "Demo sign-in is off: set GUEST_TOKEN_SECRET or BRAIN_KEY_ENCRYPTION_KEY"
         )
     if pk.startswith("pk_test_") and _IS_PRODUCTION:
-        problems.append("Clerk is still on test keys (pk_test_/sk_test_)")
+        warnings.append("Clerk is on test keys (pk_test_/sk_test_); switch to live keys for a public launch")
     return {
         "auth_mode": "bypass" if _BYPASS else "clerk",
         "publishable_key": pk if pk.startswith("pk_") else "",
         "guest_demo": bool(_GUEST_TOKEN_SECRET),
         "env": "production" if _IS_PRODUCTION else "development",
         "problems": problems,
+        "warnings": warnings,
     }
 
 
