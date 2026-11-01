@@ -129,6 +129,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var
 .src-row:last-child{border-bottom:none}
 .src-icon{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;background:var(--surface-card);margin-top:2px}
 .src-detail{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.cite{font-size:10px;font-weight:600;color:var(--muted);margin-left:2px}
+.src-num{flex:none;width:18px;height:18px;border-radius:50%;background:var(--hairline-soft);color:var(--muted);font-size:10.5px;font-weight:600;display:flex;align-items:center;justify-content:center;margin-top:2px}
+.src-toggle{cursor:pointer;padding:9px 18px;color:var(--muted);font-size:12px;font-weight:500;list-style:none;border-top:1px solid var(--hairline-soft)}
+.src-toggle::-webkit-details-marker{display:none}
+details.answer-sources{border-top:none}
 .src-label{color:var(--muted);font-size:11.5px;font-weight:500;text-transform:capitalize}
 .src-summary{color:var(--body-strong);font-size:13px;line-height:1.45;word-break:break-word}
 .src-summary.stale{text-decoration:line-through;color:var(--muted-soft)}
@@ -1789,45 +1794,82 @@ function addMsg(role, html){
   return div;
 }
 
+// Turn the model's "[fact-id]" citation markers into small numbered references
+// that match the numbered sources underneath the answer.
+function _renderAnswerText(text, facts){
+  const idx = id => facts.findIndex(f => {
+    const fid = String(f.fact_id || f.id || '');
+    return fid && (fid === id || fid.startsWith(id));
+  });
+  const out = escHtml(String(text || '').trim()).replace(/\[([^\]]+)\]/g, (m, inner) => {
+    const ids = inner.split(/[,;\s]+/).filter(Boolean);
+    if(!ids.length || !ids.every(t => /^[0-9a-f-]{6,}$/i.test(t))) return m;   // not a citation
+    const nums = [...new Set(ids.map(idx).filter(i => i >= 0).map(i => i + 1))];
+    return nums.length ? `<sup class="cite">${nums.join(',')}</sup>` : '';
+  });
+  return out.replace(/\n/g, '<br>');
+}
+
 function buildAnswerCard(result){
-  const facts=result.facts||[];
-  const uncertain=result.answer!=='From company memory:';
+  const facts = result.facts || [];
+  const synth = (result.synthesized_answer || '').trim();
+  const confident = result.answer === 'From company memory:' || result.answer === 'From company memory (synthesis unavailable):';
 
   if(!facts.length){
     const hint = S.me?.is_guest
-      ? `Try asking about emails, calendar, or GitHub repos.`
-      : `→ Connect integrations and sync data, then ask again.`;
-    return `<div class="answer-card"><div class="answer-text" style="color:var(--muted);font-style:italic">
-      No relevant facts found for that question.<br>
+      ? `Try one of the example questions, or sign in to connect your own tools.`
+      : `Connect a tool and sync it, then ask again.`;
+    return `<div class="answer-card"><div class="answer-text" style="color:var(--muted)">
+      I couldn't find anything about that in the knowledge base.<br>
       <small style="font-size:12px;color:var(--muted-soft)">${hint}</small>
     </div></div>`;
   }
 
-  const headline=(()=>{
-    if(uncertain) return '<span style="color:var(--muted);font-size:13px;font-style:italic">Closest facts in memory (may not be directly relevant):</span>';
-    const valid=facts.find(f=>f.status!=='stale');
-    return escHtml((valid||facts[0]).summary);
-  })();
-
-  const rows=facts.map(f=>{
-    const stale=f.status==='stale';
-    const srcName=f.ep_source?prettySource(f.ep_source):(f.source==='human'?'Human record':'Company memory');
-    const srcDate=f.ep_occurred_at?', '+fmtDate(f.ep_occurred_at):'';
-    const statusPill=stale?`<span class="pill pill-stale">superseded</span>`:`<span class="pill pill-current">current</span>`;
-    const sharedPill=f.visibility==='shared'?`<span class="pill pill-shared">shared</span>`:'';
+  const sourceRow = (f, n) => {
+    const stale = f.status === 'stale';
+    const srcName = f.ep_source ? prettySource(f.ep_source) : (f.source === 'human' ? 'Added by a person' : 'Company knowledge base');
+    const srcDate = f.ep_occurred_at ? ', ' + fmtDate(f.ep_occurred_at) : '';
+    const note = stale ? ' <span class="pill pill-stale">replaced later</span>' : '';
     return `<div class="src-row">
-      <div class="src-icon">${srcIcon(f.ep_source||f.source)}</div>
+      <div class="src-num">${n}</div>
       <div class="src-detail">
-        <div class="src-label">${escHtml(srcName+srcDate)}</div>
-        <div class="src-summary ${stale?'stale':''}">${escHtml(f.summary)}</div>
+        <div class="src-summary ${stale ? 'stale' : ''}">${escHtml(f.summary)}${note}</div>
+        <div class="src-label">${escHtml(srcName + srcDate)}</div>
       </div>
-      <div class="src-badges">${statusPill}${sharedPill}</div>
     </div>`;
-  }).join('');
+  };
+
+  // The question could not be answered reliably: say so plainly and keep the
+  // nearest facts out of the way instead of presenting them as the answer.
+  if(!confident){
+    return `<div class="answer-card"><div class="answer-text">
+      I don't have reliable information about that in the knowledge base.
+    </div>
+    <details class="answer-sources"><summary class="src-toggle">Closest matches (may not be relevant)</summary>
+      ${facts.slice(0, 3).map((f, i) => sourceRow(f, i + 1)).join('')}
+    </details></div>`;
+  }
+
+  let text;
+  if(synth){
+    text = _renderAnswerText(synth, facts);
+  } else {
+    // Synthesis was unavailable: fall back to the most relevant current fact.
+    const valid = facts.find(f => f.status !== 'stale') || facts[0];
+    text = escHtml(valid.summary);
+  }
+
+  const cited = [];
+  const used = new Set((text.match(/<sup class="cite">([^<]+)<\/sup>/g) || [])
+    .flatMap(t => t.replace(/<[^>]+>/g, '').split(',').map(Number)));
+  facts.forEach((f, i) => { if(used.size === 0 || used.has(i + 1)) cited.push([f, i + 1]); });
 
   return `<div class="answer-card">
-    <div class="answer-text">${headline}</div>
-    <div class="answer-sources">${rows}</div>
+    <div class="answer-text">${text}</div>
+    <details class="answer-sources" ${cited.length <= 2 ? 'open' : ''}>
+      <summary class="src-toggle">Sources (${cited.length})</summary>
+      ${cited.map(([f, n]) => sourceRow(f, n)).join('')}
+    </details>
   </div>`;
 }
 
