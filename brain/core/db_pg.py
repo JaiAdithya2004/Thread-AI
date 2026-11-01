@@ -247,7 +247,7 @@ def migrate(conn):
             WHERE owner_id IS NOT NULL
     """)
     # NOTE: The HNSW index (facts_vec_768_idx) is NOT created here — building it
-    # on app startup blocks all requests. Run scripts/rebuild_index.py once after
+    # on app startup blocks all requests. Run scripts/db/rebuild_index.py once after
     # reembed_gemini.py finishes to create it. Search still works without the index
     # (falls back to sequential scan) until then.
     # GIN index for full-text
@@ -823,7 +823,7 @@ def migrate(conn):
             print(
                 "[thread] WARNING: HNSW vector index not found on facts.fact_vec_768. "
                 "Vector search will use a slow sequential scan. "
-                "Run: python scripts/rebuild_index.py",
+                "Run: python scripts/db/rebuild_index.py",
                 file=sys.stderr,
             )
         chk.close()

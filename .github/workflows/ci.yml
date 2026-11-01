@@ -73,7 +73,7 @@ jobs:
       - name: Run migrations
         run: python -c "from brain.core import db; conn = db.connect(); db.migrate(conn); conn.close()"
       - name: Verify RLS policies
-        run: python scripts/check_rls.py
+        run: python scripts/db/check_rls.py
       - run: pytest tests/test_ingest_retrieve.py tests/test_integration.py tests/test_privacy.py -v --tb=short --cov=brain --cov-report=term-missing
 
   isolation-suite:

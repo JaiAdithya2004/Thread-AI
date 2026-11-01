@@ -54,15 +54,15 @@ If you were told or assumed it runs on Azure, the actual infrastructure is below
 |---|---|---|---|
 | **Compute (API + web app)** | **Vercel** serverless Python | `vercel.json`, `api/index.py` | Serves FastAPI and the single-page web app. Region `hnd1` (Tokyo). `maxLambdaSize` 50 MB. All routes go to `api/index.py` |
 | **Database** | **Supabase** Postgres 16 + **pgvector** | `DATABASE_URL` (pooler host `aws-0-ap-northeast-1`, port 6543) | Facts, episodes, vectors, full-text index, accounts, ledger, billing tables. Transaction-mode pooler. Same region (Tokyo) as the compute |
-| **Scheduler** | **GitHub Actions** | `.github/workflows/sync.yml` | Runs `scripts/sync_once.py` every 15 minutes (cron `*/15 * * * *`), 20-minute timeout, one run at a time, secrets from the `Production` environment |
+| **Scheduler** | **GitHub Actions** | `.github/workflows/sync.yml` | Runs `scripts/db/sync_once.py` every 15 minutes (cron `*/15 * * * *`), 20-minute timeout, one run at a time, secrets from the `Production` environment |
 | **CI/CD** | GitHub Actions | `ci.yml`, `e2e.yml` | Lint, type-check, unit, integration, RLS check, isolation suite, secret scan, dependency scan, Playwright E2E |
 | **Sign-in** | **Clerk** | `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | Issues sign-in sessions (RS256 JWTs). The app verifies them against Clerk's public keys; it never sees passwords |
 | **Connectors** | **Composio** | `COMPOSIO_API_KEY`, `brain/core/connectors/composio.py` | One API in front of Gmail, GitHub, Calendar, Notion, Slack and others; handles each app's OAuth |
 | **Language models** | **Gemini** (direct) and **OpenRouter** | `brain/core/llm.py` via LiteLLM | Extraction, reconcile judge, answer writing. Currently routed to OpenRouter (see 2.3) |
 | **Embeddings** | **Gemini** `gemini-embedding-001` (768-dim), OpenRouter fallback | `brain/core/embed.py` | Meaning vectors for facts and queries |
 | **Cache (optional)** | **Redis** | `REDIS_URL` | Query-result cache and job queue. **Not provisioned in the hosted deployment**; everything degrades without it |
-| **Errors** | **Sentry** (optional) | `SENTRY_DSN` | Error tracking with a scrubber that removes query, answer, email, tokens |
-| **LLM tracing** | **Langfuse** (optional) | `LANGFUSE_*` | Records each model call |
+| **Errors** | **Sentry** (optional; **not active on the hosted deployment**: not installed there and initialised only in `main()`) | `SENTRY_DSN` | Error tracking with a scrubber that removes query, answer, email, tokens |
+| **LLM tracing** | **Langfuse** (optional; **not active and currently broken**: calls `.trace()`, absent in SDK 4.x, and never flushes) | `LANGFUSE_*` | Intended to record each model call. See [SYSTEM_BOUNDARIES.md](SYSTEM_BOUNDARIES.md) |
 | **Metrics** | **Prometheus** text at `/metrics` | `brain/core/metrics.py`, `monitoring/alerts.yaml` | Latency histogram, token and cost counters, cache hit rate |
 | **Local dev** | **Docker** (`pgvector/pgvector:pg16`) | — | The local database used for development and the benchmark |
 
@@ -107,7 +107,7 @@ The code is database-agnostic only in the sense that it is plain Postgres + pgve
                                      └──────────────┬─────────────┘
                                                     │ poll every 15 min
                                       ┌─────────────▼──────────────┐
-   GitHub Actions cron ──────────────▶│  scripts/sync_once.py      │
+   GitHub Actions cron ──────────────▶│  scripts/db/sync_once.py      │
                                       │  → Brain.sync()            │
                                       └─────────────┬──────────────┘
                                                     │ episodes
@@ -168,7 +168,7 @@ Constraints that matter: `confidence` between 0 and 1; `source_kind` in (`llm`, 
 
 | Index | Type | Used by |
 |---|---|---|
-| `facts_vec_768_idx` | **HNSW** (m=16, ef_construction=64), cosine | vector search. Built **out of band** by `scripts/rebuild_index.py` because building it locks the table; `/readyz` reports it missing |
+| `facts_vec_768_idx` | **HNSW** (m=16, ef_construction=64), cosine | vector search. Built **out of band** by `scripts/db/rebuild_index.py` because building it locks the table; `/readyz` reports it missing |
 | `facts_fts_gin` | GIN on `fts_vec` | full-text search |
 | `facts_ws_idx`, `facts_owner_idx` (partial) | b-tree | workspace and owner scoping |
 | `episodes_ws_hash` (unique), `episodes_ext_id`, `episodes_supersedes` | b-tree | dedup, "same external item changed" lookup |
@@ -289,7 +289,7 @@ Before the fixes in section 12.6, this view could never show a stale fact: both 
 
 ### 6.7 Scheduled sync (what actually keeps data fresh in production)
 
-A serverless host cannot run a long-lived worker, so **GitHub Actions** is the scheduler. Every 15 minutes `sync.yml` checks out the repo, installs dependencies, fails fast if `DATABASE_URL`, `COMPOSIO_API_KEY` or `GEMINI_API_KEY` is missing, and runs `scripts/sync_once.py`. For each workspace holding episodes it:
+A serverless host cannot run a long-lived worker, so **GitHub Actions** is the scheduler. Every 15 minutes `sync.yml` checks out the repo, installs dependencies, fails fast if `DATABASE_URL`, `COMPOSIO_API_KEY` or `GEMINI_API_KEY` is missing, and runs `scripts/db/sync_once.py`. For each workspace holding episodes it:
 
 1. reads the watermark from `connector_sync_state` and marks the source `running`;
 2. calls `Brain.sync("composio", since=watermark)` — fetch → ingest → extract (with reconcile);
@@ -334,7 +334,7 @@ A fact is returned only if **all** hold: its workspace matches; the caller's pri
 
 ### 7.3 Defence in depth
 
-- **Row-level security** is enabled on episodes, facts, fact_edges, ledger, teams, team_kpis (workspace policy), plus an owner-only policy on private facts and *forced* user-scoped policies on conversations and messages. `scripts/check_rls.py` is a CI gate that fails the build if a required table lacks RLS.
+- **Row-level security** is enabled on episodes, facts, fact_edges, ledger, teams, team_kpis (workspace policy), plus an owner-only policy on private facts and *forced* user-scoped policies on conversations and messages. `scripts/db/check_rls.py` is a CI gate that fails the build if a required table lacks RLS.
 - **Caveat on RLS.** Policies on the knowledge tables are `ENABLE`d, not `FORCE`d, and the application connects with one database role. A table's owner role bypasses non-forced policies, so for those tables correctness rests on the explicit `workspace_id` predicates in every query (they are there) with RLS as a second layer — I did not verify the production role's attributes. The chat tables are different: they are forced, and requests drop to the `authenticated` role.
 - **Customer API keys** are Fernet-encrypted (AES-128-CBC + HMAC) under `BRAIN_KEY_ENCRYPTION_KEY`; a missing or wrong master key makes decryption return an empty string rather than ciphertext.
 - **Signed OAuth state.** The integration callback is a bare browser redirect with no bearer token, so it cannot be authenticated the usual way. `auth.sign_state` / `verify_state` seal `{user_id, workspace_id, account_id, expiry}` with an HMAC (key derived with BLAKE2b from `BRAIN_KEY_ENCRYPTION_KEY`, falling back to `CLERK_SECRET_KEY`); the callback reads identity from the verified state and refuses anything missing, forged or expired.
@@ -536,7 +536,7 @@ Found by reading the code in a review on 2026-10-21. The first group is fixed in
 | 7 | A failed embedding became a zero vector that was saved, creating a fact no query could find | `extract.run` and `extract_from_text` refuse to save and leave the episode for retry (`EmbeddingUnavailable`) |
 | 8 | Model calls sent no `max_tokens`, so providers reserved the model's full output limit (65,536 for some models) and refused small requests on a low balance (`402 … can only afford 73`) | Per-task output ceilings in `llm.py` (`extract` 4,000, `reconcile` 1,500, `synthesize` 2,000, …) |
 | 9 | `evals/run.py --reset-extracted` assigned `false` to an `INTEGER` column | `extracted=0` |
-| 10 | `/readyz` ignored OpenRouter and Moonshot keys when checking for an LLM key; `scripts/verify_indexes.py` looked for the dropped index `facts_embedding_hnsw`; `docs/performance.md` described per-fact hydration and the old index name | Corrected |
+| 10 | `/readyz` ignored OpenRouter and Moonshot keys when checking for an LLM key; `scripts/db/verify_indexes.py` looked for the dropped index `facts_embedding_hnsw`; `docs/performance.md` described per-fact hydration and the old index name | Corrected |
 
 ### Still open
 

@@ -45,9 +45,9 @@ locust -f tests/load/locust_load_test.py --headless -u 20 -r 5 --run-time 2m \
 ```
 
 ### EXPLAIN ANALYZE
-Run `scripts/explain_queries.py` to see actual query plans and execution times:
+Run `scripts/db/explain_queries.py` to see actual query plans and execution times:
 ```bash
-python scripts/explain_queries.py
+python scripts/db/explain_queries.py
 ```
 The script exits with code 1 if any hot query uses a sequential scan on `facts`.
 
@@ -69,7 +69,7 @@ Only increase `ef_search` if recall testing shows it falling below 0.95.
 For typical company knowledge bases (<100k facts), the default (40) is fine.
 
 ### `ef_construction` (index build time)
-`ef_construction = 64` (set in `scripts/rebuild_index.py` and migration `0003`) governs index build quality.
+`ef_construction = 64` (set in `scripts/db/rebuild_index.py` and migration `0003`) governs index build quality.
 Only rebuild the index with a higher value if you observe recall degradation
 under the HNSW ef_search tuning above. Rebuilding requires:
 ```sql
@@ -116,7 +116,7 @@ Cache hit rate will be low for a diverse query set; high for repeated queries
    should not be re-embedding at all.
 2. **DB connection saturation**: increase `default_pool_size` in pgbouncer.ini,
    or switch to Supabase's managed pooler.
-3. **p95 > 300 ms consistently**: profile with `scripts/explain_queries.py` to
+3. **p95 > 300 ms consistently**: profile with `scripts/db/explain_queries.py` to
    confirm indexes are being used. If yes, the bottleneck is likely the LLM
    synthesis step — move it to a background job or increase worker concurrency.
 4. **> 1M facts in workspace**: consider partitioning `facts` by `workspace_id`

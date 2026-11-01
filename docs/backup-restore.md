@@ -99,7 +99,7 @@ DATABASE_URL="$DATABASE_URL" alembic upgrade head
 Check RLS policies are in place after restore:
 
 ```bash
-DATABASE_URL="$DATABASE_URL" python scripts/check_rls.py
+DATABASE_URL="$DATABASE_URL" python scripts/db/check_rls.py
 ```
 
 A non-zero exit code means one or more tables are missing RLS — re-run the migration or apply policies manually before accepting traffic.

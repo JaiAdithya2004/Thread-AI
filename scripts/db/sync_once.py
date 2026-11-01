@@ -14,9 +14,9 @@ connector_sync_state, so it interoperates with the worker rather than
 competing with it — whichever runs last simply advances the watermark.
 
 Usage:
-    python scripts/sync_once.py                    # sync every workspace
-    python scripts/sync_once.py --workspace ws_demo
-    python scripts/sync_once.py --dry-run          # report what would sync
+    python scripts/db/sync_once.py                    # sync every workspace
+    python scripts/db/sync_once.py --workspace ws_demo
+    python scripts/db/sync_once.py --dry-run          # report what would sync
 
 Exit codes:
     0  all workspaces synced (or nothing to do)

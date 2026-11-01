@@ -3,7 +3,7 @@
 Re-embed all facts using gemini-embedding-001 (768-dim).
 
 Usage:
-    python scripts/reembed_gemini.py [--dry-run] [--reset-progress]
+    python scripts/db/reembed_gemini.py [--dry-run] [--reset-progress]
 
 Options:
     --dry-run          Show what would be done, don't write to DB

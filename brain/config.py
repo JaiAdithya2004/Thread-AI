@@ -44,7 +44,7 @@ GROK_BASE_URL = "https://api.x.ai/v1"
 EMBED_DIM = 768            # gemini-embedding-001 output_dimensionality
 EMBED_MODEL = "gemini-embedding-001"
 # NOTE: changing EMBED_MODEL requires a full re-embed + HNSW index rebuild of all facts.
-# Never mix two embedding spaces — run scripts/reembed_gemini.py then scripts/rebuild_index.py.
+# Never mix two embedding spaces — run scripts/db/reembed_gemini.py then scripts/db/rebuild_index.py.
 
 WORTHY_MIN_LEN = 12
 

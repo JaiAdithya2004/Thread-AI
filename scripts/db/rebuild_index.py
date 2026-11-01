@@ -5,7 +5,7 @@ Run AFTER reembed_gemini.py has fully populated all fact_vec_768 vectors.
 Aborts with exit code 1 if any NULLs remain.
 
 Usage:
-    python scripts/rebuild_index.py
+    python scripts/db/rebuild_index.py
 """
 import os
 import sys

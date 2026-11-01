@@ -2,7 +2,7 @@
 seed_demo.py — Seed the demo workspace with real data from connected integrations.
 
 Usage:
-    python scripts/seed_demo.py [--dry-run] [--reset]
+    python scripts/dev/seed_demo.py [--dry-run] [--reset]
 
 Options:
     --dry-run   Print episodes that would be ingested; skip DB writes and LLM calls.
@@ -26,7 +26,7 @@ ISOLATION GUARANTEE:
 import sys, os, datetime, argparse
 
 # ── ensure project root is on sys.path ────────────────────────────────────────
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 

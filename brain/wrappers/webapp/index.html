@@ -2102,7 +2102,7 @@ const COMMANDS = [
     async run() {
       const rows = await api.get('/api/facts?limit=10');
       if (!rows.length) return {ok: 'No facts in memory yet. Sync a connector or record something.'};
-      const lines = rows.map(f=>`• [${f.team_id||'shared'}] ${f.claim||f.body||'(no body)'}`);
+      const lines = rows.map(f=>`• [${f.team_id||'shared'}] ${f.summary||f.claim||f.body||'(no text)'}`);
       return {ok: `**Last ${rows.length} facts:**\n\n${lines.join('\n')}`};
     },
   },

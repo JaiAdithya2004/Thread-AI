@@ -3,12 +3,12 @@ seed_facts_direct.py — Insert pre-written facts from episode content directly,
 bypassing LLM extraction. Uses Gemini embeddings only (different quota from generation).
 
 Run when: Gemini generation quota is exhausted but embeddings still work.
-Usage: python scripts/seed_facts_direct.py
+Usage: python scripts/dev/seed_facts_direct.py
 """
 
 import sys, os, uuid, datetime
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 

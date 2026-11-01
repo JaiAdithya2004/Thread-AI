@@ -58,7 +58,7 @@ The first attempt (earlier the same day) was blocked: the OpenRouter account had
 | Retrieval (needs embeddings only) | **Valid** | **Valid** — 135/135 hit@5 across all three runs |
 | Answer quality, supersession, end to end (need the chat models) | **Valid** | **Invalid** — the account's credit ran out partway through run 2 (`402 … You requested up to 2000 tokens, but can only afford 1990`). Run 2 scored 12 of 45 answers; run 3 scored none; the reconcile judge failed on every call, so supersession recall read 0/16 |
 
-The invalid runs were moved to `evals/results/audit_2026-10-22/invalid_credit_exhausted/` and are **excluded from every figure below**. Averaging them in would have reported an outage as a regression.
+The invalid runs were moved to `evals/results/controlled_rerun_2026-10-22/excluded_provider_credit_exhausted/` and are **excluded from every figure below**. Averaging them in would have reported an outage as a regression.
 
 Consequences:
 
@@ -245,7 +245,7 @@ Extraction, state and retrieval are like-for-like (same models). The answer rows
 
 **Real mail (your own Gmail, no labels).** 30 emails fetched, 21 kept after the noise filter and de-duplication, 15 facts extracted (all private to the owner by default). Every fact was supported by its source email (15/15). Fifteen questions generated from those facts: 15/15 retrieved in the top 5, 15/15 answers faithful, 23/23 citations real and supportive, 8/8 out-of-scope questions refused. This is a sanity check, not an accuracy claim: with only 15 facts retrieval is easy, 17 of 21 emails produced no fact, and no supersession was exercised. Raw text is kept only in `evals/results/private/` (git-ignored). Cost: $0.0094.
 
-**Limits.** One extraction run (no range); the corpus and labels were written by the system's builder; the real-mail sample is small and unlabelled; a three-run pool with the stronger answer model was not possible because the provider account's balance ran out, and the runner now stamps such runs partly invalid per stage instead of publishing them. To repeat with ranges: fund the account and run `scripts/run_e2e_benchmark.sh`.
+**Limits.** One extraction run (no range); the corpus and labels were written by the system's builder; the real-mail sample is small and unlabelled; a three-run pool with the stronger answer model was not possible because the provider account's balance ran out, and the runner now stamps such runs partly invalid per stage instead of publishing them. To repeat with ranges: fund the account and run `scripts/bench/run_e2e_benchmark.sh`.
 
 ### I.3.3 Reading the results
 
@@ -348,7 +348,7 @@ Found while documenting the architecture (2026-10-21) and in this re-audit; each
 5. CORS defaults to `*`.
 6. The Playwright and load suites have not been run in this environment.
 7. Real-data validation has not been run. The tooling to do it now exists (`evals/real_eval.py` to sample, label, score and audit; `BRAIN_RECONCILE_MODE=shadow` to log supersession decisions without applying them); what is missing is real data, people to label it, and the trial period.
-8. The end-to-end benchmark has a single run (Part I.3.5). A three-run pool with the stronger answer model was not possible because the provider account's balance ran out; fund it and run `scripts/run_e2e_benchmark.sh` to add ranges.
+8. The end-to-end benchmark has a single run (Part I.3.5). A three-run pool with the stronger answer model was not possible because the provider account's balance ran out; fund it and run `scripts/bench/run_e2e_benchmark.sh` to add ranges.
 9. Only one valid benchmark run exists for 2026-10-22 because the OpenRouter account's small free allowance ran out; add credit and run two more to restore a three-run range.
 
 ---
@@ -410,7 +410,7 @@ Thread has solid infrastructure foundations (circuit breakers, RLS isolation, La
 
 - **RLS double-enforcement:** Session GUC `brain.workspace_id` + explicit `WHERE workspace_id=%s` in every query
 - **FORCE RLS** on conversations and messages — bypasses even superuser
-- **`scripts/check_rls.py`** — CI gate verifying RLS enabled on all required tables
+- **`scripts/db/check_rls.py`** — CI gate verifying RLS enabled on all required tables
 - **Sentry scrubber** strips query, answer, email, api_key, token, secret from all events
 - **Guest token:** HMAC-SHA256, 4h expiry, workspace force-set server-side
 

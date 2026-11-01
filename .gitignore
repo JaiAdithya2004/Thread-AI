@@ -47,7 +47,7 @@ server.log
 server.err
 
 # Migration checkpoints (resume state - never commit)
-scripts/.reembed_progress.json
+scripts/db/.reembed_progress.json
 
 # Environment files: keep only the committed template
 .env.*

@@ -6,7 +6,7 @@ Connects to the database and verifies that Row-Level Security is enabled
 (and where required, FORCE-enabled) on all security-critical tables.
 
 Usage:
-    python scripts/check_rls.py
+    python scripts/db/check_rls.py
 
 Exit codes:
     0  — all required RLS checks pass

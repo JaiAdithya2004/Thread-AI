@@ -2,8 +2,8 @@
 bench_snapshot.py — Capture the current eval results as the regression baseline.
 
 Run this after any architectural change you want to set as the new quality bar:
-  python scripts/bench_snapshot.py
-  python scripts/bench_snapshot.py --ws ws_demo --out evals/baseline.json
+  python scripts/bench/bench_snapshot.py
+  python scripts/bench/bench_snapshot.py --ws ws_demo --out evals/baseline.json
 
 The snapshot file is committed to git so future runs can compare against it.
 """
@@ -36,7 +36,7 @@ def main():
         cmd += ["--no-faithfulness"]
 
     print(f"[bench] Running eval: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=Path(__file__).parent.parent)
+    result = subprocess.run(cmd, cwd=Path(__file__).resolve().parents[2])
     if result.returncode != 0:
         print("[bench] Eval run failed — baseline NOT updated.", file=sys.stderr)
         sys.exit(1)

@@ -3,16 +3,16 @@ bench_compare.py — Compare a new eval run against a saved baseline.
 
 Usage:
   # Run a fresh eval and compare against baseline in one step:
-  python scripts/bench_compare.py
+  python scripts/bench/bench_compare.py
 
   # Compare an already-captured results file:
-  python scripts/bench_compare.py --results evals/results.json
+  python scripts/bench/bench_compare.py --results evals/results.json
 
   # Compare against a specific baseline:
-  python scripts/bench_compare.py --baseline evals/baseline.json
+  python scripts/bench/bench_compare.py --baseline evals/baseline.json
 
   # Exit 1 if any regression found (for CI):
-  python scripts/bench_compare.py --strict
+  python scripts/bench/bench_compare.py --strict
 
 Regressions are defined in evals/thresholds.yaml.
 A regression is flagged when a metric drops MORE than its tolerance below
@@ -39,7 +39,7 @@ def _load_thresholds() -> dict:
 def _load_baseline(path: Path) -> dict:
     if not path.exists():
         print(f"[bench] No baseline found at {path}.", file=sys.stderr)
-        print("[bench] Run:  python scripts/bench_snapshot.py  to create one.", file=sys.stderr)
+        print("[bench] Run:  python scripts/bench/bench_snapshot.py  to create one.", file=sys.stderr)
         sys.exit(1)
     with open(path) as f:
         return json.load(f)
@@ -52,7 +52,7 @@ def _run_eval(ws: str, k: int, no_faith: bool, out: str) -> dict:
     if no_faith:
         cmd += ["--no-faithfulness"]
     print(f"[bench] Running eval: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=Path(__file__).parent.parent)
+    result = subprocess.run(cmd, cwd=Path(__file__).resolve().parents[2])
     if result.returncode != 0:
         print("[bench] Eval run failed.", file=sys.stderr)
         sys.exit(1)

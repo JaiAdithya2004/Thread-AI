@@ -2,7 +2,7 @@
 explain_queries.py — EXPLAIN ANALYZE the three hot queries on the facts table.
 
 Usage:
-    python scripts/explain_queries.py
+    python scripts/db/explain_queries.py
 
 Exits 1 if any hot query uses a sequential scan on facts (CI gate).
 Requires DATABASE_URL env var or falls back to local default.
@@ -154,7 +154,7 @@ def main():
     if any_seq_scan:
         print("FAILED: One or more hot queries are using a sequential scan on facts.")
         print("  Ensure migration has been run: python -m brain.core.db_pg")
-        print("  Then run: python scripts/verify_indexes.py")
+        print("  Then run: python scripts/db/verify_indexes.py")
         sys.exit(1)
     else:
         print("PASSED: All hot queries are using indexes.")

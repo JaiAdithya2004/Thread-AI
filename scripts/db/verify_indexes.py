@@ -2,7 +2,7 @@
 verify_indexes.py — Assert that all required indexes exist on facts and episodes.
 
 Usage:
-    python scripts/verify_indexes.py
+    python scripts/db/verify_indexes.py
 
 Exits 0 if all required indexes are present.
 Exits 1 if any are missing (CI gate — run after migrations).

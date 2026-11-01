@@ -3,7 +3,7 @@
 Thread smoke test — hits a running server and verifies key endpoints.
 
 Usage:
-    python scripts/smoke_test.py [--url http://localhost:7070] [--token <bearer>]
+    python scripts/dev/smoke_test.py [--url http://localhost:7070] [--token <bearer>]
 
 Pass --token only when running against a server with real Clerk auth.
 In dev/bypass mode the token is ignored; any string works.

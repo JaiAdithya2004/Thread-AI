@@ -171,8 +171,8 @@ class TestArchitecturalGuards:
             pytest.skip("Baseline predates embed_model tracking")
         assert EMBED_MODEL == baseline_embed, (
             f"EMBED_MODEL changed: {baseline_embed!r} → {EMBED_MODEL!r}. "
-            "Run scripts/reembed_gemini.py + scripts/rebuild_index.py, "
-            "then re-snapshot: python scripts/bench_snapshot.py"
+            "Run scripts/db/reembed_gemini.py + scripts/db/rebuild_index.py, "
+            "then re-snapshot: python scripts/bench/bench_snapshot.py"
         )
 
     def test_embed_dim_consistent_with_hnsw(self):

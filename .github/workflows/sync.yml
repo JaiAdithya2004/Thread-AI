@@ -69,4 +69,4 @@ jobs:
           echo "all required secrets present"
 
       - name: Sync connectors
-        run: python scripts/sync_once.py
+        run: python scripts/db/sync_once.py

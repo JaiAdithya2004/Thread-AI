@@ -550,8 +550,12 @@ def run(conn, ws, query, principals, caller, surface,
 
     facts = facts[:top]
 
+    # The ledger is readable by teammates and admins. A private fact (one person's
+    # connector data) may be returned to its owner, but its text must not be copied
+    # into a table other people can read, so only the fact ids are kept for those.
+    shareable = [f["summary"] for f in facts if (f.get("visibility") or "team") != "private"]
     db.log(conn, ws, caller, query, surface, [f["id"] for f in facts],
-           "\n".join(f["summary"] for f in facts), team_id=team_id)
+           "\n".join(shareable), team_id=team_id)
 
     # Write to cache — falls through silently if Redis is down
     _cache_set(cache_key, facts, CACHE_TTL)

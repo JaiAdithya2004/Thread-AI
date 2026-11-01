@@ -518,7 +518,7 @@ def main():
 
     if fact_count == 0:
         print(f"WARNING: 0 active facts in workspace '{ws}'. Run extraction first.")
-        print("  Hint: python scripts/seed_facts_direct.py  (bypasses LLM quota)")
+        print("  Hint: python scripts/dev/seed_facts_direct.py  (bypasses LLM quota)")
 
     print(f"\nWorkspace '{ws}': {fact_count} active facts, {vec_count} with vectors (hybrid search)")
 

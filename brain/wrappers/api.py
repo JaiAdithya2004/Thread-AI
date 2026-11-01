@@ -530,7 +530,7 @@ def _auto_discover_teams(b: Brain):
 @app.get("/logo")
 def logo():
     from fastapi.responses import FileResponse
-    p = Path(__file__).parent.parent.parent / "Thread Logo.png"
+    p = Path(__file__).parent.parent.parent / "assets" / "logo.png"
     if not p.exists():
         raise HTTPException(404, "Logo not found")
     return FileResponse(str(p), media_type="image/png")
@@ -648,7 +648,7 @@ def readyz():
             conn.close()
             return "ok" if found else (
                 "error: facts_vec_768_idx missing — vector search is a sequential "
-                "scan; run scripts/rebuild_index.py")
+                "scan; run scripts/db/rebuild_index.py")
         except Exception as e:
             return f"error: {e}"
 
@@ -1020,7 +1020,12 @@ def ledger(
     offset = max(offset, 0)
     b = _brain(identity)
     team_scope = None if identity.is_admin else identity.team_id
-    return _db.read_ledger(b.conn, b.ws, limit, team_id=team_scope, offset=offset)
+    rows = _db.read_ledger(b.conn, b.ws, limit, team_id=team_scope, offset=offset)
+    # `context_sent` is the text of the facts a search returned. It is an internal
+    # audit field: returning it would show other people what a search surfaced.
+    for r in rows:
+        r.pop("context_sent", None)
+    return rows
 
 
 @app.get("/api/facts")
@@ -1037,21 +1042,31 @@ def get_facts(
     tid = identity.team_id
     cross = cross_team and identity.is_admin
 
+    # A private fact is one person's connector data. It is listed only to its owner,
+    # whatever the caller's team or role: a team match or an admin role does not
+    # entitle anyone to read a colleague's mailbox. Columns are listed explicitly so
+    # the embedding vector and search index are not sent to the browser.
+    cols = ("f.id, f.subject, f.predicate, f.object, f.summary, f.episode_id, f.confidence, "
+            "f.introduced_at, f.invalidated_at, f.source_kind, f.team_id, f.visibility, "
+            "e.source AS ep_source")
+    uid = identity.user_id
     if cross:
         rows = _q(conn,
-            "SELECT f.*,e.source ep_source FROM facts f "
+            f"SELECT {cols} FROM facts f "
             "LEFT JOIN episodes e ON f.episode_id=e.id "
             "WHERE f.workspace_id=%s AND f.invalidated_at IS NULL "
+            "AND (f.visibility <> 'private' OR f.owner_id=%s) "
             "ORDER BY f.introduced_at DESC LIMIT %s OFFSET %s",
-            (ws, limit, offset))
+            (ws, uid, limit, offset))
     else:
         rows = _q(conn,
-            "SELECT f.*,e.source ep_source FROM facts f "
+            f"SELECT {cols} FROM facts f "
             "LEFT JOIN episodes e ON f.episode_id=e.id "
             "WHERE f.workspace_id=%s AND f.invalidated_at IS NULL "
             "AND (f.team_id=%s OR f.visibility='shared') "
+            "AND (f.visibility <> 'private' OR f.owner_id=%s) "
             "ORDER BY f.introduced_at DESC LIMIT %s OFFSET %s",
-            (ws, tid, limit, offset))
+            (ws, tid, uid, limit, offset))
     return [dict(r) for r in rows]
 
 
@@ -2799,7 +2814,7 @@ def export_account_data(identity: Identity = Depends(require_admin)):
     buffer entirely in memory before sending.
 
     Never includes: other workspaces' data, API keys, secrets, embeddings,
-    or any data that is not directly owned by this workspace.
+    or private connector data (one person's mailbox is not the admin's to export).
 
     Admin-only — requires the caller to have admin or owner role.
     """
@@ -2848,7 +2863,8 @@ def export_account_data(identity: Identity = Depends(require_admin)):
             cur.execute(
                 "SELECT id, source, external_id, title, body, author, url, "
                 "       occurred_at, content_hash, acl, team_id, extracted "
-                "FROM episodes WHERE workspace_id = %s ORDER BY occurred_at",
+                "FROM episodes WHERE workspace_id = %s AND visibility <> 'private' "
+                "ORDER BY occurred_at",
                 (ws,)
             )
             yield '"episodes":['
@@ -2865,7 +2881,8 @@ def export_account_data(identity: Identity = Depends(require_admin)):
                 "SELECT id, subject, predicate, object, summary, episode_id, "
                 "       acl, confidence, introduced_at, invalidated_at, "
                 "       source_kind, team_id, visibility "
-                "FROM facts WHERE workspace_id = %s ORDER BY introduced_at",
+                "FROM facts WHERE workspace_id = %s AND visibility <> 'private' "
+                "ORDER BY introduced_at",
                 (ws,)
             )
             yield '"facts":['
@@ -2879,8 +2896,11 @@ def export_account_data(identity: Identity = Depends(require_admin)):
 
             # ── fact_edges ────────────────────────────────────────────────────
             cur.execute(
-                "SELECT id, src_fact, dst_fact, type "
-                "FROM fact_edges WHERE workspace_id = %s ORDER BY id",
+                "SELECT fe.id, fe.src_fact, fe.dst_fact, fe.type "
+                "FROM fact_edges fe "
+                "JOIN facts a ON a.id = fe.src_fact JOIN facts b ON b.id = fe.dst_fact "
+                "WHERE fe.workspace_id = %s AND a.visibility <> 'private' "
+                "AND b.visibility <> 'private' ORDER BY fe.id",
                 (ws,)
             )
             yield '"fact_edges":['
