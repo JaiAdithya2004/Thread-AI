@@ -138,7 +138,9 @@ def test_identity_from_clerk_payload_sets_is_admin():
     assert identity.team_id  == "eng"
 
 
-def test_identity_from_clerk_payload_non_admin():
+def test_identity_from_clerk_payload_non_admin(monkeypatch):
+    import brain.auth
+    monkeypatch.setattr(brain.auth, "_lookup_account_workspace", lambda uid: None)
     from brain.auth import _identity_from_clerk_payload
     payload = {
         "sub": "user_xyz",

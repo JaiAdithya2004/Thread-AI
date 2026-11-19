@@ -307,22 +307,6 @@ details.answer-sources{border-top:none}
 .user-signout:hover{color:var(--error)}
 .brand-wordmark{font-family:'Inter',sans-serif;font-size:22px;font-weight:300;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink);line-height:1;}
 .auth-brand-wordmark{font-family:'Inter',sans-serif;font-size:26px;font-weight:300;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink);line-height:1;display:block;margin:0 auto 16px;}
-/* ── GUEST DEMO BUTTON ────────────────────────────────────────── */
-.auth-demo-divider{display:flex;align-items:center;gap:10px;margin:16px 0 0;color:var(--muted);font-size:12px}
-.auth-demo-divider::before,.auth-demo-divider::after{content:'';flex:1;height:1px;background:var(--hairline)}
-.btn-try-demo{width:100%;padding:10px 0;margin-top:10px;border-radius:10px;border:1.5px dashed var(--hairline);background:transparent;color:var(--muted);font-size:13px;font-family:inherit;font-weight:500;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:7px}
-.btn-try-demo:hover{border-color:var(--primary);color:var(--primary);background:var(--surface-soft)}
-/* ── GUEST BANNER ─────────────────────────────────────────────── */
-.guest-banner{background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);color:#fff;padding:10px 14px;font-size:12px;border-radius:10px;margin:10px 10px 0;display:none;flex-direction:column;gap:6px}
-.guest-banner.visible{display:flex}
-.guest-banner-title{font-weight:600;font-size:12.5px}
-.guest-banner-bar{background:rgba(255,255,255,.25);border-radius:99px;height:4px;overflow:hidden}
-.guest-banner-fill{height:100%;background:#fff;border-radius:99px;transition:width .3s}
-.guest-banner-count{font-size:11px;opacity:.85}
-.guest-banner-actions{display:flex;gap:6px;margin-top:4px}
-.guest-banner-actions button{flex:1;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.14);color:#fff;border-radius:7px;padding:6px 8px;font-size:12px;font-weight:600;cursor:pointer}
-.guest-banner-actions button:hover{background:rgba(255,255,255,.28)}
-.guest-banner-actions button.primary{background:#fff;color:#4f46e5;border-color:#fff}
 </style>
 </head>
 <body>
@@ -392,12 +376,10 @@ details.answer-sources{border-top:none}
           <p style="font-size:12.5px;color:var(--muted);margin-bottom:14px">What brings you to Thread?</p>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
             <button class="acct-type-btn active" id="btnIndividual" onclick="selectAcctType('individual')">
-              <span style="font-size:22px">👤</span>
               <strong>Individual</strong>
               <span>Personal use &amp; solo projects</span>
             </button>
             <button class="acct-type-btn" id="btnCompany" onclick="selectAcctType('company')">
-              <span style="font-size:22px">🏢</span>
               <strong>Company</strong>
               <span>Team knowledge base</span>
             </button>
@@ -446,14 +428,6 @@ details.answer-sources{border-top:none}
       <!-- Only shown in dev/bypass mode — hidden by default, conditionally shown by initAuth() -->
       <div class="auth-bypass" id="authBypassRow" style="display:none">
         <a onclick="bypassAuth()">Continue as developer (bypass login)</a>
-      </div>
-      <!-- Try live demo — always shown (hidden server-side when GUEST_TOKEN_SECRET unset) -->
-      <div id="guestDemoRow">
-        <div class="auth-demo-divider">or</div>
-        <button class="btn-try-demo" id="guestDemoBtn" onclick="doGuestDemo()">
-          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
-          Try live demo (read-only)
-        </button>
       </div>
     </div>
   </div>
@@ -539,17 +513,6 @@ details.answer-sources{border-top:none}
   </div>
 
   <div id="sourceList" style="display:none"></div>
-
-  <!-- Guest banner — visible only for guest sessions -->
-  <div class="guest-banner" id="guestBanner">
-    <div class="guest-banner-title">Live demo · read-only</div>
-    <div class="guest-banner-bar"><div class="guest-banner-fill" id="guestBannerFill" style="width:0%"></div></div>
-    <div class="guest-banner-count" id="guestBannerCount">0 / 20 queries used</div>
-    <div class="guest-banner-actions">
-      <button class="primary" onclick="leaveDemo('signin')">Sign in</button>
-      <button onclick="leaveDemo('signup')">Sign up</button>
-    </div>
-  </div>
 
   <div class="user-pill" id="userPill" style="display:none">
     <div class="user-avatar" id="userAvatar">?</div>
@@ -920,15 +883,8 @@ let _clerk    = null;
 let _authToken = null;   // Bearer token sent with every API request
 
 async function initAuth() {
-  // Restore a guest token from the same tab session (survives F5, not tab close)
-  const savedGuestToken = sessionStorage.getItem('_guestToken');
-  if (savedGuestToken) {
-    _authToken = savedGuestToken;
-    _guestQueriesUsed = parseInt(sessionStorage.getItem('_guestQueriesUsed') || '0', 10);
-    showApp({ email: 'Guest', user_metadata: { role: 'guest' } });
-    await loadApp();
-    return true;
-  }
+  // Drop any demo session left in this tab by an older version of the page.
+  try { sessionStorage.removeItem('_guestToken'); sessionStorage.removeItem('_guestQueriesUsed'); } catch (e) {}
 
   // /api/auth-config is public, so a failure here is a real outage rather than
   // an unauthenticated request. Never assume bypass on error: that turned a
@@ -1006,10 +962,9 @@ async function initAuth() {
 // Clerk session tokens are short-lived (~60s). getToken() returns the cached
 // token until it is close to expiry, then transparently mints a new one, so
 // calling this before every request is cheap and keeps the token fresh.
-// Guest and dev-bypass tokens are not Clerk-issued and must be left alone.
+// The dev-bypass token is not Clerk-issued and must be left alone.
 async function _refreshToken() {
-  if (_clerk?.session && _authToken !== 'dev-bypass' &&
-      !String(_authToken || '').startsWith('guest.')) {
+  if (_clerk?.session && _authToken !== 'dev-bypass') {
     try {
       _authToken = await _clerk.session.getToken();
     } catch (e) {
@@ -1022,56 +977,6 @@ async function _refreshToken() {
 function bypassAuth() {
   _authToken = 'dev-bypass';
   showApp({ email: 'local@dev', user_metadata: { role: 'admin' } });
-}
-
-// ── Guest demo session ────────────────────────────────────────────────────────
-let _guestQueriesUsed = 0;
-let _guestSessionCap  = 20;
-
-async function doGuestDemo() {
-  const btn = document.getElementById('guestDemoBtn');
-  btn.disabled = true;
-  btn.textContent = '…';
-  try {
-    const r = await fetch('/api/guest-session', { method: 'POST' });
-    if (!r.ok) {
-      const body = await r.json().catch(() => ({}));
-      if (r.status === 503) {
-        document.getElementById('authErr').textContent = 'Demo is not enabled on this server.';
-      } else {
-        document.getElementById('authErr').textContent = body.error || body.detail || 'Could not start demo session.';
-      }
-      return;
-    }
-    const data = await r.json();
-    _authToken = data.token;
-    _guestQueriesUsed = parseInt(sessionStorage.getItem('_guestQueriesUsed') || '0', 10);
-    _guestSessionCap  = data.session_cap || 20;
-    sessionStorage.setItem('_guestToken', _authToken);
-
-    showApp({ email: 'Guest', user_metadata: { role: 'guest' } });
-    await loadApp();
-    // Switch to Ask tab
-    document.querySelector('[data-tab="ask"]')?.click();
-  } catch(e) {
-    document.getElementById('authErr').textContent = 'Network error — please try again.';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Try live demo (read-only)';
-  }
-}
-
-function _updateGuestBanner() {
-  const banner = document.getElementById('guestBanner');
-  if (!banner) return;
-  banner.classList.toggle('visible', !!(S.me?.is_guest));
-  if (!S.me?.is_guest) return;
-  const used = _guestQueriesUsed;
-  const cap  = _guestSessionCap;
-  const pct  = Math.min(100, (used / cap) * 100);
-  document.getElementById('guestBannerFill').style.width = pct + '%';
-  document.getElementById('guestBannerCount').textContent =
-    `${used} / ${cap} queries used this session`;
 }
 
 async function doSSO(provider) {
@@ -1216,13 +1121,6 @@ async function doVerify() {
   }
 }
 
-// Leave the read-only demo and go to the sign-in or sign-up form. The demo used to
-// be a dead end: its only exit sent people to the landing page, never to sign-in.
-async function leaveDemo(tab) {
-  await signOut();          // clears the guest token and cached state, shows the auth screen
-  setAuthTab(tab === 'signup' ? 'signup' : 'signin');
-}
-
 async function signOut() {
   try {
     if (_clerk) await _clerk.signOut();
@@ -1230,7 +1128,7 @@ async function signOut() {
   _authToken = null;
   // Clear all cached state
   Object.assign(S, { teams: [], connectors: [], status: {}, currentTeam: null, me: null });
-  _HUB.allApps = [];
+  _HUB.allApps = _CATALOG.slice();
   _HUB.connected = {};
   _HUB.loaded = false;
   _HUB.cursor = null;
@@ -1241,12 +1139,7 @@ async function signOut() {
 function showAuthScreen() {
   document.getElementById('authScreen').classList.remove('hidden');
   document.getElementById('authErr').textContent = '';
-  // Clear any stale guest session so next page load doesn't re-try an expired token
-  sessionStorage.removeItem('_guestToken');
-  sessionStorage.removeItem('_guestQueriesUsed');
   _authToken = null;
-  _guestQueriesUsed = 0;
-  document.getElementById('guestBanner')?.classList.remove('visible');
 }
 
 function showApp(user) {
@@ -1275,8 +1168,7 @@ const api = {
   // mid-session while their Clerk session was still perfectly valid.
   async _send(p, {method='GET', body=null, json=true}={}) {
     const _once = async (force) => {
-      if (force && _clerk?.session && _authToken !== 'dev-bypass' &&
-          !String(_authToken || '').startsWith('guest.')) {
+      if (force && _clerk?.session && _authToken !== 'dev-bypass') {
         try { _authToken = await _clerk.session.getToken({ skipCache: true }); } catch (e) {}
       } else {
         await _refreshToken();
@@ -1439,9 +1331,29 @@ document.getElementById('deptSelect').addEventListener('change', e=>{
 
 // ── sources sidebar ───────────────────────────────────────────────────────────
 async function loadConnectedSources(){
-  // Connected sources come from the static catalog (_HUB.connected) — no live API call needed
+  await _refreshConnected();
   S.activeSources = Object.values(_HUB.connected).map(a => a.name || a.app || a.slug || 'App');
   renderSources();
+}
+
+// The user's real connections, from the server. Only fully connected accounts
+// count: one whose sign-in is still open in another tab is not connected yet.
+async function _refreshConnected(){
+  try{
+    const items = await api.get('/api/composio/connected');
+    const live = {};
+    (Array.isArray(items) ? items : []).forEach(it => {
+      if(!['ACTIVE','CONNECTED'].includes(String(it.status||'').toUpperCase())) return;
+      const slug = String(it.app || '').toLowerCase();
+      if(!slug) return;
+      live[slug] = { slug, name: it.name || it.appName || slug, id: it.id, status: it.status };
+      // An app we have no card for still has to be visible and disconnectable.
+      if(!_HUB.allApps.some(a => a.slug === slug)){
+        _HUB.allApps.push({ slug, name: live[slug].name, cat: 'Other', logo: it.logo || '' });
+      }
+    });
+    _HUB.connected = live;
+  }catch(e){ /* keep what we have; the next refresh will retry */ }
 }
 
 function renderSources(){
@@ -1467,15 +1379,9 @@ function showSetupHelp(src){
 
 // ── integrations catalog (static — no external API dependency) ─────────────────
 //
-// Three apps are truly connected and feed the brain.
-// All others show a Connect button that gracefully explains they are coming soon
-// in this demo. Zero vendor names visible to end-users.
-
-const _DEMO_CONNECTED = {
-  gmail:          { slug:'gmail',          name:'Gmail',           cat:'Email',         connected:true },
-  googlecalendar: { slug:'googlecalendar', name:'Google Calendar', cat:'Calendar',      connected:true },
-  github:         { slug:'github',         name:'GitHub',          cat:'Dev Tools',     connected:true },
-};
+// The catalog is only the list of apps a person can choose to connect. Which of
+// them are connected comes from the server (see _refreshConnected); nothing is
+// shown as connected unless the user really connected it.
 
 // Curated catalog — representative set across all categories
 const _CATALOG = [
@@ -1585,8 +1491,8 @@ const _CATALOG = [
 ];
 
 const _HUB = {
-  allApps: _CATALOG,
-  connected: { ..._DEMO_CONNECTED },  // pre-seeded — Gmail, Calendar, GitHub
+  allApps: _CATALOG.slice(),
+  connected: {},                      // filled from the server by _refreshConnected()
   activeCat: 'all',
   loaded: false,
 };
@@ -1595,13 +1501,18 @@ const _DISPLAY_CATS = ['All','Collaboration','CRM','Project Mgmt','Dev Tools','E
 
 function _appDisplayCat(app) { return app.cat || 'Other'; }
 
-function loadIntegrationsHub() {
-  if (_HUB.loaded) { _renderCatFilters(); _filterApps(); return; }
+async function loadIntegrationsHub() {
   document.getElementById('appsLoading').style.display = 'none';
+  await _refreshConnected();          // always re-read: connecting happens in another tab
   _renderCatFilters();
   _filterApps();
   _HUB.loaded = true;
 }
+
+// Coming back from the provider's sign-in tab: show the new connection without a reload.
+window.addEventListener('focus', () => {
+  if (_HUB.loaded && document.getElementById('tab-connections')?.classList.contains('active')) loadIntegrationsHub();
+});
 
 function _renderCatFilters() {
   const wrap = document.getElementById('catFilters');
@@ -1693,26 +1604,21 @@ function _buildMarketCard(grid, app, isConnected) {
 }
 
 async function _connectApp(slug, name, btn) {
-  // Non-demo path: attempt real OAuth via the API
-  if (!S.me?.is_guest) {
-    const orig = btn.textContent;
-    btn.textContent = 'Opening…'; btn.disabled = true;
-    try {
-      const res = await api.post('/api/composio/connect', {app: slug, redirect_url: window.location.href});
-      if (res.connect_url) {
-        window.open(res.connect_url, '_blank');
-        toast(`Complete the sign-in in the new tab, then refresh this page`, 'ok');
-      } else {
-        toast(`Could not get a login URL for ${name}`, 'err');
-      }
-    } catch(e) {
-      toast(`${name} — not yet configured. Ask your admin to set up credentials.`, 'warn');
+  // Start the real OAuth connection through the API.
+  const orig = btn.textContent;
+  btn.textContent = 'Opening…'; btn.disabled = true;
+  try {
+    const res = await api.post('/api/composio/connect', {app: slug, redirect_url: window.location.href});
+    if (res.connect_url) {
+      window.open(res.connect_url, '_blank');
+      toast(`Complete the sign-in in the new tab, then refresh this page`, 'ok');
+    } else {
+      toast(`Could not get a login URL for ${name}`, 'err');
     }
-    btn.textContent = orig; btn.disabled = false;
-    return;
+  } catch(e) {
+    toast(`${name} — not yet configured. Ask your admin to set up credentials.`, 'warn');
   }
-  // Demo / guest path: graceful no-op
-  toast(`${name} — coming soon in this demo 🙌`, 'ok');
+  btn.textContent = orig; btn.disabled = false;
 }
 
 async function _disconnectApp(slug, btn) {
@@ -1722,7 +1628,7 @@ async function _disconnectApp(slug, btn) {
   try {
     const connObj = _HUB.connected[slug];
     const accountId = connObj?.id || '';
-    if (accountId) await api._delete(`/api/connected/${encodeURIComponent(accountId)}`);
+    if (accountId) await api._delete(`/api/composio/connected/${encodeURIComponent(accountId)}`);
     delete _HUB.connected[slug];
     toast(`${slug} disconnected`, 'ok');
     _filterApps();
@@ -1816,9 +1722,7 @@ function buildAnswerCard(result){
   const confident = result.answer === 'From company memory:' || result.answer === 'From company memory (synthesis unavailable):';
 
   if(!facts.length){
-    const hint = S.me?.is_guest
-      ? `Try one of the example questions, or sign in to connect your own tools.`
-      : `Connect a tool and sync it, then ask again.`;
+    const hint = `Connect a tool and sync it, then ask again.`;
     return `<div class="answer-card"><div class="answer-text" style="color:var(--muted)">
       I couldn't find anything about that in the knowledge base.<br>
       <small style="font-size:12px;color:var(--muted-soft)">${hint}</small>
@@ -2003,22 +1907,8 @@ async function _persistMsg(convId, role, content){
 async function sendQuery(q){
   if(!q.trim()) return;
 
-  // Guest session-level query cap (client-side fast-path)
-  if(S.me?.is_guest){
-    if(_guestQueriesUsed >= _guestSessionCap){
-      addMsg('q', escHtml(q));
-      addMsg('a', `<div class="answer-card"><div class="answer-text" style="color:var(--muted)">
-        <strong>Demo limit reached</strong><br>
-        You've used all ${_guestSessionCap} queries in this demo session.
-        <a href="/app" onclick="location.reload()" style="color:var(--primary);cursor:pointer">Start a new session</a> or
-        <a href="/" style="color:var(--primary)">sign up free</a> for unlimited access.
-      </div></div>`);
-      return;
-    }
-  }
-
   addMsg('q', escHtml(q));
-  const convId = S.me?.is_guest ? null : await _ensureConv(q);
+  const convId = await _ensureConv(q);
   if(convId) await _persistMsg(convId, 'user', q);
   const load=addMsg('a','<div class="loading"><span></span><span></span><span></span></div>');
   try{
@@ -2030,24 +1920,10 @@ async function sendQuery(q){
     const res=await api.post('/api/search',{query:q,team_id:S.currentTeam||null,cross_team:true});
     load.innerHTML=buildAnswerCard(res);
     if(convId) await _persistMsg(convId, 'assistant', JSON.stringify(res));
-    if(S.me?.is_guest){
-      _guestQueriesUsed++;
-      sessionStorage.setItem('_guestQueriesUsed', String(_guestQueriesUsed));
-      _updateGuestBanner();
-    }
     // Refresh sidebar so updated conversation titles and new convs always show
     if(convId) loadConvList();
   } catch(e){
-    // Friendly message for server-side daily cap or session cap
-    if(e.message && (e.message.includes('demo_limit_daily') || e.message.includes('429'))){
-      load.innerHTML=`<div class="answer-card"><div class="answer-text" style="color:var(--muted)">
-        <strong>Demo limit reached</strong><br>
-        The daily demo quota has been reached. Please try again tomorrow or
-        <a href="/" style="color:var(--primary)">sign up free</a> for unlimited access.
-      </div></div>`;
-    } else {
-      load.innerHTML=`<div class="answer-card"><div class="answer-text" style="color:var(--error)">Error: ${escHtml(e.message)}</div></div>`;
-    }
+    load.innerHTML=`<div class="answer-card"><div class="answer-text" style="color:var(--error)">Error: ${escHtml(e.message)}</div></div>`;
   }
 }
 
@@ -2621,7 +2497,6 @@ document.getElementById('deptModal').addEventListener('keydown',e=>{
 function applyRoleUI(){
   const me           = S.me || {};
   const isAdmin      = me.is_admin !== false;
-  const isGuest      = me.is_guest === true;
   const isIndividual = me.account_type === 'individual';
 
   // Show/hide all admin-only elements
@@ -2629,24 +2504,8 @@ function applyRoleUI(){
     el.style.display = isAdmin ? '' : 'none';
   });
 
-  // Guests: hide nav tabs they cannot use (settings, members, connections)
-  document.querySelectorAll('.nav-item[data-tab="settings"],' +
-    '.nav-item[data-tab="members"]').forEach(el => {
-    el.style.display = isGuest ? 'none' : '';
-  });
-
-  // Guests: make connections tab read-only by hiding action buttons inside it
-  // (actual server enforcement already blocks writes; this is just UX)
-  if(isGuest){
-    // Hide the "Sync all" button in the connections tab
-    document.querySelector('#tab-connections .btn-sync')?.setAttribute('style','display:none');
-    // Hide sign-out in favour of "back to signup"
-    document.getElementById('userPill').querySelector('.user-signout').textContent = 'Sign in / Sign up';
-    document.getElementById('userPill').querySelector('.user-signout').onclick = () => leaveDemo('signin');
-  }
-
-  // Department block: hide entirely for individual accounts or guests
-  document.querySelector('.dept-block').style.display = (isIndividual || isGuest) ? 'none' : '';
+  // Department block: hide entirely for individual accounts
+  document.querySelector('.dept-block').style.display = isIndividual ? 'none' : '';
 
   // Settings: populate account info
   document.getElementById('settingsEmail').textContent    = me.email || '—';
@@ -2655,16 +2514,13 @@ function applyRoleUI(){
   document.getElementById('settingsWsId').textContent     = me.workspace_id || '—';
 
   // User pill role label
-  const roleLabel = isGuest ? 'demo' : (me.role || (me.is_admin ? 'admin' : 'employee'));
+  const roleLabel = me.role || (me.is_admin ? 'admin' : 'employee');
   document.getElementById('userRoleLabel').textContent = roleLabel;
 
   // Settings subhead
   document.getElementById('settingsSubhead').textContent = isAdmin
     ? 'Manage your AI provider, teams, and workspace.'
     : 'Your account details.';
-
-  // Guest banner
-  _updateGuestBanner();
 }
 
 function _populateInviteTeamSelect(){
@@ -2871,14 +2727,9 @@ async function revokeInvite(inviteId){
 
 async function loadApp(){
   try{
-    // /api/status is admin-only — skip it for guest sessions
-    const isLikelyGuest = !!sessionStorage.getItem('_guestToken');
-    const statusP = isLikelyGuest
-      ? Promise.resolve({})
-      : api.get('/api/status');
     [S.teams, S.status, S.me] = await Promise.all([
       api.get('/api/teams'),
-      statusP,
+      api.get('/api/status'),
       api.get('/api/me'),
     ]);
     // Apply role-based UI: show/hide admin-only elements

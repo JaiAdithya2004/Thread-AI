@@ -249,14 +249,13 @@ def test_llm_calls_always_carry_an_output_ceiling():
 
 # ── auth-config: advisories must not block sign-in ──────────────────────────
 
-def _auth_config(monkeypatch, *, pk, sk="sk_test_x", production=True, guest_secret="s"):
+def _auth_config(monkeypatch, *, pk, sk="sk_test_x", production=True):
     import brain.auth as auth
     from brain.wrappers.api import auth_config
     monkeypatch.setenv("CLERK_PUBLISHABLE_KEY", pk)
     monkeypatch.setenv("CLERK_SECRET_KEY", sk)
     monkeypatch.setattr(auth, "_BYPASS", False)
     monkeypatch.setattr(auth, "_IS_PRODUCTION", production)
-    monkeypatch.setattr(auth, "_GUEST_TOKEN_SECRET", guest_secret)
     monkeypatch.setattr(auth, "_CLERK_JWKS_URL", "https://x.example/.well-known/jwks.json")
     return auth_config()
 
@@ -267,9 +266,10 @@ def test_test_keys_in_production_warn_but_do_not_block_sign_in(monkeypatch):
     assert any("test keys" in w for w in cfg["warnings"])
 
 
-def test_demo_being_off_warns_but_does_not_block_sign_in(monkeypatch):
-    cfg = _auth_config(monkeypatch, pk="pk_live_abc", sk="sk_live_x", guest_secret=None)
-    assert cfg["problems"] == [] and any("Demo sign-in is off" in w for w in cfg["warnings"])
+def test_live_keys_produce_no_problems_and_no_demo_flag(monkeypatch):
+    cfg = _auth_config(monkeypatch, pk="pk_live_abc", sk="sk_live_x")
+    assert cfg["problems"] == [] and cfg["warnings"] == []
+    assert "guest_demo" not in cfg
 
 
 def test_missing_or_malformed_keys_still_block_sign_in(monkeypatch):
@@ -278,32 +278,53 @@ def test_missing_or_malformed_keys_still_block_sign_in(monkeypatch):
     assert any("SECRET" in p for p in _auth_config(monkeypatch, pk="pk_live_a", sk="")["problems"])
 
 
-# ── the demo must not be a dead end ─────────────────────────────────────────
+# ── there is no demo or guest mode ──────────────────────────────────────────
+# Anyone who comes signs up, connects their own tools and uses their own
+# workspace. These tests keep it that way: no way to mint a demo session, no demo
+# button, and a demo-shaped token is rejected like any other bad token.
 
 def _page():
     from pathlib import Path
     return (Path(__file__).parent.parent / "brain" / "wrappers" / "webapp" / "index.html").read_text(encoding="utf-8")
 
 
-def test_demo_banner_offers_sign_in_and_sign_up():
+def test_the_guest_session_endpoint_no_longer_exists():
+    from brain.wrappers.api import app
+    paths = {getattr(r, "path", "") for r in app.routes}
+    assert "/api/guest-session" not in paths
+
+
+def test_the_sign_in_page_has_no_demo_button_or_banner():
     html = _page()
-    banner = html[html.index('id="guestBanner"'):html.index('id="userPill"')]
-    assert "leaveDemo('signin')" in banner and "leaveDemo('signup')" in banner
+    for needle in ("Try live demo", "doGuestDemo", "guestDemoBtn", "guestBanner", "leaveDemo"):
+        assert needle not in html, needle
 
 
-def test_leaving_the_demo_clears_the_guest_session_and_opens_the_auth_form():
+def test_the_connections_page_does_not_pretend_apps_are_connected():
     html = _page()
-    body = html[html.index("async function leaveDemo"):html.index("async function signOut")]
-    assert "await signOut()" in body and "setAuthTab(" in body
-    # signOut -> showAuthScreen is what drops the guest token, so a reload cannot resume the demo
-    assert "sessionStorage.removeItem('_guestToken')" in html[html.index("function showAuthScreen"):html.index("function showApp")]
+    assert "_DEMO_CONNECTED" not in html
+    assert "connected: {}," in html                     # starts empty
+    assert "/api/composio/connected" in html            # and is filled from the server
 
 
-def test_guest_sidebar_button_goes_to_sign_in_not_the_landing_page():
+def test_disconnect_calls_the_route_the_server_actually_has():
+    from brain.wrappers.api import app
     html = _page()
-    start = html.index("if(isGuest){")
-    block = html[start:start + 900]
-    assert "leaveDemo('signin')" in block and "location.href='/'" not in block
+    paths = {getattr(r, "path", "") for r in app.routes}
+    assert "/api/composio/connected/{account_id}" in paths
+    assert "/api/composio/connected/${encodeURIComponent(accountId)}" in html
+
+
+def test_a_demo_shaped_token_is_rejected_like_any_other_bad_token(monkeypatch):
+    import pytest
+    from fastapi import HTTPException
+    from fastapi.security import HTTPAuthorizationCredentials
+    import brain.auth as auth
+    monkeypatch.setattr(auth, "_BYPASS", False)
+    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials="guest.eyJzdWIiOiJnIn0.deadbeef")
+    with pytest.raises(HTTPException) as e:
+        auth.get_identity(creds)
+    assert e.value.status_code == 401
 
 
 def test_only_real_misconfiguration_blocks_the_sign_in_screen():

@@ -333,6 +333,15 @@ def migrate(conn):
             created_at   TIMESTAMPTZ DEFAULT now()
         );
     """)
+    # Each account owns one workspace. It used to be implied by a deployment-wide
+    # default, which put every new sign-up into the same workspace (in production,
+    # the public demo's). Rows created before this column existed get theirs
+    # lazily, on first request, by workspace_for_user().
+    cur.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS workspace_id TEXT")
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS accounts_workspace_uniq "
+        "ON accounts(workspace_id) WHERE workspace_id IS NOT NULL"
+    )
 
     # memberships — links Supabase users to accounts + role + department
     cur.execute("""
@@ -1282,6 +1291,62 @@ def read_ledger(conn, ws, limit, team_id=None, offset=0):
 # ---------------------------------------------------------------------------
 # Integration usage metering (COGS tracker — internal only)
 # ---------------------------------------------------------------------------
+
+def workspace_for_user(user_id: str) -> "str | None":
+    """The workspace owned by the account this user belongs to, or None if the user
+    has no active membership yet.
+
+    The workspace id is derived from the account id, so two accounts can never
+    share one and a person invited into an account lands in that account's
+    workspace. Accounts that predate the column get theirs assigned here; the
+    value is deterministic, so concurrent first requests write the same thing.
+    """
+    conn = connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT a.id AS account_id, a.workspace_id "
+            "FROM memberships m JOIN accounts a ON a.id = m.account_id "
+            "WHERE m.user_id = %s AND m.status = 'active' "
+            "ORDER BY m.created_at DESC LIMIT 1",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            return None
+        ws = row["workspace_id"]
+        if not ws:
+            ws = "ws_" + str(row["account_id"]).replace("-", "")
+            cur.execute(
+                "UPDATE accounts SET workspace_id = %s WHERE id = %s AND workspace_id IS NULL",
+                (ws, row["account_id"]),
+            )
+            conn.commit()
+        cur.close()
+        return ws
+    finally:
+        conn.close()
+
+
+def membership_role_for_user(user_id: str) -> "str | None":
+    """The role ('owner', 'admin' or 'employee') this user holds in their active
+    account, or None if they have no active membership. Written only by the
+    server (sign-up, invitations), so it is safe to authorise from."""
+    conn = connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT role FROM memberships WHERE user_id = %s AND status = 'active' "
+            "ORDER BY created_at DESC LIMIT 1",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        return row["role"] if row else None
+    finally:
+        conn.close()
+
 
 def get_plan_for_account(account_id: str) -> dict:
     """Return the plan row for the account's active subscription, or the free plan."""

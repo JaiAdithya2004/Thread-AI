@@ -262,27 +262,6 @@ def _rl_write(request: Request, identity: "Identity | None" = None):
     _rate_limit(request, limit=120, window=60, identity=identity)
 
 
-# ── guest daily quota (in-process rolling 24 h window) ────────────────────────
-_GUEST_DAILY_CAP = int(os.getenv("GUEST_DAILY_CAP", "100"))
-_GUEST_SESSION_CAP = int(os.getenv("GUEST_SESSION_CAP", "20"))
-_guest_daily_hits: list = []   # list of timestamps; access under _rl_lock
-
-def _check_guest_daily_cap():
-    """Raise 429 if the global guest query quota for the rolling 24-hour window is exceeded."""
-    now = time.monotonic()
-    window = 86400  # 24 h
-    with _rl_lock:
-        # Evict old entries
-        fresh = [t for t in _guest_daily_hits if now - t < window]
-        if len(fresh) >= _GUEST_DAILY_CAP:
-            _guest_daily_hits[:] = fresh
-            raise HTTPException(
-                status_code=429,
-                detail="demo_limit_daily",
-            )
-        fresh.append(now)
-        _guest_daily_hits[:] = fresh
-
 # ── request models ────────────────────────────────────────────────────────────
 # NOTE: team_id is intentionally absent from all write-request bodies.
 #       The caller's team comes from the verified JWT, not from the client.
@@ -702,45 +681,6 @@ def metrics_endpoint():
     return PlainTextResponse(content=text, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
-@app.post("/api/guest-session")
-def guest_session(request: Request):
-    """
-    Issue a short-lived self-signed guest JWT for the demo workspace.
-    No credentials required — public endpoint.
-    Rate-limited per IP (20 req/60s) to prevent token farming.
-    """
-    from brain.auth import GUEST_WORKSPACE, _GUEST_TOKEN_SECRET, _GUEST_TOKEN_PREFIX
-    if not _GUEST_TOKEN_SECRET:
-        raise HTTPException(503, "Demo access is not enabled on this server.")
-    _rate_limit(request, limit=20, window=60, identity=None)  # IP-keyed
-
-    import hmac
-    import hashlib
-    import base64
-    import json as _json
-    import time as _time
-    import uuid as _uuid
-
-    exp = int(_time.time()) + 4 * 3600   # 4-hour session
-    payload = _json.dumps({
-        "sub":  f"guest_{_uuid.uuid4().hex[:12]}",
-        "role": "guest",
-        "ws":   GUEST_WORKSPACE,
-        "exp":  exp,
-    }, separators=(",", ":")).encode()
-
-    sig = hmac.new(
-        _GUEST_TOKEN_SECRET.encode(),
-        payload,
-        hashlib.sha256,
-    ).hexdigest()
-
-    b64 = base64.urlsafe_b64encode(payload).rstrip(b"=").decode()
-    token = f"{_GUEST_TOKEN_PREFIX}{b64}.{sig}"
-    return {"token": token, "expires_in": 4 * 3600,
-            "session_cap": _GUEST_SESSION_CAP, "daily_cap": _GUEST_DAILY_CAP}
-
-
 @app.get("/api/auth-config")
 def auth_config():
     """What the sign-in screen needs, before anyone is signed in.
@@ -767,23 +707,18 @@ def auth_config():
             problems.append("CLERK_SECRET_KEY is malformed (expected an sk_ prefix)")
         if pk.startswith("pk_") and not _CLERK_JWKS_URL:
             problems.append("Could not derive the Clerk domain from the publishable key")
-    from brain.auth import _GUEST_TOKEN_SECRET, _IS_PRODUCTION
+    from brain.auth import _IS_PRODUCTION
     # `problems` stop sign-in from working and the sign-in screen refuses to start.
     # `warnings` are things worth fixing that do not stop it. Test keys are a
     # warning: a Clerk development instance authenticates fine on a deployed app,
     # and a production instance needs a custom domain, so blocking sign-in on them
     # locked every user out of a working deployment.
     warnings = []
-    if _IS_PRODUCTION and not _GUEST_TOKEN_SECRET:
-        warnings.append(
-            "Demo sign-in is off: set GUEST_TOKEN_SECRET or BRAIN_KEY_ENCRYPTION_KEY"
-        )
     if pk.startswith("pk_test_") and _IS_PRODUCTION:
         warnings.append("Clerk is on test keys (pk_test_/sk_test_); switch to live keys for a public launch")
     return {
         "auth_mode": "bypass" if _BYPASS else "clerk",
         "publishable_key": pk if pk.startswith("pk_") else "",
-        "guest_demo": bool(_GUEST_TOKEN_SECRET),
         "env": "production" if _IS_PRODUCTION else "development",
         "problems": problems,
         "warnings": warnings,
@@ -953,8 +888,6 @@ def search(
     identity: Identity = Depends(get_identity),
 ):
     _rl_llm(request, identity)
-    if identity.is_guest:
-        _check_guest_daily_cap()
     if not req.query or not req.query.strip():
         raise HTTPException(400, "query must not be empty")
     if len(req.query) > 2000:
@@ -1127,17 +1060,16 @@ def composio_connected(
     offset: int = 0,
     identity: Identity = Depends(get_identity),
 ):
-    """List apps the calling user has connected. Admins also see all workspace connections."""
+    """List the apps the calling user has connected — theirs only, for everyone.
+
+    This used to return every connection in the whole integration project to an
+    admin. Now that each account has its own workspace, that would show one
+    customer's connected accounts to another customer's admin."""
     limit = min(limit, 200)
     offset = max(offset, 0)
     try:
         from brain.core.connectors.composio import list_connected_apps
-        if identity.is_admin:
-            # Admins see all workspace connections
-            apps = list_connected_apps()
-        else:
-            # Regular users see only their own connections
-            apps = list_connected_apps(user_id=identity.user_id)
+        apps = list_connected_apps(user_id=identity.user_id)
         return apps[offset: offset + limit]
     except RuntimeError as e:
         raise HTTPException(400, str(e))
@@ -1145,12 +1077,21 @@ def composio_connected(
 
 @app.delete("/api/composio/connected/{account_id}")
 def composio_disconnect(account_id: str,
-                        identity: Identity = Depends(require_admin)):
-    """Disconnect a connected integration by its account ID. Admin only.
-    Also deregisters any webhook triggers associated with this connection."""
+                        identity: Identity = Depends(require_not_guest)):
+    """Disconnect one of the caller's own connected integrations by its account ID.
+    Also deregisters any webhook triggers associated with this connection.
+
+    A person may disconnect only a connection that is theirs. The ID is checked
+    against the caller's own list first; it used to be accepted for any ID, by any
+    admin, which would let one customer disconnect another's accounts."""
     try:
-        from brain.core.connectors.composio import disconnect_app, deregister_webhook_trigger
+        from brain.core.connectors.composio import (
+            disconnect_app, deregister_webhook_trigger, list_connected_apps,
+        )
         from brain.core import db_pg as _pg
+
+        if account_id not in {a["id"] for a in list_connected_apps(user_id=identity.user_id)}:
+            raise HTTPException(404, "No such connection")
 
         # Deregister any webhook subscriptions for this account before disconnecting
         try:
@@ -1178,6 +1119,8 @@ def composio_disconnect(account_id: str,
             print(f"[disconnect] webhook cleanup error: {e}", file=sys.stderr)
 
         return disconnect_app(account_id)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(400, str(e))
 

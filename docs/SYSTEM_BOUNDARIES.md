@@ -22,7 +22,7 @@ A pass over the code for this document found problems that earlier documents did
 
 | Surface | Runs as | Reads | Writes | Identity comes from |
 |---|---|---|---|---|
-| **REST API** (64 endpoints, Vercel) | serverless function | search, history, facts, ledger, teams, members, usage | record, correct, teams, KPIs, connectors, members, invites, billing | a verified Clerk token, or a signed 4-hour guest token |
+| **REST API** (64 endpoints, Vercel) | serverless function | search, history, facts, ledger, teams, members, usage | record, correct, teams, KPIs, connectors, members, invites, billing | a verified Clerk token (no guest or demo sessions) |
 | **Web app** | browser, calls the REST API | same as the API | same as the API | the user's Clerk session |
 | **MCP server** (`python -m brain.wrappers.mcp_server`) | a local process on the user's machine | `search_company_facts`, `get_decision_history`, `list_teams` | `record_fact`, `correct_fact`, `harvest_from_response` | **environment variables** read at process start (`BRAIN_USER`, `BRAIN_PRINCIPALS`, `BRAIN_WORKSPACE`, `BRAIN_TEAM`) |
 | **Claude Code hooks** | local script fired by the editor | before each prompt: searches and injects facts | after each reply: extracts and stores facts | the same environment variables |
@@ -72,7 +72,7 @@ Retrieved text is treated as data, not instructions, at three points: ingested c
 | Scope | What | Lifetime | Status |
 |---|---|---|---|
 | **Request** | the resolved identity; a `Brain` with its database connection; the billing context (a `ContextVar`, so concurrent requests cannot overwrite each other) | one request | Implemented |
-| **Process** | query-embedding cache (256 entries), user-to-account cache, rate-limit counters, guest daily cap, circuit-breaker states, Clerk key cache, integration-catalogue cache (1 hour) | until the instance is recycled; **on serverless each instance has its own, and all of it is lost when the instance freezes** | Implemented, with limits |
+| **Process** | query-embedding cache (256 entries), user-to-account cache, rate-limit counters, workspace and role lookups (5 minutes), circuit-breaker states, Clerk key cache, integration-catalogue cache (1 hour) | until the instance is recycled; **on serverless each instance has its own, and all of it is lost when the instance freezes** | Implemented, with limits |
 | **Durable (Postgres)** | episodes, facts and their embeddings, fact edges, the search ledger, accounts and memberships, conversations and messages, usage, sync watermarks, the shadow log | permanent | Implemented |
 | **Redis** (optional) | query-result cache (300 s), webhook de-duplication, the `arq` job queue | — | **Not active in production** (no Redis is provisioned; every call degrades to a no-op) |
 
@@ -86,7 +86,7 @@ For a question, the answer model receives: the top **5** facts (the top **8** wh
 
 ### 2.3 Session state for clients
 
-A user session is a Clerk token the browser refreshes before each call. A guest session is a signed token valid four hours, locked to the demo workspace; the guest question cap of 20 per session is enforced in the browser only, while a global cap of 100 per day is enforced on the server (in process memory, so per instance).
+A user session is a Clerk token the browser refreshes before each call. There is no guest or demo session: the guest-token endpoint and its signing secret were removed, and any token that is not a valid Clerk JWT is rejected.
 
 ---
 
@@ -114,13 +114,12 @@ What is measured, and what is not. All figures are from a controlled benchmark o
 
 | Role | Source | Capabilities |
 |---|---|---|
-| **guest** | signed demo token | read-only, locked to `ws_demo`; blocked by `require_not_guest` from every write and setting |
 | **member** | Clerk `public_metadata.role` (default) | search, history, facts, own conversations, own connections; their own team's ledger |
 | **admin / owner** | Clerk `public_metadata.role` | everything a member can, plus members and invitations, teams, KPIs, connectors backfill, billing, usage, BYO keys, dead-letter admin, account export, cross-team search |
 
-Counted in `api.py`: **28** endpoints require an admin, **9** more reject guests, and **9** call sites apply a per-user rate limit (60 requests a minute on model-backed routes, 120 on writes, 20 on sign-up). A user cannot change their own membership; roles an admin may assign are `employee` and `admin`; seat limits and plan caps are enforced (HTTP 402).
+Counted in `api.py`: **28** endpoints require an admin, **9** more are for signed-in users only, and **9** call sites apply a per-user rate limit (60 requests a minute on model-backed routes, 120 on writes, 20 on sign-up). A user cannot change their own membership; roles an admin may assign are `employee` and `admin`; seat limits and plan caps are enforced (HTTP 402).
 
-**Limit worth knowing:** a user's effective role is whatever Clerk's `public_metadata` says. The `memberships.role` column is written at sign-up and invitation but is only displayed, not used for authorisation.
+**How the role is decided:** a role set on the Clerk user (`public_metadata.role`) wins, so an operator can still promote or demote by hand. Otherwise the role comes from the account membership the server wrote at sign-up or invitation (`owner` and `admin` are admins, `employee` is a member). An unreadable database never grants admin.
 
 ### 4.2 Consent and credentials — **Implemented**
 
@@ -145,7 +144,7 @@ Nothing in the product asks a human to approve a change to knowledge. Extraction
 
 | Layer | How | Verified by |
 |---|---|---|
-| Identity | workspace and team come from the verified token, never from request bodies; guests are forced to `ws_demo` server-side | `test_auth.py`, `test_isolation.py` |
+| Identity | team comes from the verified token and the workspace from the caller's own account, resolved on the server, never from request bodies; no signed-in user can be placed in the old demo workspace `ws_demo` | `test_auth.py`, `test_isolation.py` |
 | Query scoping | every query carries `workspace_id`; the query cache key includes workspace, principals, team and flags | `test_isolation.py`, `test_ingest_retrieve.py` |
 | Fact visibility | `team`, `shared`, or `private` (one person's connector data, returned to its owner alone, even for admins and cross-team searches) | `test_privacy.py`, `test_private_data_paths.py` |
 | ACL | a caller's principals must intersect a fact's ACL, applied after ranking so no ranking path skips it | `test_retrieval.py` |
@@ -248,7 +247,7 @@ What is logged and what is not: HTTP logs carry method, path, status and duratio
 ## 10. Summary
 
 ### Implemented and demonstrated
-Ingestion with de-duplication and injection scrubbing; LLM extraction with per-fact tolerance; semantic supersession with a judge, duplicate detection, shadow and off modes; hybrid retrieval with ACL, team and private filtering; answers with citations, dates, superseded labels, abstention and an output guardrail; decision history; tenant scoping with a CI RLS gate; the guest demo; invitations, roles, seat and plan limits; the scheduled sync; per-call usage records; per-stage-validated benchmarks and a regression gate.
+Ingestion with de-duplication and injection scrubbing; LLM extraction with per-fact tolerance; semantic supersession with a judge, duplicate detection, shadow and off modes; hybrid retrieval with ACL, team and private filtering; answers with citations, dates, superseded labels, abstention and an output guardrail; decision history; tenant scoping with a CI RLS gate and a workspace per account; per-user connection listing and disconnect; invitations, roles, seat and plan limits; the scheduled sync; per-call usage records; per-stage-validated benchmarks and a regression gate.
 
 ### Implemented, with limits
 MCP and CLI trust (single local identity, ungated team override); RLS (enabled, not forced); retries (explicit models have no real fallback); idempotency of extraction and manual writes; rate limits and breakers (per instance); evaluation (controlled data, mostly single runs).

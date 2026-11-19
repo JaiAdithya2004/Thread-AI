@@ -109,7 +109,9 @@ class Identity:
     is_guest: bool = False   # guests may only read from the demo workspace
 
 
-# Workspace that guest tokens are locked to — must match seed_demo.py DEMO_WS.
+# Reserved: a signed-in user is never placed in this workspace (see resolve_workspace).
+# There is no demo or guest mode any more; the name is kept so that nothing can
+# be mapped onto an old demo workspace that still exists in a database.
 GUEST_WORKSPACE = "ws_demo"
 
 
@@ -166,6 +168,79 @@ def _decode_clerk_jwt(token: str) -> dict:
     return payload
 
 
+# ── Workspace assignment ─────────────────────────────────────────────────────
+# A signed-in user's workspace comes from their account, resolved on the server.
+# It used to fall back to one deployment-wide default, which put every new
+# sign-up into the same workspace (in production, the public demo's) where the
+# demo guard then blocked them from doing anything.
+
+_WS_CACHE: dict = {}          # user_id -> (workspace_id, expires_at)
+_WS_CACHE_TTL = 300
+
+
+def _fallback_workspace(user_id: str) -> str:
+    """A private workspace for a user who has no account yet (or whose account
+    cannot be read). Derived from the user id, so it is never shared and never the
+    demo. Not cached: the real account workspace takes over as soon as it exists."""
+    import hashlib
+    return "ws_u_" + hashlib.sha256(user_id.encode()).hexdigest()[:16]
+
+
+def _lookup_account_workspace(user_id: str) -> Optional[str]:
+    from brain.core import db_pg
+    return db_pg.workspace_for_user(user_id)
+
+
+def resolve_workspace(user_id: str, claimed: Optional[str] = None) -> str:
+    """Workspace for a non-guest user. Never the demo workspace."""
+    import time as _time
+    ws = claimed
+    if not ws:
+        hit = _WS_CACHE.get(user_id)
+        if hit and hit[1] > _time.time():
+            ws = hit[0]
+        else:
+            try:
+                ws = _lookup_account_workspace(user_id)
+            except Exception:
+                ws = None
+            if ws:
+                _WS_CACHE[user_id] = (ws, _time.time() + _WS_CACHE_TTL)
+    if not ws or ws == GUEST_WORKSPACE:
+        ws = _fallback_workspace(user_id)
+    return ws
+
+
+_ROLE_CACHE: dict = {}        # user_id -> (role, expires_at)
+
+
+def _lookup_membership_role(user_id: str) -> Optional[str]:
+    from brain.core import db_pg
+    return db_pg.membership_role_for_user(user_id)
+
+
+def resolve_role(user_id: str, claimed: Optional[str] = None) -> str:
+    """The caller's role. A role set on the Clerk user wins (an operator can still
+    promote or demote by hand); otherwise it comes from the account membership
+    the server wrote at sign-up or invitation. Without this, every new account
+    owner was a plain "member" and could not sync, back-fill or manage anything
+    in their own workspace."""
+    import time as _time
+    if claimed:
+        return claimed
+    hit = _ROLE_CACHE.get(user_id)
+    if hit and hit[1] > _time.time():
+        role = hit[0]
+    else:
+        try:
+            role = _lookup_membership_role(user_id)
+        except Exception:
+            role = None
+        if role:
+            _ROLE_CACHE[user_id] = (role, _time.time() + _WS_CACHE_TTL)
+    return role if role in ("owner", "admin") else "member"
+
+
 def _identity_from_clerk_payload(payload: dict) -> Identity:
     user_id = payload.get("sub", "anonymous")
     email = payload.get("email", "")
@@ -175,15 +250,16 @@ def _identity_from_clerk_payload(payload: dict) -> Identity:
     # admin or read another team's facts.
     public_meta = payload.get("public_metadata") or {}
 
-    role = public_meta.get("role") or "member"
+    role = resolve_role(user_id, public_meta.get("role"))
     team_id = public_meta.get("team_id") or config.TEAM_ID
-    workspace_id = public_meta.get("workspace_id") or config.WORKSPACE_ID
-
     is_guest = (role == "guest")
     # Guests are always locked to the demo workspace, regardless of what the
     # JWT says — this is the server-side enforcement, not just a UI hint.
+    # Everyone else gets the workspace of their own account, and never the demo.
     if is_guest:
         workspace_id = GUEST_WORKSPACE
+    else:
+        workspace_id = resolve_workspace(user_id, public_meta.get("workspace_id"))
 
     principals = list({user_id, "everyone"})
     if email:
@@ -201,31 +277,6 @@ def _identity_from_clerk_payload(payload: dict) -> Identity:
         is_admin=(role in ("admin", "owner")),
         is_guest=is_guest,
     )
-
-
-def _derive_guest_secret() -> Optional[str]:
-    """Signing key for guest demo tokens.
-
-    Prefer an explicit GUEST_TOKEN_SECRET. Failing that, derive one from the
-    key-encryption key rather than disabling demo mode: the secret only signs
-    4-hour tokens scoped to the read-only demo workspace, so a separate variable
-    is a step that gets skipped, and skipping it turns "Try live demo" into a
-    503 with nothing to explain it. Deriving through HKDF keeps the two keys
-    independent -- the guest secret never reveals the encryption key.
-    """
-    explicit = _env("GUEST_TOKEN_SECRET")
-    if explicit:
-        return explicit
-    root = _env("BRAIN_KEY_ENCRYPTION_KEY")
-    if not root:
-        return None
-    import hashlib
-    return hashlib.blake2b(
-        root.encode(), digest_size=32, person=b"thread-guest-tok"
-    ).hexdigest()
-
-
-_GUEST_TOKEN_SECRET: Optional[str] = _derive_guest_secret()
 
 
 # ── Signed OAuth state ────────────────────────────────────────────────────────
@@ -277,53 +328,6 @@ def verify_state(token: str) -> dict:
         raise ValueError("state expired")
     return body
 
-# Prefix that identifies a guest self-signed token (never clashes with Clerk JWTs)
-_GUEST_TOKEN_PREFIX = "guest."
-
-
-def _decode_guest_token(token: str) -> Identity:
-    """Decode and verify a guest token issued by /api/guest-session."""
-    if not _GUEST_TOKEN_SECRET:
-        raise ValueError("Guest sessions are not configured on this server.")
-    import hmac
-    import hashlib
-    import base64
-    import json as _json
-
-    # Format: "guest.<b64-payload>.<hex-sig>"
-    try:
-        _, b64, sig = token.split(".", 2)
-    except ValueError:
-        raise ValueError("Malformed guest token")
-
-    payload_bytes = base64.urlsafe_b64decode(b64 + "==")
-    expected = hmac.new(
-        _GUEST_TOKEN_SECRET.encode(),
-        payload_bytes,
-        hashlib.sha256,
-    ).hexdigest()
-
-    if not hmac.compare_digest(expected, sig):
-        raise ValueError("Guest token signature invalid")
-
-    payload = _json.loads(payload_bytes)
-
-    import time as _time
-    if payload.get("exp", 0) < _time.time():
-        raise ValueError("Guest session has expired — click 'Try live demo' again.")
-
-    return Identity(
-        user_id=payload["sub"],
-        email="guest@demo",
-        workspace_id=GUEST_WORKSPACE,
-        team_id=payload.get("team_id", ""),
-        principals=["everyone"],
-        role="guest",
-        is_admin=False,
-        is_guest=True,
-    )
-
-
 def get_identity(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
 ) -> Identity:
@@ -350,17 +354,8 @@ def get_identity(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Guest session token — self-signed, no Clerk involved
-    if token.startswith(_GUEST_TOKEN_PREFIX):
-        try:
-            return _decode_guest_token(token)
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=str(e),
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
+    # Every non-dev request must carry a Clerk-issued token. There are no guest or
+    # demo sessions: a token that is not a valid Clerk JWT is rejected below.
     try:
         payload = _decode_clerk_jwt(token)
         return _identity_from_clerk_payload(payload)

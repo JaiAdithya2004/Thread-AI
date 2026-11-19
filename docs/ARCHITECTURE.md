@@ -323,10 +323,9 @@ Every request resolves to an `Identity` (user id, email, workspace, team, princi
 | Mode | When | How |
 |---|---|---|
 | **Clerk** | normal | Bearer token → verified RS256 against Clerk's JWKS (URL derived from the publishable key), expiry checked. Role, workspace and team come **only** from the token's `public_metadata` (writable by the backend alone). `unsafe_metadata`, which the signed-in user can edit from the browser, is ignored |
-| **Guest** | "Try live demo" | `POST /api/guest-session` mints `guest.<payload>.<HMAC-SHA256>` valid 4 hours, locked to workspace `ws_demo`, read-only. Signed with `GUEST_TOKEN_SECRET`, or a BLAKE2b key derived from `BRAIN_KEY_ENCRYPTION_KEY` |
 | **Dev bypass** | local only | Only when not production *and* (no Clerk secret *or* `BRAIN_DEV_BYPASS=true`). Server exits if it is on in production |
 
-`require_admin` (role admin/owner), `require_not_guest` (blocks every write and settings call for guests) and `require_non_demo_workspace` are dependency checks on endpoints. Guest limits: 100 questions per rolling 24 hours across all guests (enforced on the server, in process memory) and 20 token requests per minute per IP. A 20-question session cap is sent to the browser and enforced there only, not on the server.
+There is **no guest or demo mode**: the guest-token endpoint and its signing secret were removed, and a token that is not a valid Clerk JWT is rejected. A signed-in user's **workspace** is the one owned by their account (`accounts.workspace_id`, derived from the account id and resolved on the server, never taken from client-writable data), and is never the old demo workspace `ws_demo`. A user's **role** is the Clerk `public_metadata.role` if an operator set one, otherwise the role on their account membership (`owner`/`admin` are admins; `employee` is a member). `require_admin` (role admin/owner) and `require_non_demo_workspace` are dependency checks on endpoints.
 
 ### 7.2 Who can see a fact
 
@@ -584,6 +583,6 @@ Found by reading the code in a review on 2026-10-21. The first group is fixed in
 
 **Models:** `BRAIN_EXTRACT_MODEL`, `BRAIN_SYNTH_MODEL`, `BRAIN_LLM_MODEL`, `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GROK_API_KEY`, `MOONSHOT_API_KEY`, `BRAIN_EMBED_FALLBACK_MODEL`.
 
-**Behaviour:** `BRAIN_ENV`, `BRAIN_DEV_BYPASS`, `BRAIN_RECONCILE_MODE` (`enforce` default, `shadow`, `off`), `BRAIN_RELATED_THRESHOLD` (0.70), `BRAIN_RECONCILE_K` (5), `BRAIN_RERANK` (off), `BRAIN_PG_MAXCONN`, `BRAIN_PG_CONNECT_TIMEOUT`, `BRAIN_SKIP_STARTUP_MIGRATE`, `BRAIN_ASYNC_WORKER`, `BRAIN_LLM_TIMEOUT` (30 s), `GUEST_TOKEN_SECRET`, `GUEST_SESSION_CAP`, `GUEST_DAILY_CAP`, `ALLOWED_ORIGINS`, `APP_BASE_URL`, `BRAIN_PLATFORM_OWNER`.
+**Behaviour:** `BRAIN_ENV`, `BRAIN_DEV_BYPASS`, `BRAIN_RECONCILE_MODE` (`enforce` default, `shadow`, `off`), `BRAIN_RELATED_THRESHOLD` (0.70), `BRAIN_RECONCILE_K` (5), `BRAIN_RERANK` (off), `BRAIN_PG_MAXCONN`, `BRAIN_PG_CONNECT_TIMEOUT`, `BRAIN_SKIP_STARTUP_MIGRATE`, `BRAIN_ASYNC_WORKER`, `BRAIN_LLM_TIMEOUT` (30 s), `ALLOWED_ORIGINS`, `APP_BASE_URL`, `BRAIN_PLATFORM_OWNER`.
 
 **Optional services:** `REDIS_URL`, `SENTRY_DSN`, `LANGFUSE_*`, `SLACK_*`, `COMPOSIO_WEBHOOK_SECRET`.
